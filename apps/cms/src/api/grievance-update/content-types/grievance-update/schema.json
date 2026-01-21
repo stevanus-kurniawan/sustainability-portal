@@ -1,0 +1,31 @@
+{
+  "kind": "collectionType",
+  "collectionName": "grievance_updates",
+  "info": {
+    "singularName": "grievance-update",
+    "pluralName": "grievance-updates",
+    "displayName": "Grievance Update",
+    "description": "Updates and activity log for grievance cases"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "grievanceCase": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::grievance-case.grievance-case",
+      "inversedBy": "updates"
+    },
+    "message": {
+      "type": "text"
+    },
+    "createdByEmail": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "datetime"
+    }
+  }
+}

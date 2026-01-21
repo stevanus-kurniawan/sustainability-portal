@@ -1,0 +1,116 @@
+version: '3.8'
+
+# Production Docker Compose configuration
+# Extends the base docker-compose.yml with production-specific settings
+
+services:
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-slms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-slms}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  postgres-cms:
+    restart: always
+    environment:
+      POSTGRES_USER: ${CMS_DB_USER:-slms}
+      POSTGRES_PASSWORD: ${CMS_DB_PASSWORD}
+      POSTGRES_DB: ${CMS_DB_NAME:-slms_cms}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  redis:
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Web Public (Next.js)
+  web-public:
+    build:
+      context: ../apps/web-public
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_URL}
+      NEXT_PUBLIC_CMS_URL: ${CMS_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+      - cms
+
+  # API (NestJS)
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USER:-slms}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_NAME:-slms}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # CMS (Strapi)
+  cms:
+    build:
+      context: ../apps/cms
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 1337
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres-cms
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${CMS_DB_NAME:-slms_cms}
+      DATABASE_USERNAME: ${CMS_DB_USER:-slms}
+      DATABASE_PASSWORD: ${CMS_DB_PASSWORD}
+      ADMIN_JWT_SECRET: ${CMS_ADMIN_JWT_SECRET}
+      API_TOKEN_SALT: ${CMS_API_TOKEN_SALT}
+      TRANSFER_TOKEN_SALT: ${CMS_TRANSFER_TOKEN_SALT}
+      APP_KEYS: ${CMS_APP_KEYS}
+    ports:
+      - "1337:1337"
+    depends_on:
+      postgres-cms:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  postgres_cms_data:
+  redis_data:
+
+networks:
+  default:
+    name: slms-network-prod

@@ -1,0 +1,48 @@
+{
+  "kind": "collectionType",
+  "collectionName": "certifications",
+  "info": {
+    "singularName": "certification",
+    "pluralName": "certifications",
+    "displayName": "Certification",
+    "description": "Sustainability certifications management"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "issuer": {
+      "type": "string"
+    },
+    "certificateNo": {
+      "type": "string"
+    },
+    "issuedDate": {
+      "type": "date"
+    },
+    "expiryDate": {
+      "type": "date",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "ACTIVE",
+        "EXPIRING",
+        "EXPIRED"
+      ],
+      "default": "ACTIVE",
+      "required": true
+    },
+    "document": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::document.document"
+    }
+  }
+}

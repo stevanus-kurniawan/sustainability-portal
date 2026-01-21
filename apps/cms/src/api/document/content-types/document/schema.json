@@ -1,0 +1,80 @@
+{
+  "kind": "collectionType",
+  "collectionName": "documents",
+  "info": {
+    "singularName": "document",
+    "pluralName": "documents",
+    "displayName": "Document",
+    "description": "Central document repository for policies, certifications, licenses, etc."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "POLICY",
+        "CERTIFICATION",
+        "LICENSE",
+        "GRIEVANCE",
+        "TRACEABILITY",
+        "GENERAL"
+      ],
+      "required": true,
+      "default": "GENERAL"
+    },
+    "isPublic": {
+      "type": "boolean",
+      "default": false
+    },
+    "isPublished": {
+      "type": "boolean",
+      "default": false
+    },
+    "publishedDate": {
+      "type": "datetime"
+    },
+    "description": {
+      "type": "richtext"
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "documents"
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "documents"
+    },
+    "currentVersion": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::document-version.document-version"
+    },
+    "versions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::document-version.document-version",
+      "mappedBy": "document"
+    },
+    "attachment": {
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ],
+      "type": "media",
+      "multiple": true
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "kind": "collectionType",
+  "collectionName": "grievance_cases",
+  "info": {
+    "singularName": "grievance-case",
+    "pluralName": "grievance-cases",
+    "displayName": "Grievance Case",
+    "description": "Grievance mechanism case management"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "caseNo": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "channel": {
+      "type": "enumeration",
+      "enum": [
+        "WEB",
+        "EMAIL",
+        "HOTLINE",
+        "OTHER"
+      ],
+      "default": "WEB"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "OPEN",
+        "IN_REVIEW",
+        "CLOSED"
+      ],
+      "default": "OPEN",
+      "required": true
+    },
+    "category": {
+      "type": "string"
+    },
+    "receivedDate": {
+      "type": "date"
+    },
+    "ownerEmail": {
+      "type": "string"
+    },
+    "publicSummary": {
+      "type": "text"
+    },
+    "isPublicSummary": {
+      "type": "boolean",
+      "default": false
+    },
+    "updates": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::grievance-update.grievance-update",
+      "mappedBy": "grievanceCase"
+    }
+  }
+}

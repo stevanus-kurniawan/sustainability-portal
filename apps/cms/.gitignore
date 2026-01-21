@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build
+build/
+dist/
+
+# Cache
+.cache/
+.tmp/
+
+# Strapi
+public/uploads/
+
+# Environment
+.env
+
+# IDE
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

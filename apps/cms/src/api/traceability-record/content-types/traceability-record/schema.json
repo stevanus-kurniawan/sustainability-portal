@@ -1,0 +1,43 @@
+{
+  "kind": "collectionType",
+  "collectionName": "traceability_records",
+  "info": {
+    "singularName": "traceability-record",
+    "pluralName": "traceability-records",
+    "displayName": "Traceability Record",
+    "description": "Audit and traceability records for supply chain entities"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "entity": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::traceability-entity.traceability-entity",
+      "inversedBy": "records"
+    },
+    "recordType": {
+      "type": "enumeration",
+      "enum": [
+        "AUDIT",
+        "CHAIN_OF_CUSTODY",
+        "ORIGIN"
+      ],
+      "required": true
+    },
+    "recordDate": {
+      "type": "date"
+    },
+    "isPublic": {
+      "type": "boolean",
+      "default": false
+    },
+    "evidenceDocument": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::document.document"
+    }
+  }
+}

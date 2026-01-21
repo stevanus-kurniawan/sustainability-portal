@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "traceability_entities",
+  "info": {
+    "singularName": "traceability-entity",
+    "pluralName": "traceability-entities",
+    "displayName": "Traceability Entity",
+    "description": "Supply chain entities for traceability tracking"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "entityType": {
+      "type": "enumeration",
+      "enum": [
+        "FACTORY",
+        "SUPPLIER",
+        "SITE"
+      ],
+      "required": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "code": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "records": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::traceability-record.traceability-record",
+      "mappedBy": "entity"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "kind": "collectionType",
+  "collectionName": "licenses",
+  "info": {
+    "singularName": "license",
+    "pluralName": "licenses",
+    "displayName": "License",
+    "description": "Business and operational licenses management"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "authority": {
+      "type": "string"
+    },
+    "licenseNo": {
+      "type": "string"
+    },
+    "issuedDate": {
+      "type": "date"
+    },
+    "expiryDate": {
+      "type": "date",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "ACTIVE",
+        "EXPIRING",
+        "EXPIRED"
+      ],
+      "default": "ACTIVE",
+      "required": true
+    },
+    "document": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::document.document"
+    }
+  }
+}

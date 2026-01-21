@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.eslintcache
+.prettiercache
+*.tsbuildinfo
+
+# Strapi
+apps/cms/.tmp/
+apps/cms/.cache/
+apps/cms/public/uploads/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Misc
+.turbo/
+.vercel/
+.netlify/

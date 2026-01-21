@@ -1,0 +1,59 @@
+{
+  "kind": "collectionType",
+  "collectionName": "document_versions",
+  "info": {
+    "singularName": "document-version",
+    "pluralName": "document-versions",
+    "displayName": "Document Version",
+    "description": "Version history for documents with approval workflow"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "versionNo": {
+      "type": "integer",
+      "required": true,
+      "min": 1
+    },
+    "file": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": [
+        "files",
+        "images"
+      ]
+    },
+    "fileHash": {
+      "type": "string"
+    },
+    "approvalStatus": {
+      "type": "enumeration",
+      "enum": [
+        "DRAFT",
+        "IN_REVIEW",
+        "APPROVED",
+        "REJECTED"
+      ],
+      "default": "DRAFT",
+      "required": true
+    },
+    "validFrom": {
+      "type": "date"
+    },
+    "validTo": {
+      "type": "date"
+    },
+    "uploadedByEmail": {
+      "type": "string"
+    },
+    "document": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::document.document",
+      "inversedBy": "versions"
+    }
+  }
+}

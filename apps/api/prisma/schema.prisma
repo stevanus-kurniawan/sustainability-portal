@@ -1,0 +1,192 @@
+// Prisma Schema for SLMS API
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// User & Authentication Models
+// ==========================================
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  name      String
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  userRoles     UserRole[]
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// Role-Based Access Control (RBAC)
+// ==========================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ==========================================
+// Audit Logging
+// ==========================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userEmail  String   @map("user_email")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userEmail])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// Notification System
+// ==========================================
+
+model NotificationRule {
+  id               String                 @id @default(uuid())
+  objectType       NotificationObjectType @map("object_type")
+  daysBeforeExpiry Int                    @map("days_before_expiry")
+  channel          NotificationChannel
+  isActive         Boolean                @default(true) @map("is_active")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  @@unique([objectType, daysBeforeExpiry, channel])
+  @@index([objectType])
+  @@index([isActive])
+  @@map("notification_rules")
+}
+
+model Notification {
+  id             String                  @id @default(uuid())
+  userEmail      String                  @map("user_email")
+  title          String
+  message        String                  @db.Text
+  status         NotificationStatus      @default(SENT)
+  channel        NotificationChannel     @default(INAPP)
+  objectType     NotificationObjectType? @map("object_type")
+  objectId       String?                 @map("object_id")
+  daysBeforeExp  Int?                    @map("days_before_expiry")
+  idempotencyKey String?                 @unique @map("idempotency_key")
+  sentAt         DateTime?               @map("sent_at")
+  readAt         DateTime?               @map("read_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  @@index([userEmail])
+  @@index([status])
+  @@index([channel])
+  @@index([objectType])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ==========================================
+// Enums
+// ==========================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum NotificationObjectType {
+  CERTIFICATION
+  LICENSE
+  DOC_VERSION
+}
+
+enum NotificationChannel {
+  EMAIL
+  INAPP
+}
+
+enum NotificationStatus {
+  SENT
+  READ
+  FAILED
+}
