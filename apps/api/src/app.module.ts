@@ -10,7 +10,6 @@ import { CertificationsModule } from './modules/certifications/certifications.mo
 import { LicensesModule } from './modules/licenses/licenses.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
-import { StrapiModule } from './modules/strapi/strapi.module';
 import { NotificationEngineModule } from './modules/notification-engine/notification-engine.module';
 import { HealthModule } from './modules/health/health.module';
 import { QueuesModule } from './queues/queues.module';
@@ -52,7 +51,6 @@ import { validate } from './config/env.validation';
     LicensesModule,
     NotificationsModule,
     AuditLogsModule,
-    StrapiModule,
     NotificationEngineModule,
     HealthModule,
     QueuesModule,

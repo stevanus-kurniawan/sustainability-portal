@@ -164,6 +164,290 @@ model Notification {
 }
 
 // ==========================================
+// Content Models (Policies, Certifications, Licenses, Documents)
+// ==========================================
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  isPublic     Boolean  @default(true) @map("is_public")
+  displayOrder Int      @default(0)    @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt      @map("updated_at")
+  createdById  String?  @map("created_by_id")
+  updatedById  String?  @map("updated_by_id")
+
+  policies  Policy[]
+  documents Document[]
+
+  @@index([slug])
+  @@index([isPublic])
+  @@map("categories")
+}
+
+model Tag {
+  id          String            @id @default(uuid())
+  name        String
+  slug        String            @unique
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt      @map("updated_at")
+  createdById String?           @map("created_by_id")
+  updatedById String?           @map("updated_by_id")
+
+  policies       PoliciesOnTags[]
+  certifications CertificationsOnTags[]
+  licenses       LicensesOnTags[]
+  documents      DocumentsOnTags[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+model Policy {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  summary     String?
+  content     String?      @db.Text
+  status      PolicyStatus @default(DRAFT)
+  isPublic    Boolean      @default(true)  @map("is_public")
+  publishedAt DateTime?    @map("published_at")
+  categoryId  String?      @map("category_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt      @map("updated_at")
+  createdById String?      @map("created_by_id")
+  updatedById String?      @map("updated_by_id")
+
+  category Category?       @relation(fields: [categoryId], references: [id])
+  tags     PoliciesOnTags[]
+
+  @@index([status])
+  @@index([isPublic])
+  @@index([categoryId])
+  @@index([publishedAt])
+  @@map("policies")
+}
+
+model Document {
+  id           String         @id @default(uuid())
+  title        String
+  type         DocumentType
+  description  String?        @db.Text
+  status       DocumentStatus @default(DRAFT)
+  isPublic     Boolean        @default(false) @map("is_public")
+  isPublished  Boolean        @default(false) @map("is_published")
+  publishedAt  DateTime?      @map("published_at")
+  categoryId   String?        @map("category_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt      @map("updated_at")
+  createdById  String?        @map("created_by_id")
+  updatedById  String?        @map("updated_by_id")
+
+  category Category?       @relation(fields: [categoryId], references: [id])
+  versions DocumentVersion[]
+  tags     DocumentsOnTags[]
+
+  @@index([type])
+  @@index([status])
+  @@index([isPublic])
+  @@index([isPublished])
+  @@index([categoryId])
+  @@index([publishedAt])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  documentId    String   @map("document_id")
+  versionNumber Int      @map("version_number")
+  fileKey       String   @map("file_key")
+  originalName  String   @map("original_name")
+  mimeType      String   @map("mime_type")
+  size          Int
+  checksum      String?
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  uploadedById  String?  @map("uploaded_by_id")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+model Certification {
+  id             String              @id @default(uuid())
+  name           String
+  issuer         String
+  certificateNo  String              @map("certificate_no")
+  issuedDate     DateTime            @map("issued_date")
+  expiryDate     DateTime            @map("expiry_date")
+  status         CertificationStatus @default(ACTIVE)
+  organizationId String?             @map("organization_id")
+  documentId     String?             @map("document_id")
+  categoryId     String?             @map("category_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt      @map("updated_at")
+  createdById    String?             @map("created_by_id")
+  updatedById    String?             @map("updated_by_id")
+
+  document Document?              @relation(fields: [documentId], references: [id])
+  category Category?              @relation(fields: [categoryId], references: [id])
+  tags     CertificationsOnTags[]
+
+  @@index([status])
+  @@index([expiryDate])
+  @@index([categoryId])
+  @@map("certifications")
+}
+
+model License {
+  id             String        @id @default(uuid())
+  name           String
+  authority      String
+  licenseNo      String        @map("license_no")
+  issuedDate     DateTime      @map("issued_date")
+  expiryDate     DateTime      @map("expiry_date")
+  status         LicenseStatus @default(ACTIVE)
+  organizationId String?       @map("organization_id")
+  documentId     String?       @map("document_id")
+  categoryId     String?       @map("category_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt      @map("updated_at")
+  createdById    String?       @map("created_by_id")
+  updatedById    String?       @map("updated_by_id")
+
+  document Document?         @relation(fields: [documentId], references: [id])
+  category Category?         @relation(fields: [categoryId], references: [id])
+  tags     LicensesOnTags[]
+
+  @@index([status])
+  @@index([expiryDate])
+  @@index([categoryId])
+  @@map("licenses")
+}
+
+model PoliciesOnTags {
+  policyId String @map("policy_id")
+  tagId    String @map("tag_id")
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([policyId, tagId])
+  @@index([tagId])
+  @@map("policies_on_tags")
+}
+
+model CertificationsOnTags {
+  certificationId String @map("certification_id")
+  tagId           String @map("tag_id")
+
+  certification Certification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+  tag           Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([certificationId, tagId])
+  @@index([tagId])
+  @@map("certifications_on_tags")
+}
+
+model LicensesOnTags {
+  licenseId String @map("license_id")
+  tagId     String @map("tag_id")
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([licenseId, tagId])
+  @@index([tagId])
+  @@map("licenses_on_tags")
+}
+
+model DocumentsOnTags {
+  documentId String @map("document_id")
+  tagId      String @map("tag_id")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@index([tagId])
+  @@map("documents_on_tags")
+}
+
+model GrievanceCase {
+  id              String          @id @default(uuid())
+  caseNo          String          @unique @map("case_no")
+  status          GrievanceStatus @default(OPEN)
+  category        String?
+  receivedDate    DateTime        @map("received_date")
+  publicSummary   String?         @map("public_summary")
+  isPublicSummary Boolean         @default(false) @map("is_public_summary")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt      @map("updated_at")
+  createdById     String?         @map("created_by_id")
+  updatedById     String?         @map("updated_by_id")
+
+  updates GrievanceUpdate[]
+
+  @@index([status])
+  @@index([receivedDate])
+  @@index([isPublicSummary])
+  @@map("grievance_cases")
+}
+
+model GrievanceUpdate {
+  id              String   @id @default(uuid())
+  grievanceCaseId String   @map("grievance_case_id")
+  message         String   @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdById     String?  @map("created_by_id")
+
+  grievanceCase GrievanceCase @relation(fields: [grievanceCaseId], references: [id], onDelete: Cascade)
+
+  @@index([grievanceCaseId])
+  @@map("grievance_updates")
+}
+
+model TraceabilityEntity {
+  id         String                 @id @default(uuid())
+  entityType TraceabilityEntityType @map("entity_type")
+  name       String
+  code       String                 @unique
+  region     String?
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt      @map("updated_at")
+
+  records TraceabilityRecord[]
+
+  @@index([entityType])
+  @@map("traceability_entities")
+}
+
+model TraceabilityRecord {
+  id                 String                @id @default(uuid())
+  entityId           String                @map("entity_id")
+  recordType         TraceabilityRecordType @map("record_type")
+  recordDate         DateTime              @map("record_date")
+  isPublic           Boolean               @default(false) @map("is_public")
+  evidenceDocumentId String?               @map("evidence_document_id")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt      @map("updated_at")
+  createdById        String?               @map("created_by_id")
+  updatedById        String?               @map("updated_by_id")
+
+  entity           TraceabilityEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  evidenceDocument Document?          @relation(fields: [evidenceDocumentId], references: [id])
+
+  @@index([entityId])
+  @@index([recordType])
+  @@index([isPublic])
+  @@index([recordDate])
+  @@map("traceability_records")
+}
+
+// ==========================================
 // Enums
 // ==========================================
 
@@ -189,4 +473,58 @@ enum NotificationStatus {
   SENT
   READ
   FAILED
+}
+
+enum PolicyStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentType {
+  POLICY
+  CERTIFICATION
+  LICENSE
+  GRIEVANCE
+  TRACEABILITY
+  GENERAL
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CertificationStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  REVOKED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  SUSPENDED
+  REVOKED
+}
+
+enum GrievanceStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+}
+
+enum TraceabilityEntityType {
+  FACTORY
+  SUPPLIER
+  SITE
+}
+
+enum TraceabilityRecordType {
+  AUDIT
+  CHAIN_OF_CUSTODY
+  ORIGIN
 }
