@@ -1,0 +1,95 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Leaf } from 'lucide-react';
+import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
+import { adminLogin } from '@/lib/auth-api';
+
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await adminLogin(email.trim(), password);
+      router.push('/admin');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Admin login failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center py-16">
+      <div className="w-full max-w-md mx-auto px-4">
+        <div className="flex justify-center mb-6">
+          <div className="h-16 w-16 rounded-lg bg-primary flex items-center justify-center">
+            <Leaf className="h-8 w-8 text-primary-foreground" />
+          </div>
+        </div>
+        <h1 className="font-heading text-h2 text-charcoal text-center mb-2">Admin Portal</h1>
+        <p className="text-steel text-center mb-8 text-sm">
+          Sign in to manage certifications, policies, licenses, and other SLMS content.
+        </p>
+        <Card className="p-6">
+          <CardHeader>
+            <CardTitle>Admin sign in</CardTitle>
+            <p className="text-sm text-steel mt-1">Enter your admin email and password.</p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && <Alert variant="error">{error}</Alert>}
+              <div>
+                <label htmlFor="admin-email" className="label block mb-2 text-charcoal">
+                  Email
+                </label>
+                <Input
+                  id="admin-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="admin@energi-up.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label htmlFor="admin-password" className="label block mb-2 text-charcoal">
+                  Password
+                </label>
+                <Input
+                  id="admin-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full"
+                />
+              </div>
+              <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>
+                Admin Login
+              </Button>
+            </form>
+            <p className="mt-4 text-sm text-steel text-center">
+              <Link href="/" className="text-primary hover:underline">
+                Back to Public Portal
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

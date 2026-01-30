@@ -15,12 +15,13 @@ datasource db {
 // ==========================================
 
 model User {
-  id        String     @id @default(uuid())
-  email     String     @unique
-  name      String
-  status    UserStatus @default(ACTIVE)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String
+  passwordHash String?    @map("password_hash")
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
   userRoles     UserRole[]
   refreshTokens RefreshToken[]
@@ -28,6 +29,20 @@ model User {
   @@index([email])
   @@index([status])
   @@map("users")
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("ADMIN")
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([status])
+  @@map("admins")
 }
 
 model RefreshToken {
@@ -164,6 +179,230 @@ model Notification {
 }
 
 // ==========================================
+// SLMS Content Models
+// ==========================================
+
+model Category {
+  id           Int      @id @default(autoincrement())
+  name         String
+  slug         String   @unique
+  menuGroup    String?  @map("menu_group") // procedure | sustainability | compliance — used for public header submenus
+  isPublic     Boolean  @default(true) @map("is_public")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  documents Document[]
+
+  @@index([slug])
+  @@index([isPublic])
+  @@index([menuGroup])
+  @@map("categories")
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  documents DocumentTag[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+model Document {
+  id               Int       @id @default(autoincrement())
+  title            String
+  type             DocumentType
+  description      String?   @db.Text
+  externalLink     String?   @map("external_link")
+  isPublic         Boolean   @default(false) @map("is_public")
+  isPublished     Boolean   @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at")
+  categoryId      Int?      @map("category_id")
+  currentVersionId Int?     @unique @map("current_version_id")
+  createdById     String?   @map("created_by_id")
+  updatedById     String?   @map("updated_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  currentVersion  DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions        DocumentVersion[] @relation("DocumentVersions")
+  tags            DocumentTag[]
+  certifications  Certification[]
+  licenses        License[]
+  grievanceEvidence GrievanceCase[]    @relation("GrievanceEvidence")
+  traceabilityEvidence TraceabilityRecord[] @relation("TraceabilityEvidence")
+
+  @@index([type])
+  @@index([isPublic])
+  @@index([isPublished])
+  @@index([categoryId])
+  @@index([publishedAt])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id              Int      @id @default(autoincrement())
+  documentId      Int      @map("document_id")
+  versionNo       Int      @map("version_no")
+  fileKey         String?  @map("file_key")
+  fileName        String?  @map("file_name")
+  mimeType        String?  @map("mime_type")
+  fileSize        Int?     @map("file_size")
+  approvalStatus  String   @default("DRAFT") @map("approval_status")
+  validFrom       DateTime? @map("valid_from")
+  validTo         DateTime? @map("valid_to")
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  document        Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  documentCurrent Document?  @relation("CurrentVersion")
+
+  @@unique([documentId, versionNo])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+model DocumentTag {
+  documentId Int @map("document_id")
+  tagId      Int @map("tag_id")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@index([documentId])
+  @@index([tagId])
+  @@map("document_tags")
+}
+
+model Certification {
+  id            Int                 @id @default(autoincrement())
+  name          String
+  issuer        String?
+  certificateNo String?             @map("certificate_no")
+  issuedDate    DateTime?           @map("issued_date")
+  expiryDate    DateTime?           @map("expiry_date")
+  status        CertificationStatus @default(ACTIVE)
+  documentId    Int?                @map("document_id")
+  externalLink  String?             @map("external_link")
+  createdById   String?             @map("created_by_id")
+  updatedById   String?             @map("updated_by_id")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([documentId])
+  @@index([expiryDate])
+  @@map("certifications")
+}
+
+model License {
+  id           Int           @id @default(autoincrement())
+  name         String
+  authority    String?
+  licenseNo    String?       @map("license_no")
+  issuedDate   DateTime?     @map("issued_date")
+  expiryDate   DateTime?     @map("expiry_date")
+  status       LicenseStatus @default(ACTIVE)
+  documentId   Int?          @map("document_id")
+  externalLink String?       @map("external_link")
+  createdById  String?       @map("created_by_id")
+  updatedById  String?       @map("updated_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([documentId])
+  @@index([expiryDate])
+  @@map("licenses")
+}
+
+model GrievanceCase {
+  id                  Int              @id @default(autoincrement())
+  caseNo              String           @unique @map("case_no")
+  status              GrievanceStatus  @default(OPEN)
+  category            String?
+  receivedDate        DateTime         @map("received_date")
+  publicSummary       String?          @db.Text @map("public_summary")
+  evidenceDocumentId  Int?             @map("evidence_document_id")
+  externalLink        String?          @map("external_link")
+  createdById         String?          @map("created_by_id")
+  updatedById         String?          @map("updated_by_id")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  evidenceDocument Document? @relation("GrievanceEvidence", fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
+  updates          GrievanceUpdate[]
+
+  @@index([status])
+  @@index([category])
+  @@index([receivedDate])
+  @@map("grievance_cases")
+}
+
+model GrievanceUpdate {
+  id              Int      @id @default(autoincrement())
+  grievanceCaseId Int      @map("grievance_case_id")
+  updateText      String   @db.Text @map("update_text")
+  createdById     String?  @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  grievanceCase GrievanceCase @relation(fields: [grievanceCaseId], references: [id], onDelete: Cascade)
+
+  @@index([grievanceCaseId])
+  @@map("grievance_updates")
+}
+
+model TraceabilityEntity {
+  id          Int                     @id @default(autoincrement())
+  entityType  TraceabilityEntityType  @map("entity_type")
+  name        String
+  code        String?
+  region      String?
+  createdById String?                 @map("created_by_id")
+  updatedById String?                 @map("updated_by_id")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  records TraceabilityRecord[]
+
+  @@index([entityType])
+  @@index([name])
+  @@map("traceability_entities")
+}
+
+model TraceabilityRecord {
+  id                 Int                     @id @default(autoincrement())
+  entityId           Int                     @map("entity_id")
+  recordType         TraceabilityRecordType  @map("record_type")
+  recordDate         DateTime                @map("record_date")
+  isPublic           Boolean                 @default(true) @map("is_public")
+  evidenceDocumentId Int?                    @map("evidence_document_id")
+  createdById        String?                 @map("created_by_id")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+
+  entity           TraceabilityEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  evidenceDocument Document?          @relation("TraceabilityEvidence", fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([entityId])
+  @@index([recordType])
+  @@index([recordDate])
+  @@index([isPublic])
+  @@map("traceability_records")
+}
+
+// ==========================================
 // Enums
 // ==========================================
 
@@ -189,4 +428,43 @@ enum NotificationStatus {
   SENT
   READ
   FAILED
+}
+
+enum DocumentType {
+  POLICY
+  CERTIFICATION
+  LICENSE
+  GRIEVANCE
+  TRACEABILITY
+  GENERAL
+}
+
+enum CertificationStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+}
+
+enum GrievanceStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+}
+
+enum TraceabilityEntityType {
+  FACTORY
+  SUPPLIER
+  SITE
+}
+
+enum TraceabilityRecordType {
+  AUDIT
+  CHAIN_OF_CUSTODY
+  ORIGIN
 }

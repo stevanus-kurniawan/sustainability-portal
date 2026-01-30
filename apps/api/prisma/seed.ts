@@ -4,8 +4,10 @@ import {
   NotificationObjectType,
   NotificationChannel,
 } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
+const SALT_ROUNDS = 10;
 
 // ==========================================
 // Seed Data Definitions
@@ -28,6 +30,98 @@ const ROLES = [
     name: 'PublicReader',
     description: 'Read-only access to public documents and information',
   },
+];
+
+// Default categories for public content
+const CATEGORIES = [
+  {
+    name: 'Policies',
+    slug: 'policies',
+    isPublic: true,
+    displayOrder: 1,
+  },
+  {
+    name: 'Certifications',
+    slug: 'certifications',
+    isPublic: true,
+    displayOrder: 2,
+  },
+  {
+    name: 'Licenses',
+    slug: 'licenses',
+    isPublic: true,
+    displayOrder: 3,
+  },
+  {
+    name: 'Grievance',
+    slug: 'grievance',
+    isPublic: true,
+    displayOrder: 4,
+  },
+  {
+    name: 'Traceability',
+    slug: 'traceability',
+    isPublic: true,
+    displayOrder: 5,
+  },
+  {
+    name: 'General',
+    slug: 'general',
+    isPublic: true,
+    displayOrder: 6,
+  },
+  // Content categories for admin document lists and public header (menuGroup for submenus)
+  {
+    name: 'SOP (Standard Operating Procedures)',
+    slug: 'sop',
+    menuGroup: 'procedure',
+    isPublic: true,
+    displayOrder: 7,
+  },
+  {
+    name: 'Form',
+    slug: 'form',
+    menuGroup: 'procedure',
+    isPublic: true,
+    displayOrder: 8,
+  },
+  {
+    name: 'Sustainability Report',
+    slug: 'sustainability-report',
+    menuGroup: 'sustainability',
+    isPublic: true,
+    displayOrder: 9,
+  },
+  {
+    name: 'National',
+    slug: 'national',
+    menuGroup: 'compliance',
+    isPublic: true,
+    displayOrder: 10,
+  },
+  {
+    name: 'International',
+    slug: 'international',
+    menuGroup: 'compliance',
+    isPublic: true,
+    displayOrder: 11,
+  },
+  {
+    name: 'Standard',
+    slug: 'standard',
+    menuGroup: 'compliance',
+    isPublic: true,
+    displayOrder: 12,
+  },
+];
+
+// Some common tags used for filtering in the public portal
+const TAGS = [
+  { name: 'Environmental', slug: 'environmental' },
+  { name: 'Social', slug: 'social' },
+  { name: 'Governance', slug: 'governance' },
+  { name: 'Certification', slug: 'certification' },
+  { name: 'License', slug: 'license' },
 ];
 
 // Permission domains
@@ -203,6 +297,41 @@ async function seedNotificationRules() {
   console.log('     - LICENSE: 90, 60, 30 days (EMAIL + INAPP)');
 }
 
+async function seedCategoriesAndTags() {
+  console.log('📚 Seeding categories and tags...');
+
+  for (const category of CATEGORIES) {
+    const c = category as { name: string; slug: string; menuGroup?: string; isPublic?: boolean; displayOrder?: number };
+    await prisma.category.upsert({
+      where: { slug: c.slug },
+      update: {
+        name: c.name,
+        menuGroup: c.menuGroup ?? undefined,
+        isPublic: c.isPublic ?? true,
+        displayOrder: c.displayOrder ?? 0,
+      },
+      create: {
+        name: c.name,
+        slug: c.slug,
+        menuGroup: c.menuGroup ?? undefined,
+        isPublic: c.isPublic ?? true,
+        displayOrder: c.displayOrder ?? 0,
+      },
+    });
+  }
+
+  for (const tag of TAGS) {
+    await prisma.tag.upsert({
+      where: { slug: tag.slug },
+      update: { name: tag.name },
+      create: tag,
+    });
+  }
+
+  console.log(`  ✅ Categories: ${CATEGORIES.length}`);
+  console.log(`  ✅ Tags: ${TAGS.length}`);
+}
+
 async function seedDefaultUsers() {
   console.log('👤 Seeding default users...');
 
@@ -274,6 +403,26 @@ async function seedDefaultUsers() {
   console.log(`  ✅ User: ${auditorUser.email} (Auditor)`);
 }
 
+async function seedDefaultAdmins() {
+  console.log('👤 Seeding default admins...');
+
+  const defaultPassword = process.env.ADMIN_SEED_PASSWORD || 'Admin123!';
+  const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
+
+  const admin = await prisma.admin.upsert({
+    where: { email: 'admin@energi-up.com' },
+    update: {},
+    create: {
+      email: 'admin@energi-up.com',
+      passwordHash,
+      role: 'ADMIN',
+      status: 'ACTIVE',
+    },
+  });
+
+  console.log(`  ✅ Admin: ${admin.email} (use ADMIN_SEED_PASSWORD env to set password, default: Admin123!)`);
+}
+
 // ==========================================
 // Main Seed Function
 // ==========================================
@@ -290,6 +439,8 @@ async function main() {
   await seedRolePermissions();
   await seedNotificationRules();
   await seedDefaultUsers();
+  await seedDefaultAdmins();
+  await seedCategoriesAndTags();
 
   console.log('');
   console.log('🎉 ====================================');
@@ -299,11 +450,15 @@ async function main() {
   console.log('📊 Summary:');
   console.log(`   - Roles: ${ROLES.length}`);
   console.log(`   - Permissions: ${PERMISSIONS.length}`);
+  console.log(`   - Categories: ${CATEGORIES.length}`);
+  console.log(`   - Tags: ${TAGS.length}`);
   console.log(`   - Notification Rules: ${NOTIFICATION_RULES.length}`);
   console.log('');
   console.log('👤 Default Users:');
   console.log('   - admin@slms.local (SustainabilityAdmin)');
   console.log('   - auditor@slms.local (Auditor)');
+  console.log('👤 Default Admins:');
+  console.log('   - admin@energi-up.com (ADMIN, password: Admin123! or ADMIN_SEED_PASSWORD)');
   console.log('');
 }
 

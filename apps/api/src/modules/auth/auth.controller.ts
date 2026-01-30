@@ -5,41 +5,65 @@ import {
   UseGuards,
   Get,
   Request,
+  Res,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+
+const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
+const COOKIE_MAX_AGE_SECONDS = 15 * 60; // 15 minutes
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'User registration (email must be @energi-up.com)' })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({ status: 201, description: 'Registration successful' })
+  @ApiResponse({ status: 400, description: 'Invalid email domain' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(
+      dto.fullName,
+      dto.email,
+      dto.password,
+    );
+    this.setUserCookie(res, result.accessToken);
+    return { user: result.user, expiresIn: result.expiresIn };
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'User login',
-    description:
-      'Login by email. For SSO integration, use OIDC callback endpoint. For development, this creates user if not exists (JIT provisioning).',
-  })
+  @ApiOperation({ summary: 'User login' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'User not found or inactive' })
-  async login(@Body() loginDto: LoginDto) {
-    // Validate or create user (JIT provisioning for SSO)
-    await this.authService.validateOrCreateUser(loginDto.email, loginDto.name);
-    return this.authService.loginByEmail(loginDto.email);
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(loginDto.email, loginDto.password);
+    this.setUserCookie(res, result.accessToken);
+    return { user: result.user, expiresIn: result.expiresIn };
   }
 
   @Post('refresh')
@@ -49,24 +73,33 @@ export class AuthController {
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
-  async refresh(@Body() refreshDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshDto.refreshToken);
+  async refresh(
+    @Body() refreshDto: RefreshTokenDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.refreshTokens(refreshDto.refreshToken);
+    this.setUserCookie(res, result.accessToken);
+    return { user: result.user, expiresIn: result.expiresIn };
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'User logout' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  async logout(@Request() req: any, @Body() body: { refreshToken?: string }) {
-    await this.authService.logout(req.user.id, body.refreshToken);
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async logout(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: { refreshToken?: string },
+  ) {
+    await this.authService.logout(req.user.id, body?.refreshToken);
+    this.clearUserCookie(res);
     return { message: 'Logged out successfully' };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile returned' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -76,7 +109,7 @@ export class AuthController {
     const permissions = new Set<string>();
 
     for (const userRole of user.userRoles || []) {
-      for (const rp of userRole.role.rolePermissions || []) {
+      for (const rp of userRole.role?.rolePermissions || []) {
         permissions.add(rp.permission.code);
       }
     }
@@ -90,5 +123,23 @@ export class AuthController {
       permissions: Array.from(permissions),
       createdAt: user.createdAt,
     };
+  }
+
+  private setUserCookie(res: Response, token: string): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE_SECONDS * 1000,
+      path: '/',
+    });
+  }
+
+  private clearUserCookie(res: Response): void {
+    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, {
+      httpOnly: true,
+      path: '/',
+    });
   }
 }

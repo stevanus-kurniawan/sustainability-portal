@@ -1,12 +1,21 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REGISTRATION_ALLOWED_DOMAIN } from './dto/register.dto';
 
 export interface JwtPayload {
   sub: string;
   email: string;
+  type: 'user';
   roles: string[];
   permissions: string[];
 }
@@ -24,6 +33,8 @@ export interface TokenResponse {
   };
 }
 
+const SALT_ROUNDS = 10;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -36,74 +47,86 @@ export class AuthService {
   ) {}
 
   /**
-   * Validate user by email (for SSO/OIDC integration)
-   * Creates user if not exists (JIT provisioning)
+   * Register a new user. Email must end with @energi-up.com.
    */
-  async validateOrCreateUser(email: string, name?: string): Promise<any> {
-    let user = await this.usersService.findByEmail(email);
+  async register(fullName: string, email: string, password: string): Promise<Omit<TokenResponse, 'refreshToken'>> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail.endsWith(REGISTRATION_ALLOWED_DOMAIN)) {
+      throw new BadRequestException(
+        'Only @energi-up.com email addresses are allowed to register.',
+      );
+    }
 
-    if (!user) {
-      // Just-In-Time user provisioning
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          name: name || email.split('@')[0],
-          status: 'ACTIVE',
-        },
-        include: {
-          userRoles: {
-            include: {
-              role: {
-                include: {
-                  rolePermissions: {
-                    include: {
-                      permission: true,
-                    },
-                  },
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        name: fullName.trim(),
+        passwordHash,
+        status: 'ACTIVE',
+      },
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: { permission: true },
                 },
               },
             },
           },
         },
+      },
+    });
+
+    const publicReaderRole = await this.prisma.role.findUnique({
+      where: { name: 'PublicReader' },
+    });
+    if (publicReaderRole) {
+      await this.prisma.userRole.create({
+        data: { userId: user.id, roleId: publicReaderRole.id },
       });
-
-      // Assign default PublicReader role
-      const publicReaderRole = await this.prisma.role.findUnique({
-        where: { name: 'PublicReader' },
-      });
-
-      if (publicReaderRole) {
-        await this.prisma.userRole.create({
-          data: {
-            userId: user.id,
-            roleId: publicReaderRole.id,
-          },
-        });
-      }
-
-      this.logger.log(`Created new user via JIT: ${email}`);
     }
 
-    return user;
+    const userWithRoles = await this.usersService.findById(user.id);
+    await this.logAudit(normalizedEmail, 'REGISTER', 'User', user.id);
+    return this.generateTokens(userWithRoles);
   }
 
   /**
-   * Login by email (for development/testing or SSO callback)
+   * Login with email and password. Returns tokens; controller sets cookie.
    */
-  async loginByEmail(email: string): Promise<TokenResponse> {
-    const user = await this.usersService.findByEmail(email);
+  async login(email: string, password: string): Promise<TokenResponse> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('User account is not active');
     }
 
-    // Log audit
-    await this.logAudit(email, 'LOGIN', 'User', user.id);
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    await this.logAudit(user.email, 'LOGIN', 'User', user.id);
     return this.generateTokens(user);
   }
 
@@ -112,12 +135,10 @@ export class AuthService {
    */
   async refreshTokens(refreshToken: string): Promise<TokenResponse> {
     try {
-      // Verify refresh token
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
       });
 
-      // Check if refresh token exists in database
       const storedToken = await this.prisma.refreshToken.findUnique({
         where: { token: refreshToken },
         include: {
@@ -128,9 +149,7 @@ export class AuthService {
                   role: {
                     include: {
                       rolePermissions: {
-                        include: {
-                          permission: true,
-                        },
+                        include: { permission: true },
                       },
                     },
                   },
@@ -145,12 +164,10 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // Delete old refresh token
       await this.prisma.refreshToken.delete({
         where: { id: storedToken.id },
       });
 
-      // Generate new tokens
       return this.generateTokens(storedToken.user);
     } catch (error) {
       this.logger.error(`Refresh token error: ${error.message}`);
@@ -159,45 +176,41 @@ export class AuthService {
   }
 
   /**
-   * Logout user (invalidate tokens)
+   * Logout user (invalidate refresh tokens). Controller clears cookie.
    */
   async logout(userId: string, refreshToken?: string): Promise<void> {
     const user = await this.usersService.findById(userId);
 
     if (refreshToken) {
-      // Delete specific refresh token
       await this.prisma.refreshToken.deleteMany({
         where: { token: refreshToken },
       });
     } else {
-      // Delete all refresh tokens for user
       await this.prisma.refreshToken.deleteMany({
         where: { userId },
       });
     }
 
-    // Log audit
     await this.logAudit(user.email, 'LOGOUT', 'User', userId);
   }
 
   /**
-   * Generate access and refresh tokens
+   * Generate access and refresh tokens for user
    */
   private async generateTokens(user: any): Promise<TokenResponse> {
     const roles = user.userRoles?.map((ur: any) => ur.role.name) || [];
     const permissions = new Set<string>();
-
     for (const userRole of user.userRoles || []) {
-      for (const rp of userRole.role.rolePermissions || []) {
+      for (const rp of userRole.role?.rolePermissions || []) {
         permissions.add(rp.permission.code);
       }
     }
-
     const permissionsList = Array.from(permissions);
 
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
+      type: 'user',
       roles,
       permissions: permissionsList,
     };
@@ -208,9 +221,8 @@ export class AuthService {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
     });
 
-    // Store refresh token in database
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -223,7 +235,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: 900, // 15 minutes in seconds
+      expiresIn: 900,
       user: {
         id: user.id,
         email: user.email,
@@ -238,6 +250,9 @@ export class AuthService {
    * Validate JWT payload and return user
    */
   async validateJwtPayload(payload: JwtPayload): Promise<any> {
+    if (payload.type !== 'user') {
+      throw new UnauthorizedException('Invalid token type');
+    }
     const user = await this.usersService.findById(payload.sub);
     if (!user || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('User not found or inactive');
@@ -245,9 +260,6 @@ export class AuthService {
     return user;
   }
 
-  /**
-   * Log audit entry
-   */
   private async logAudit(
     userEmail: string,
     action: string,

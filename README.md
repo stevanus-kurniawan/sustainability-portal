@@ -1,28 +1,26 @@
 # SLMS - Sustainability Certification and Licensing Management System
 
-A comprehensive monorepo for managing sustainability certifications and business licenses. Built with modern technologies including Next.js, NestJS, and Strapi.
+A comprehensive monorepo for managing sustainability certifications and business licenses. Built with modern technologies including Next.js and NestJS.
 
 ## 🏗️ Architecture
 
 ```
 slms/
 ├── apps/
-│   ├── web-public/     # Next.js 14 App Router - Public portal
-│   ├── api/            # NestJS - Backend API with Prisma
-│   └── cms/            # Strapi v4 - Content Management System
+│   ├── web/        # Next.js 14 App Router - Public + Admin portal
+│   └── api/        # NestJS - Backend API with Prisma
 ├── packages/
-│   └── shared/         # Shared types, DTOs, and constants
-└── infra/              # Docker Compose infrastructure
+│   └── shared/     # Shared types, DTOs, and constants
+└── infra/          # Docker Compose infrastructure
 ```
 
 ## 🌐 Service URLs
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Web Portal** | http://localhost:3000 | Public sustainability portal |
+| **Web Portal** | http://localhost:3000 | Public and admin sustainability portal |
 | **API Swagger** | http://localhost:3001/docs | API documentation |
 | **API Endpoint** | http://localhost:3001/api/v1 | REST API |
-| **Strapi Admin** | http://localhost:1337/admin | CMS admin panel |
 | **MinIO Console** | http://localhost:9001 | Object storage UI |
 | **Mailhog** | http://localhost:8025 | Email testing UI |
 
@@ -74,11 +72,8 @@ pnpm db:seed
 # API
 cp apps/api/env.example apps/api/.env
 
-# CMS (generate secrets for production)
-cp apps/cms/env.example apps/cms/.env
-
 # Web
-cp apps/web-public/env.example apps/web-public/.env.local
+cp apps/web/env.example apps/web/.env.local
 ```
 
 ### 6. Start Development
@@ -90,10 +85,7 @@ pnpm dev
 
 This starts:
 - **API** on http://localhost:3001
-- **CMS** on http://localhost:1337
 - **Web** on http://localhost:3000
-
-> ⚠️ **First time with Strapi?** Visit http://localhost:1337/admin to create your admin user.
 
 ## 📜 Available Commands
 
@@ -157,21 +149,13 @@ This starts:
 PORT=3001
 DATABASE_URL="postgresql://slms:slms@localhost:5544/slms?schema=public"
 JWT_SECRET=your-secret-key
-STRAPI_URL=http://localhost:1337
-STRAPI_API_TOKEN=your-strapi-api-token
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=slms-docs
 ```
 
-**CMS (`apps/cms/.env`):**
-```env
-PORT=1337
-DATABASE_HOST=localhost
-DATABASE_PORT=5544
-DATABASE_NAME=slms
-DATABASE_USERNAME=slms
-DATABASE_PASSWORD=slms
-```
-
-**Web (`apps/web-public/.env.local`):**
+**Web (`apps/web/.env.local`):**
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
 ```
@@ -258,29 +242,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3002/api/v1
    pnpm db:seed
    ```
 
-### Strapi Issues
+### Strapi / CMS
 
-1. **First-time setup:**
-   - Visit http://localhost:1337/admin
-   - Create admin user
-   - Go to Settings → API Tokens → Create new token
-   - Copy token to `apps/api/.env` as `STRAPI_API_TOKEN`
-
-2. **Strapi won't start:**
-   ```bash
-   # Clear Strapi cache
-   cd apps/cms
-   rm -rf .cache .tmp
-   pnpm develop
-   ```
-
-3. **Database schema mismatch:**
-   ```bash
-   # Run Strapi migrations
-   cd apps/cms
-   pnpm strapi database:migrate
-   ```
-
+Strapi CMS is no longer used. All content and admin features are served by the single Next.js app (`apps/web`) and the NestJS API (`apps/api`).
 ### Redis Connection Issues
 
 1. **Verify Redis is running:**
@@ -335,25 +299,12 @@ slms/
 │   │       │   ├── auth/       # JWT authentication
 │   │       │   ├── users/      # User management
 │   │       │   ├── roles/      # RBAC
-│   │       │   ├── strapi/     # Strapi client
 │   │       │   ├── notifications/
 │   │       │   ├── audit-logs/
 │   │       │   └── notification-engine/
 │   │       └── main.ts
 │   │
-│   ├── cms/                    # Strapi CMS
-│   │   ├── config/
-│   │   │   ├── database.ts     # PostgreSQL config
-│   │   │   └── plugins.ts      # S3/MinIO upload
-│   │   └── src/api/            # Content types
-│   │       ├── category/
-│   │       ├── document/
-│   │       ├── certification/
-│   │       ├── license/
-│   │       ├── grievance-case/
-│   │       └── traceability-*/
-│   │
-│   └── web-public/             # Next.js Portal
+│   └── web/                    # Next.js Portal (public + admin)
 │       └── src/
 │           ├── app/            # App Router pages
 │           │   ├── page.tsx          # Home

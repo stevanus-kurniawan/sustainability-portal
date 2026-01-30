@@ -3,14 +3,21 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { CertificationsModule } from './modules/certifications/certifications.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { GrievancesModule } from './modules/grievances/grievances.module';
 import { LicensesModule } from './modules/licenses/licenses.module';
+import { PublicModule } from './modules/public/public.module';
+import { TagsModule } from './modules/tags/tags.module';
+import { TraceabilityModule } from './modules/traceability/traceability.module';
+import { UploadModule } from './modules/upload/upload.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
-import { StrapiModule } from './modules/strapi/strapi.module';
 import { NotificationEngineModule } from './modules/notification-engine/notification-engine.module';
 import { HealthModule } from './modules/health/health.module';
 import { QueuesModule } from './queues/queues.module';
@@ -45,17 +52,25 @@ import { validate } from './config/env.validation';
 
     // Feature modules
     AuthModule,
+    AdminAuthModule,
     UsersModule,
     RolesModule,
     OrganizationsModule,
+    CategoriesModule,
+    TagsModule,
+    DocumentsModule,
     CertificationsModule,
     LicensesModule,
+    GrievancesModule,
+    TraceabilityModule,
+    PublicModule,
+    UploadModule,
     NotificationsModule,
     AuditLogsModule,
-    StrapiModule,
     NotificationEngineModule,
     HealthModule,
     QueuesModule,
   ],
 })
 export class AppModule {}
+

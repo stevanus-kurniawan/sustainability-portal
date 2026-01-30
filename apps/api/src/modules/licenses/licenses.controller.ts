@@ -1,27 +1,79 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { LicensesService } from './licenses.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-/**
- * LicensesController - API endpoints for license operations
- *
- * Note: Licenses CRUD is managed in Strapi CMS.
- * This controller handles notification rules and other API-specific features.
- */
 @ApiTags('licenses')
 @Controller('licenses')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @ApiBearerAuth('bearer')
 export class LicensesController {
   constructor(private readonly service: LicensesService) {}
 
   @Get('notification-rules')
-  @ApiOperation({
-    summary: 'Get license notification rules',
-    description: 'Returns active notification rules for license expiry',
-  })
   getNotificationRules() {
     return this.service.getNotificationRules();
+  }
+
+  @Get()
+  findAll(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.service.findAllAdmin({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+    });
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOneAdmin(id);
+  }
+
+  @Post()
+  create(
+    @Body()
+    body: {
+      name: string;
+      authority?: string;
+      licenseNo?: string;
+      issuedDate?: string;
+      expiryDate?: string;
+      documentId?: number;
+      externalLink?: string;
+    },
+  ) {
+    return this.service.create(body);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      name?: string;
+      authority?: string;
+      licenseNo?: string;
+      issuedDate?: string;
+      expiryDate?: string;
+      documentId?: number | null;
+      externalLink?: string | null;
+    },
+  ) {
+    return this.service.update(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
   }
 }

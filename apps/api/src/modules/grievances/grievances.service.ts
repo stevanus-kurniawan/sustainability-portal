@@ -1,0 +1,158 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { toStrapiLike } from '../../common/response';
+import { paginationMeta, wrapPaginated } from '../../common/response';
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+
+@Injectable()
+export class GrievancesService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAllPublic(params: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    category?: string;
+  }) {
+    const page = params.page ?? DEFAULT_PAGE;
+    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const where: Prisma.GrievanceCaseWhereInput = {};
+    if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
+    if (params.category) where.category = params.category;
+    const [items, total] = await Promise.all([
+      this.prisma.grievanceCase.findMany({
+        where,
+        orderBy: { receivedDate: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.grievanceCase.count({ where }),
+    ]);
+    const data = items.map((g) =>
+      toStrapiLike(g.id, {
+        caseNo: g.caseNo,
+        status: g.status,
+        category: g.category,
+        receivedDate: g.receivedDate.toISOString(),
+        publicSummary: g.publicSummary,
+        externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+      }),
+    );
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async findAllAdmin(params: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    category?: string;
+  }) {
+    const page = params.page ?? DEFAULT_PAGE;
+    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const where: Prisma.GrievanceCaseWhereInput = {};
+    if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
+    if (params.category) where.category = params.category;
+    const [items, total] = await Promise.all([
+      this.prisma.grievanceCase.findMany({
+        where,
+        orderBy: { receivedDate: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.grievanceCase.count({ where }),
+    ]);
+    const data = items.map((g) =>
+      toStrapiLike(g.id, {
+        caseNo: g.caseNo,
+        status: g.status,
+        category: g.category,
+        receivedDate: g.receivedDate.toISOString(),
+        publicSummary: g.publicSummary,
+        externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+      }),
+    );
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async findOneAdmin(id: number) {
+    const g = await this.prisma.grievanceCase.findUnique({ where: { id } });
+    if (!g) throw new NotFoundException('Grievance case not found');
+    return toStrapiLike(g.id, {
+      caseNo: g.caseNo,
+      status: g.status,
+      category: g.category,
+      receivedDate: g.receivedDate.toISOString(),
+      publicSummary: g.publicSummary,
+      externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+    });
+  }
+
+  async create(data: {
+    caseNo: string;
+    status?: string;
+    category?: string;
+    receivedDate: string;
+    publicSummary?: string;
+    evidenceDocumentId?: number;
+    externalLink?: string;
+    createdById?: string;
+  }) {
+    const g = await this.prisma.grievanceCase.create({
+      data: {
+        caseNo: data.caseNo,
+        status: (data.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED') ?? 'OPEN',
+        category: data.category,
+        receivedDate: new Date(data.receivedDate),
+        publicSummary: data.publicSummary,
+        evidenceDocumentId: data.evidenceDocumentId,
+        externalLink: data.externalLink,
+        createdById: data.createdById,
+        updatedById: data.createdById,
+      },
+    });
+    return toStrapiLike(g.id, {
+      caseNo: g.caseNo,
+      status: g.status,
+      category: g.category,
+      receivedDate: g.receivedDate.toISOString(),
+      publicSummary: g.publicSummary,
+      externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+    });
+  }
+
+  async update(
+    id: number,
+    data: {
+      status?: string;
+      category?: string;
+      publicSummary?: string;
+      evidenceDocumentId?: number | null;
+      externalLink?: string | null;
+      updatedById?: string;
+    },
+  ) {
+    const g = await this.prisma.grievanceCase.update({
+      where: { id },
+      data: {
+        ...data,
+        status: data.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED' | undefined,
+      },
+    });
+    return toStrapiLike(g.id, {
+      caseNo: g.caseNo,
+      status: g.status,
+      category: g.category,
+      receivedDate: g.receivedDate.toISOString(),
+      publicSummary: g.publicSummary,
+      externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+    });
+  }
+
+  async remove(id: number) {
+    await this.prisma.grievanceCase.delete({ where: { id } });
+    return { deleted: true };
+  }
+}

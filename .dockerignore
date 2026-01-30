@@ -1,0 +1,35 @@
+# Dependencies and build outputs
+node_modules
+**/node_modules
+.next
+**/.next
+out
+**/dist
+**/.turbo
+.turbo
+
+# Git and IDE
+.git
+.gitignore
+.cache
+*.log
+.env
+.env.*
+!.env.example
+!**/env.example
+
+# Test and coverage
+coverage
+**/coverage
+*.test.ts
+*.spec.ts
+__tests__
+**/__tests__
+
+# Docs and misc
+*.md
+!README.md
+.DS_Store
+
+# Infra (not needed inside API/Web images)
+infra

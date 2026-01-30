@@ -1,6 +1,5 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StrapiClientService } from '../strapi/strapi-client.service';
 import { EmailService } from './email.service';
 import {
   NotificationObjectType,
@@ -34,8 +33,6 @@ export class NotificationEngineService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(forwardRef(() => StrapiClientService))
-    private readonly strapiClient: StrapiClientService,
     private readonly emailService: EmailService,
   ) {}
 
@@ -305,51 +302,45 @@ export class NotificationEngineService {
   }
 
   /**
-   * Fetch certifications from Strapi
+   * Fetch certifications from Prisma
    */
   private async fetchCertifications(): Promise<ExpiringItem[]> {
     try {
-      const response = await this.strapiClient.get<any[]>('certifications', {
-        pagination: { pageSize: 1000 },
-        fields: ['id', 'name', 'expiryDate', 'status', 'issuer'],
+      const items = await this.prisma.certification.findMany({
+        where: { expiryDate: { not: null } },
+        select: { id: true, name: true, expiryDate: true, issuer: true },
       });
-
-      if (!response.data) return [];
-
-      return response.data.map((item: any) => ({
-        id: item.id,
-        name: item.attributes?.name || item.name || `Certification #${item.id}`,
-        expiryDate: item.attributes?.expiryDate || item.expiryDate,
-        status: item.attributes?.status || item.status,
-        issuer: item.attributes?.issuer || item.issuer,
+      return items.map((c) => ({
+        id: c.id,
+        name: c.name,
+        expiryDate: c.expiryDate?.toISOString() ?? '',
+        status: undefined,
+        issuer: c.issuer ?? undefined,
       }));
     } catch (error) {
-      this.logger.error('Failed to fetch certifications from Strapi:', error);
+      this.logger.error('Failed to fetch certifications:', error);
       return [];
     }
   }
 
   /**
-   * Fetch licenses from Strapi
+   * Fetch licenses from Prisma
    */
   private async fetchLicenses(): Promise<ExpiringItem[]> {
     try {
-      const response = await this.strapiClient.get<any[]>('licenses', {
-        pagination: { pageSize: 1000 },
-        fields: ['id', 'name', 'expiryDate', 'status', 'authority'],
+      const items = await this.prisma.license.findMany({
+        where: { expiryDate: { not: null } },
+        select: { id: true, name: true, expiryDate: true, authority: true },
       });
-
-      if (!response.data) return [];
-
-      return response.data.map((item: any) => ({
-        id: item.id,
-        name: item.attributes?.name || item.name || `License #${item.id}`,
-        expiryDate: item.attributes?.expiryDate || item.expiryDate,
-        status: item.attributes?.status || item.status,
-        authority: item.attributes?.authority || item.authority,
+      return items.map((c) => ({
+        id: c.id,
+        name: c.name,
+        expiryDate: c.expiryDate?.toISOString() ?? '',
+        status: undefined,
+        authority: c.authority ?? undefined,
       }));
     } catch (error) {
-      this.logger.error('Failed to fetch licenses from Strapi:', error);
+      this.logger.error('Failed to fetch licenses:', error);
       return [];
     }
   }
