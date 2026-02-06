@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { LicenseStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { mapDocumentToStrapi, type DocumentWithRelations } from '../../common/document-mapper';
+import { documentDataForResponse, type DocumentWithRelations } from '../../common/document-mapper';
 import { toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
 
@@ -13,7 +12,9 @@ const documentInclude = {
   currentVersion: true,
 } as const;
 
-function computeStatus(expiryDate: Date | null): LicenseStatus {
+type LicenseStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+
+function computeStatus(expiryDate: Date | null): LicenseStatusLiteral {
   if (!expiryDate) return 'ACTIVE';
   const now = new Date();
   const days = (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
@@ -79,24 +80,38 @@ export class LicensesService {
         status: computeStatus(c.expiryDate),
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         document: {
-          data: c.document ? mapDocumentToStrapi(c.document as unknown as DocumentWithRelations) : null,
+          data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
       }),
     );
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
   }
 
-  async findAllAdmin(params: { page?: number; pageSize?: number }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+  /** Public: licenses under a sub-content (category slug + sub-content slug). For License category with sub-contents. */
+  async findByCategorySlugAndSubSlugPublic(
+    categorySlug: string,
+    subSlug: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
+    const category = await this.prisma.category.findFirst({
+      where: { slug: categorySlug, isPublic: true, mode: 'WITH_SUBCONTENT' },
+    });
+    if (!category) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    const subContent = await this.prisma.subContent.findUnique({
+      where: { parentCategoryId_slug: { parentCategoryId: category.id, slug: subSlug } },
+    });
+    if (!subContent) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    const where = { subContentId: subContent.id };
     const [items, total] = await Promise.all([
       this.prisma.license.findMany({
+        where,
         include: { document: { include: documentInclude } },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { expiryDate: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.license.count(),
+      this.prisma.license.count({ where }),
     ]);
     const data = items.map((c) =>
       toStrapiLike(c.id, {
@@ -108,7 +123,74 @@ export class LicensesService {
         status: computeStatus(c.expiryDate),
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         document: {
-          data: c.document ? mapDocumentToStrapi(c.document as unknown as DocumentWithRelations) : null,
+          data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
+        },
+      }),
+    );
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async findAllAdmin(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+    subContentId?: number;
+  }) {
+    const page = params.page ?? DEFAULT_PAGE;
+    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const and: Array<Record<string, unknown>> = [];
+    if (params.subContentId != null) {
+      and.push({ subContentId: params.subContentId });
+    }
+    if (params.search) {
+      and.push({
+        OR: [
+          { name: { contains: params.search, mode: 'insensitive' } },
+          { authority: { contains: params.search, mode: 'insensitive' } },
+          { licenseNo: { contains: params.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (params.status) {
+      const now = new Date();
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (params.status === 'EXPIRED') and.push({ expiryDate: { lt: now } });
+      else if (params.status === 'EXPIRING') and.push({ expiryDate: { gte: now, lte: in30 } });
+      else if (params.status === 'ACTIVE')
+        and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
+    }
+    const where = (and.length ? { AND: and } : {}) as any;
+    const [items, total] = await Promise.all([
+      this.prisma.license.findMany({
+        where,
+        include: { document: { include: documentInclude }, subContent: true },
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.license.count({ where }),
+    ]);
+    const data = items.map((c) =>
+      toStrapiLike(c.id, {
+        name: c.name,
+        authority: c.authority,
+        licenseNo: c.licenseNo,
+        issuedDate: c.issuedDate?.toISOString() ?? null,
+        expiryDate: c.expiryDate?.toISOString() ?? null,
+        status: computeStatus(c.expiryDate),
+        externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+        subContent: c.subContent
+          ? {
+              data: toStrapiLike(c.subContent.id, {
+                title: c.subContent.title,
+                slug: c.subContent.slug,
+                parentCategoryId: c.subContent.parentCategoryId,
+              }),
+            }
+          : { data: null },
+        document: {
+          data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
       }),
     );
@@ -118,7 +200,7 @@ export class LicensesService {
   async findOneAdmin(id: number) {
     const c = await this.prisma.license.findUnique({
       where: { id },
-      include: { document: { include: documentInclude } },
+      include: { document: { include: documentInclude }, subContent: true },
     });
     if (!c) throw new NotFoundException('License not found');
     return toStrapiLike(c.id, {
@@ -129,8 +211,11 @@ export class LicensesService {
       expiryDate: c.expiryDate?.toISOString() ?? null,
       status: computeStatus(c.expiryDate),
       externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+      subContent: c.subContent
+        ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
+        : { data: null },
       document: {
-        data: c.document ? mapDocumentToStrapi(c.document as unknown as DocumentWithRelations) : null,
+        data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
       },
     });
   }
@@ -142,6 +227,7 @@ export class LicensesService {
     issuedDate?: string;
     expiryDate?: string;
     documentId?: number;
+    subContentId?: number | null;
     externalLink?: string;
     createdById?: string;
   }) {
@@ -153,11 +239,12 @@ export class LicensesService {
         issuedDate: data.issuedDate ? new Date(data.issuedDate) : null,
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
         documentId: data.documentId,
+        subContentId: data.subContentId ?? undefined,
         externalLink: data.externalLink,
         createdById: data.createdById,
         updatedById: data.createdById,
       },
-      include: { document: { include: documentInclude } },
+      include: { document: { include: documentInclude }, subContent: true },
     });
     return toStrapiLike(c.id, {
       name: c.name,
@@ -167,8 +254,11 @@ export class LicensesService {
       expiryDate: c.expiryDate?.toISOString() ?? null,
       status: computeStatus(c.expiryDate),
       externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+      subContent: c.subContent
+        ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
+        : { data: null },
       document: {
-        data: c.document ? mapDocumentToStrapi(c.document as unknown as DocumentWithRelations) : null,
+        data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
       },
     });
   }
@@ -182,6 +272,7 @@ export class LicensesService {
       issuedDate?: string;
       expiryDate?: string;
       documentId?: number | null;
+      subContentId?: number | null;
       externalLink?: string | null;
       updatedById?: string;
     },
@@ -193,7 +284,7 @@ export class LicensesService {
         issuedDate: data.issuedDate ? new Date(data.issuedDate) : undefined,
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
       },
-      include: { document: { include: documentInclude } },
+      include: { document: { include: documentInclude }, subContent: true },
     });
     return toStrapiLike(c.id, {
       name: c.name,
@@ -203,8 +294,11 @@ export class LicensesService {
       expiryDate: c.expiryDate?.toISOString() ?? null,
       status: computeStatus(c.expiryDate),
       externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+      subContent: c.subContent
+        ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
+        : { data: null },
       document: {
-        data: c.document ? mapDocumentToStrapi(c.document as unknown as DocumentWithRelations) : null,
+        data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
       },
     });
   }
@@ -221,7 +315,7 @@ export class LicensesService {
         action,
         entityType: 'LICENSE',
         entityId: licenseId,
-        metadata: metadata as Prisma.InputJsonValue | undefined,
+        metadata: metadata as any,
       },
     });
   }

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Leaf } from 'lucide-react';
+import Image from 'next/image';
+import { Eye, EyeOff } from 'lucide-react';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
 import { userLogin } from '@/lib/auth-api';
 
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +24,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await userLogin(email.trim(), password);
-      router.push('/home');
+      router.push('/');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -35,9 +37,15 @@ export default function LoginPage() {
     <div className="min-h-[60vh] flex items-center justify-center py-16">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="flex justify-center mb-6">
-          <div className="h-16 w-16 rounded-lg bg-primary flex items-center justify-center">
-            <Leaf className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Sustainability portal logo"
+            width={64}
+            height={64}
+            className="h-16 w-16 object-contain"
+            priority
+            unoptimized
+          />
         </div>
         <Card className="p-6">
           <CardHeader>
@@ -56,7 +64,25 @@ export default function LoginPage() {
               </div>
               <div>
                 <label htmlFor="password" className="label block mb-2 text-charcoal">Password</label>
-                <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full" />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-steel hover:text-charcoal"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>Login</Button>
             </form>

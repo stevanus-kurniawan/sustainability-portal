@@ -15,7 +15,23 @@ interface CertificationResponse {
     certificateNo: string | null;
     issuedDate: string | null;
     expiryDate: string | null;
-    document?: { data: { id: number } | null };
+    document?: {
+      data: {
+        id: number;
+        attributes?: {
+          currentVersion?: {
+            data?: {
+              attributes?: {
+                file?: { data?: { attributes?: { url?: string } } };
+              };
+            };
+          };
+        };
+      } | null;
+    };
+    categoryId?: number | null;
+    subContentId?: number | null;
+    externalLink?: string | null;
   };
 }
 
@@ -61,6 +77,10 @@ export default function EditCertificationPage() {
     };
   }, [id, router]);
 
+  const docData = cert?.attributes?.document?.data;
+  const fileUrl =
+    docData?.attributes?.currentVersion?.data?.attributes?.file?.data?.attributes?.url ?? null;
+
   const initialData: CertificationFormData | undefined = cert
     ? {
         name: cert.attributes.name,
@@ -68,8 +88,11 @@ export default function EditCertificationPage() {
         certificateNo: cert.attributes.certificateNo ?? '',
         issuedDate: cert.attributes.issuedDate ?? '',
         expiryDate: cert.attributes.expiryDate ?? '',
-        documentId: cert.attributes.document?.data?.id ?? null,
-        externalLink: (cert.attributes as { externalLink?: string | null }).externalLink ?? '',
+        documentId: docData?.id ?? null,
+        externalLink: cert.attributes.externalLink ?? '',
+        categoryId: cert.attributes.categoryId ?? null,
+        subContentId: cert.attributes.subContentId ?? null,
+        currentFileUrl: fileUrl,
       }
     : undefined;
 

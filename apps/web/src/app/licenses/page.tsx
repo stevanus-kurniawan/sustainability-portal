@@ -2,7 +2,7 @@ import { ScrollText, Building2, FileCheck } from 'lucide-react';
 import { Suspense } from 'react';
 
 import { PageHeader } from '@/components/PageHeader';
-import { Card, CardContent, StatusBadge, EmptyState, CardSkeleton } from '@/components/ui';
+import { Card, CardContent, EmptyState, CardSkeleton } from '@/components/ui';
 import { getLicenses, type License } from '@/lib/api';
 
 export const metadata = {
@@ -94,7 +94,6 @@ function LicenseCard({
           <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center">
             <ScrollText className="h-6 w-6 text-warning" />
           </div>
-          <StatusBadge status={license.attributes.status} />
         </div>
         <h3 className="font-heading text-lg font-semibold text-charcoal mb-2">
           {license.attributes.name}
@@ -113,31 +112,68 @@ function LicenseCard({
             </div>
           )}
         </div>
-        <div className="mt-4 pt-4 border-t border-border-light">
-          <div className="flex justify-between text-sm">
-            <div>
-              <span className="text-steel">Issued</span>
-              <p className="font-medium text-charcoal">{formatDate(license.attributes.issuedDate)}</p>
+        {(() => {
+          const hasIssued =
+            license.attributes.issuedDate &&
+            !Number.isNaN(new Date(license.attributes.issuedDate).getTime());
+          const hasExpiry =
+            license.attributes.expiryDate &&
+            !Number.isNaN(new Date(license.attributes.expiryDate).getTime());
+          if (!hasIssued && !hasExpiry) return null;
+          return (
+            <div className="mt-4 pt-4 border-t border-border-light">
+              <div className="flex justify-between text-sm">
+                {hasIssued && (
+                  <div>
+                    <span className="text-steel">Issued</span>
+                    <p className="font-medium text-charcoal">
+                      {formatDate(license.attributes.issuedDate)}
+                    </p>
+                  </div>
+                )}
+                {hasExpiry && (
+                  <div className={hasIssued ? 'text-right' : ''}>
+                    <span className="text-steel">Expires</span>
+                    <p className="font-medium text-charcoal">
+                      {formatDate(license.attributes.expiryDate)}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-steel">Expires</span>
-              <p className="font-medium text-charcoal">{formatDate(license.attributes.expiryDate)}</p>
+          );
+        })()}
+        {(() => {
+          const fileUrl =
+            license.attributes.document?.data?.attributes?.currentVersion?.data?.attributes?.file
+              ?.data?.attributes?.url;
+          const externalLink = (license.attributes as { externalLink?: string | null }).externalLink;
+          if (!fileUrl && !externalLink) return null;
+          return (
+            <div className="mt-4 space-y-2">
+              {fileUrl && (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-outline text-sm w-full justify-center"
+                >
+                  View License
+                </a>
+              )}
+              {externalLink && (
+                <a
+                  href={externalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-sm text-primary hover:underline text-center"
+                >
+                  Learn more →
+                </a>
+              )}
             </div>
-          </div>
-        </div>
-        {license.attributes.document?.data?.attributes?.currentVersion?.data?.attributes?.file?.data && (
-          <a
-            href={
-              license.attributes.document.data.attributes.currentVersion.data.attributes.file.data.attributes
-                .url
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-outline text-sm mt-4 w-full justify-center"
-          >
-            View License
-          </a>
-        )}
+          );
+        })()}
       </CardContent>
     </Card>
   );
@@ -158,7 +194,7 @@ export default function LicensesPage() {
     <div>
       <PageHeader
         title="Licenses"
-        description="View our operating licenses, regulatory approvals, and government permits for sustainable operations."
+        description="Operating licenses, regulatory approvals, and government permits that support our sustainable operations. This page lists current and past licenses with their status, validity periods, and links to view or download supporting documents where available."
       />
       <section className="py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

@@ -14,6 +14,20 @@ export interface AdminJwtPayload {
 const SALT_ROUNDS = 10;
 const ADMIN_ACCESS_TOKEN_COOKIE = 'admin_access_token';
 
+/** Parse JWT expiry string (e.g. "15m", "1h", "7d") to seconds. */
+function parseExpiryToSeconds(expiresIn: string): number {
+  const match = /^(\d+)(m|h|d|s)$/.exec(expiresIn.trim().toLowerCase());
+  if (!match) return 15 * 60; // default 15 min
+  const n = parseInt(match[1], 10);
+  switch (match[2]) {
+    case 's': return n;
+    case 'm': return n * 60;
+    case 'h': return n * 3600;
+    case 'd': return n * 86400;
+    default: return 15 * 60;
+  }
+}
+
 @Injectable()
 export class AdminAuthService {
   private readonly logger = new Logger(AdminAuthService.name);
@@ -47,17 +61,18 @@ export class AdminAuthService {
     };
 
     const secret = this.configService.get<string>('JWT_ADMIN_SECRET') ?? this.configService.get<string>('jwt.adminSecret');
-    const expiresIn = this.configService.get<string>('JWT_ADMIN_EXPIRES_IN') ?? this.configService.get<string>('jwt.adminExpiresIn') ?? '15m';
+    const expiresInStr = this.configService.get<string>('JWT_ADMIN_EXPIRES_IN') ?? this.configService.get<string>('jwt.adminExpiresIn') ?? '1h';
 
     const accessToken = this.jwtService.sign(payload, {
       secret,
-      expiresIn,
+      expiresIn: expiresInStr,
     });
 
+    const expiresInSeconds = parseExpiryToSeconds(expiresInStr);
     return {
       accessToken,
       admin: { id: admin.id, email: admin.email, role: admin.role },
-      expiresIn: 900,
+      expiresIn: expiresInSeconds,
     };
   }
 

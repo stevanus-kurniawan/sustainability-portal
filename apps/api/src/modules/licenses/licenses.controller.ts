@@ -27,10 +27,19 @@ export class LicensesController {
   }
 
   @Get()
-  findAll(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('subContentId') subContentId?: string,
+  ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search: search || undefined,
+      status: status || undefined,
+      subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
     });
   }
 
@@ -49,6 +58,7 @@ export class LicensesController {
       issuedDate?: string;
       expiryDate?: string;
       documentId?: number;
+      subContentId?: number | null;
       externalLink?: string;
     },
   ) {
@@ -66,6 +76,7 @@ export class LicensesController {
       issuedDate?: string;
       expiryDate?: string;
       documentId?: number | null;
+      subContentId?: number | null;
       externalLink?: string | null;
     },
   ) {

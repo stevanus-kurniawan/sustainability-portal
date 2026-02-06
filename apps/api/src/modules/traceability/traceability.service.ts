@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { mapDocumentToStrapi, type DocumentWithRelations } from '../../common/document-mapper';
+import { documentDataForResponse, type DocumentWithRelations } from '../../common/document-mapper';
 import { toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
 
@@ -15,6 +15,8 @@ const documentInclude = {
 
 @Injectable()
 export class TraceabilityService {
+  private readonly prismaClient = new PrismaClient();
+
   constructor(private prisma: PrismaService) {}
 
   async findEntitiesPublic(params: {
@@ -25,7 +27,7 @@ export class TraceabilityService {
   }) {
     const page = params.page ?? DEFAULT_PAGE;
     const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.TraceabilityEntityWhereInput = {};
+    const where: Record<string, unknown> = {};
     if (params.entityType) where.entityType = params.entityType as 'FACTORY' | 'SUPPLIER' | 'SITE';
     if (params.search) {
       where.OR = [
@@ -43,7 +45,13 @@ export class TraceabilityService {
       }),
       this.prisma.traceabilityEntity.count({ where }),
     ]);
-    const data = items.map((e) =>
+    const data = items.map((e: {
+      id: number;
+      entityType: string;
+      name: string;
+      code: string | null;
+      region: string | null;
+    }) =>
       toStrapiLike(e.id, {
         entityType: e.entityType,
         name: e.name,
@@ -76,7 +84,7 @@ export class TraceabilityService {
         ],
       });
     }
-    const where: Prisma.TraceabilityRecordWhereInput = {
+    const where: Record<string, unknown> = {
       isPublic: true,
       ...(entityAnd.length ? { entity: { AND: entityAnd } } : {}),
     };
@@ -94,7 +102,14 @@ export class TraceabilityService {
       }),
       this.prisma.traceabilityRecord.count({ where }),
     ]);
-    const data = items.map((r) =>
+    const data = items.map((r: {
+      id: number;
+      recordType: string;
+      recordDate: Date;
+      isPublic: boolean;
+      entity: { id: number; entityType: string; name: string; code: string | null; region: string | null };
+      evidenceDocument: unknown;
+    }) =>
       toStrapiLike(r.id, {
         recordType: r.recordType,
         recordDate: r.recordDate.toISOString(),
@@ -108,9 +123,7 @@ export class TraceabilityService {
           }),
         },
         evidenceDocument: {
-          data: r.evidenceDocument
-            ? mapDocumentToStrapi(r.evidenceDocument as unknown as DocumentWithRelations)
-            : null,
+          data: documentDataForResponse(r.evidenceDocument as unknown as DocumentWithRelations),
         },
       }),
     );
@@ -128,7 +141,13 @@ export class TraceabilityService {
       }),
       this.prisma.traceabilityEntity.count(),
     ]);
-    const data = items.map((e) =>
+    const data = items.map((e: {
+      id: number;
+      entityType: string;
+      name: string;
+      code: string | null;
+      region: string | null;
+    }) =>
       toStrapiLike(e.id, {
         entityType: e.entityType,
         name: e.name,
@@ -208,7 +227,14 @@ export class TraceabilityService {
       }),
       this.prisma.traceabilityRecord.count(),
     ]);
-    const data = items.map((r) =>
+    const data = items.map((r: {
+      id: number;
+      recordType: string;
+      recordDate: Date;
+      isPublic: boolean;
+      entity: { id: number; entityType: string; name: string; code: string | null; region: string | null };
+      evidenceDocument: unknown;
+    }) =>
       toStrapiLike(r.id, {
         recordType: r.recordType,
         recordDate: r.recordDate.toISOString(),
@@ -222,9 +248,7 @@ export class TraceabilityService {
           }),
         },
         evidenceDocument: {
-          data: r.evidenceDocument
-            ? mapDocumentToStrapi(r.evidenceDocument as unknown as DocumentWithRelations)
-            : null,
+          data: documentDataForResponse(r.evidenceDocument as unknown as DocumentWithRelations),
         },
       }),
     );
@@ -262,11 +286,9 @@ export class TraceabilityService {
           region: r.entity.region,
         }),
       },
-      evidenceDocument: {
-        data: r.evidenceDocument
-          ? mapDocumentToStrapi(r.evidenceDocument as unknown as DocumentWithRelations)
-          : null,
-      },
+evidenceDocument: {
+          data: documentDataForResponse(r.evidenceDocument as unknown as DocumentWithRelations),
+        },
     });
   }
 

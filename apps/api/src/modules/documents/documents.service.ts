@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import { DocumentType, Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { mapDocumentToStrapi, type DocumentWithRelations } from '../../common/document-mapper';
 import { paginationMeta, wrapPaginated } from '../../common/response';
@@ -13,22 +12,24 @@ export class DocumentsService {
 
   private includeForPublic = {
     category: true,
+    subContent: true,
     tags: { include: { tag: true } },
     currentVersion: true,
   } as const;
 
+  private notDeleted = { isDeleted: false } as const;
+
   async findPoliciesPublic(page = DEFAULT_PAGE, pageSize = DEFAULT_PAGE_SIZE) {
+    const where = { type: 'POLICY' as const, isPublic: true, isPublished: true, ...this.notDeleted };
     const [items, total] = await Promise.all([
       this.prisma.document.findMany({
-        where: { type: 'POLICY', isPublic: true, isPublished: true },
+        where,
         include: this.includeForPublic,
         orderBy: { publishedAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.document.count({
-        where: { type: 'POLICY', isPublic: true, isPublished: true },
-      }),
+      this.prisma.document.count({ where }),
     ]);
     const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
@@ -46,15 +47,17 @@ export class DocumentsService {
   }) {
     const page = params.page ?? DEFAULT_PAGE;
     const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.DocumentWhereInput = {
+    const where: Record<string, unknown> = {
       isPublic: true,
       isPublished: true,
+      ...this.notDeleted,
     };
     if (params.category) {
       where.category = { slug: params.category };
+      where.subContentId = null; // DIRECT mode: only documents not under a sub-content
     }
     if (params.type) {
-      where.type = params.type as DocumentType;
+      where.type = params.type;
     }
     if (params.search) {
       where.OR = [
@@ -85,9 +88,45 @@ export class DocumentsService {
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
   }
 
+  /** Public: documents under a sub-content (category slug + sub-content slug). For WITH_SUBCONTENT categories only. */
+  async findDocumentsByCategorySlugAndSubSlugPublic(
+    categorySlug: string,
+    subSlug: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
+    const category = await this.prisma.category.findFirst({
+      where: { slug: categorySlug, isPublic: true, mode: 'WITH_SUBCONTENT' },
+    });
+    if (!category) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    const subContent = await this.prisma.subContent.findUnique({
+      where: { parentCategoryId_slug: { parentCategoryId: category.id, slug: subSlug } },
+    });
+    if (!subContent) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    const where: Record<string, unknown> = {
+      isPublic: true,
+      isPublished: true,
+      ...this.notDeleted,
+      subContentId: subContent.id,
+    };
+    const orderBy = { publishedAt: 'desc' as const };
+    const [items, total] = await Promise.all([
+      this.prisma.document.findMany({
+        where,
+        include: this.includeForPublic,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.document.count({ where }),
+    ]);
+    const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
   async findOnePublic(id: number) {
     const doc = await this.prisma.document.findFirst({
-      where: { id, isPublic: true, isPublished: true },
+      where: { id, isPublic: true, isPublished: true, ...this.notDeleted },
       include: this.includeForPublic,
     });
     if (!doc) return null;
@@ -101,13 +140,15 @@ export class DocumentsService {
     search?: string;
     isPublished?: boolean;
     categoryId?: number;
+    subContentId?: number;
   }) {
     const page = params.page ?? DEFAULT_PAGE;
     const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.DocumentWhereInput = {};
-    if (params.type) where.type = params.type as DocumentType;
+    const where: Record<string, unknown> = { ...this.notDeleted };
+    if (params.type) where.type = params.type;
     if (params.isPublished !== undefined) where.isPublished = params.isPublished;
     if (params.categoryId !== undefined) where.categoryId = params.categoryId;
+    if (params.subContentId !== undefined) where.subContentId = params.subContentId;
     if (params.search) {
       where.OR = [
         { title: { contains: params.search, mode: 'insensitive' } },
@@ -129,32 +170,76 @@ export class DocumentsService {
   }
 
   async findOneAdmin(id: number) {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
+    const doc = await this.prisma.document.findFirst({
+      where: { id, ...this.notDeleted },
       include: this.includeForPublic,
     });
     if (!doc) return null;
     return mapDocumentToStrapi(doc as DocumentWithRelations);
   }
 
-  async create(data: {
-    title: string;
-    type: DocumentType;
-    description?: string;
-    externalLink?: string;
-    isPublic?: boolean;
-    isPublished?: boolean;
-    categoryId?: number;
-    tagIds?: number[];
-    createdById?: string;
-    attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
+  async findAllDeleted(params: {
+    page?: number;
+    pageSize?: number;
+    type?: string;
+    search?: string;
   }) {
+    const page = params.page ?? DEFAULT_PAGE;
+    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const where: Record<string, unknown> = { isDeleted: true };
+    if (params.type) where.type = params.type;
+    if (params.search) {
+      where.OR = [
+        { title: { contains: params.search, mode: 'insensitive' } },
+        { description: { contains: params.search, mode: 'insensitive' } },
+      ];
+    }
+    const [items, total] = await Promise.all([
+      this.prisma.document.findMany({
+        where,
+        include: this.includeForPublic,
+        orderBy: { deletedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.document.count({ where }),
+    ]);
+    const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async create(
+    data: {
+      title: string;
+      type: string;
+      description?: string;
+      externalLink?: string;
+      isPublic?: boolean;
+      isPublished?: boolean;
+      categoryId?: number;
+      subContentId?: number | null;
+      tagIds?: number[];
+      attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
+    },
+    createdById?: string,
+  ) {
+    if (data.categoryId != null) {
+      const category = await this.prisma.category.findUnique({ where: { id: data.categoryId } });
+      if (category?.mode === 'WITH_SUBCONTENT' && (data.subContentId == null || data.subContentId === 0)) {
+        throw new BadRequestException('This section uses sub-content; a sub-content must be selected.');
+      }
+      if (category?.mode === 'DIRECT' && data.subContentId != null && data.subContentId !== 0) {
+        throw new BadRequestException('This section does not use sub-content; sub_content_id must be empty.');
+      }
+    }
     const { tagIds, attachment, ...rest } = data;
     const doc = await this.prisma.document.create({
       data: {
         ...rest,
         publishedAt: rest.isPublished ? new Date() : null,
-      },
+        createdById: createdById ?? undefined,
+        updatedById: createdById ?? undefined,
+      } as any,
       include: this.includeForPublic,
     });
     if (tagIds?.length) {
@@ -171,6 +256,7 @@ export class DocumentsService {
           fileName: attachment.fileName,
           mimeType: attachment.mimeType ?? null,
           fileSize: attachment.fileSize ?? null,
+          createdById: createdById ?? undefined,
         },
       });
       await this.prisma.document.update({
@@ -182,24 +268,42 @@ export class DocumentsService {
       where: { id: doc.id },
       include: this.includeForPublic,
     });
-    return full ? mapDocumentToStrapi(full as DocumentWithRelations) : mapDocumentToStrapi(doc as DocumentWithRelations);
+    return full
+      ? mapDocumentToStrapi(full as unknown as DocumentWithRelations)
+      : mapDocumentToStrapi(doc as unknown as DocumentWithRelations);
   }
 
   async update(
     id: number,
     data: {
       title?: string;
-      type?: DocumentType;
+      type?: string;
       description?: string;
       externalLink?: string | null;
       isPublic?: boolean;
       isPublished?: boolean;
       categoryId?: number | null;
+      subContentId?: number | null;
       tagIds?: number[];
-      updatedById?: string;
       attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
     },
+    updatedById?: string,
   ) {
+    const existing = await this.prisma.document.findFirst({
+      where: { id, ...this.notDeleted },
+    });
+    if (!existing) throw new NotFoundException('Document not found or has been deleted');
+    const categoryId = data.categoryId !== undefined ? data.categoryId : existing.categoryId;
+    if (categoryId != null) {
+      const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+      const subContentId = data.subContentId !== undefined ? data.subContentId : existing.subContentId;
+      if (category?.mode === 'WITH_SUBCONTENT' && (subContentId == null || subContentId === 0)) {
+        throw new BadRequestException('This section uses sub-content; a sub-content must be selected.');
+      }
+      if (category?.mode === 'DIRECT' && subContentId != null && subContentId !== 0) {
+        throw new BadRequestException('This section does not use sub-content; sub_content_id must be empty.');
+      }
+    }
     const { tagIds, attachment, ...rest } = data;
     if (tagIds !== undefined) {
       await this.prisma.documentTag.deleteMany({ where: { documentId: id } });
@@ -222,6 +326,7 @@ export class DocumentsService {
             fileName: attachment.fileName,
             mimeType: attachment.mimeType ?? null,
             fileSize: attachment.fileSize ?? null,
+            createdById: updatedById ?? undefined,
           },
         });
         currentVersionId = version.id;
@@ -235,14 +340,43 @@ export class DocumentsService {
         ...rest,
         publishedAt: rest.isPublished ? new Date() : undefined,
         ...(currentVersionId !== undefined && { currentVersionId }),
+        updatedById: updatedById ?? undefined,
+      } as any,
+      include: this.includeForPublic,
+    });
+    return mapDocumentToStrapi(doc as unknown as DocumentWithRelations);
+  }
+
+  async remove(id: number, deletedById?: string) {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, ...this.notDeleted },
+    });
+    if (!doc) return { deleted: false, message: 'Document not found or already deleted' };
+    await this.prisma.document.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedById: deletedById ?? undefined,
+        deletedAt: new Date(),
+      },
+    });
+    return { deleted: true };
+  }
+
+  async restore(id: number) {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, isDeleted: true },
+    });
+    if (!doc) return null;
+    const updated = await this.prisma.document.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedById: null,
+        deletedAt: null,
       },
       include: this.includeForPublic,
     });
-    return mapDocumentToStrapi(doc as DocumentWithRelations);
-  }
-
-  async remove(id: number) {
-    await this.prisma.document.delete({ where: { id } });
-    return { deleted: true };
+    return mapDocumentToStrapi(updated as DocumentWithRelations);
   }
 }

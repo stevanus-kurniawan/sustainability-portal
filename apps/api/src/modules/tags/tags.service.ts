@@ -8,7 +8,9 @@ export class TagsService {
 
   async findAll() {
     const list = await this.prisma.tag.findMany({ orderBy: { name: 'asc' } });
-    return list.map((t) => toStrapiLike(t.id, { name: t.name, slug: t.slug }));
+    return list.map((t: { id: number; name: string; slug: string }) =>
+      toStrapiLike(t.id, { name: t.name, slug: t.slug }),
+    );
   }
 
   async findOne(id: number) {

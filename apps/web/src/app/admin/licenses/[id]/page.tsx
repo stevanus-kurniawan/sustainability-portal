@@ -1,10 +1,11 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Paperclip, X } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
+import { adminSubContentsList, adminCategoriesList, adminDocumentCreate } from '@/lib/admin-api';
 
 function toFormValue(date: string | null): string {
   if (!date) return '';
@@ -16,7 +17,11 @@ function toFormValue(date: string | null): string {
 export default function AdminLicensesEditPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = typeof params.id === 'string' ? params.id : undefined;
+  const categoryId = searchParams.get('categoryId');
+  const subContentId = searchParams.get('subContentId');
+  const backHref = categoryId && subContentId ? `/admin/licenses?categoryId=${categoryId}&subContentId=${subContentId}` : '/admin/licenses';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +32,43 @@ export default function AdminLicensesEditPage() {
     issuedDate: '',
     expiryDate: '',
     documentId: null as number | null,
+    subContentId: null as number | null,
     externalLink: '',
+    attachment: null as { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null,
+    currentFileUrl: null as string | null,
   });
+  const [subContents, setSubContents] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [licenseCategoryId, setLicenseCategoryId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    adminCategoriesList()
+      .then((arr) => {
+        const list = Array.isArray(arr) ? arr : [];
+        const licenseCat = list.find(
+          (c: { attributes?: { slug: string }; slug?: string }) =>
+            ((c.attributes?.slug ?? (c as { slug?: string }).slug) ?? '').toLowerCase() === 'license' ||
+            ((c.attributes?.slug ?? (c as { slug?: string }).slug) ?? '').toLowerCase() === 'licenses'
+        );
+        if (licenseCat?.id) {
+          setLicenseCategoryId(licenseCat.id);
+          return adminSubContentsList(licenseCat.id);
+        }
+        return { data: [] };
+      })
+      .then((res) => {
+        const list = res?.data ?? [];
+        setSubContents(
+          list.map((s: { id: number; attributes?: { title: string; slug: string }; title?: string; slug?: string }) => ({
+            id: s.id,
+            title: s.attributes?.title ?? (s as { title?: string }).title ?? '',
+            slug: s.attributes?.slug ?? (s as { slug?: string }).slug ?? '',
+          }))
+        );
+      })
+      .catch(() => setSubContents([]));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -39,24 +79,70 @@ export default function AdminLicensesEditPage() {
       })
       .then((data) => {
         const attrs = data?.attributes ?? data;
-      setForm({
-        name: attrs.name ?? '',
-        authority: attrs.authority ?? '',
-        licenseNo: attrs.licenseNo ?? '',
-        issuedDate: toFormValue(attrs.issuedDate ?? null),
-        expiryDate: toFormValue(attrs.expiryDate ?? null),
-        documentId: attrs.document?.data?.id ?? attrs.documentId ?? null,
-        externalLink: attrs.externalLink ?? '',
-      });
+        const subData = attrs.subContent?.data;
+        const subId = subData?.id ?? attrs.subContentId ?? null;
+        const docData = attrs.document?.data;
+        const fileUrl =
+          docData?.attributes?.currentVersion?.data?.attributes?.file?.data?.attributes?.url ?? null;
+        setForm({
+          name: attrs.name ?? '',
+          authority: attrs.authority ?? '',
+          licenseNo: attrs.licenseNo ?? '',
+          issuedDate: toFormValue(attrs.issuedDate ?? null),
+          expiryDate: toFormValue(attrs.expiryDate ?? null),
+          documentId: docData?.id ?? attrs.documentId ?? null,
+          subContentId: subId ?? null,
+          externalLink: attrs.externalLink ?? '',
+          attachment: null,
+          currentFileUrl: fileUrl ?? null,
+        });
       })
       .catch(() => setError('Failed to load license'))
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  const update = (field: keyof typeof form, value: string | number | null) => {
+  const update = (field: keyof typeof form, value: string | number | null | { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError(null);
   };
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const presignRes = await fetch('/api/admin/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+      });
+      if (!presignRes.ok) {
+        const data = await presignRes.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to get upload URL');
+      }
+      const { url, key } = await presignRes.json();
+      if (!url || !key) throw new Error('Upload not configured');
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!putRes.ok) throw new Error('Upload failed');
+      update('attachment', {
+        fileKey: key,
+        fileName: file.name,
+        mimeType: file.type || undefined,
+        fileSize: file.size,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,13 +150,27 @@ export default function AdminLicensesEditPage() {
     setError(null);
     setSaving(true);
     try {
+      let documentId: number | null = form.documentId ?? null;
+      if (form.attachment && licenseCategoryId) {
+        const doc = await adminDocumentCreate({
+          title: `License attachment: ${form.name.trim() || 'Untitled'}`,
+          type: 'GENERAL',
+          categoryId: licenseCategoryId,
+          subContentId: form.subContentId ?? undefined,
+          isPublic: false,
+          isPublished: false,
+          attachment: form.attachment,
+        });
+        documentId = doc.id;
+      }
       const body: Record<string, unknown> = {
         name: form.name.trim() || undefined,
         authority: form.authority.trim() || undefined,
         licenseNo: form.licenseNo.trim() || undefined,
         issuedDate: form.issuedDate || undefined,
         expiryDate: form.expiryDate || undefined,
-        documentId: form.documentId ?? null,
+        documentId,
+        subContentId: form.subContentId ?? null,
         externalLink: form.externalLink.trim() || null,
       };
       const res = await fetch(`/api/admin/licenses/${id}`, {
@@ -88,7 +188,7 @@ export default function AdminLicensesEditPage() {
         setError(data.message || data.error || res.statusText);
         return;
       }
-      router.push('/admin/licenses');
+      router.push(backHref);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -138,6 +238,25 @@ export default function AdminLicensesEditPage() {
             className="w-full"
           />
         </div>
+        {subContents.length > 0 && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content</label>
+            <select
+              className="input w-full"
+              value={form.subContentId ?? ''}
+              onChange={(e) =>
+                update('subContentId', e.target.value === '' ? null : parseInt(e.target.value, 10))
+              }
+            >
+              <option value="">— None —</option>
+              {subContents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">Issued date</label>
@@ -159,16 +278,66 @@ export default function AdminLicensesEditPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-charcoal">Attachment / link</label>
-          <div className="space-y-2">
-            <Input
-              type="number"
-              min={1}
-              value={form.documentId ?? ''}
-              onChange={(e) => update('documentId', e.target.value === '' ? null : parseInt(e.target.value, 10))}
-              placeholder="Document ID (optional)"
-              className="w-full"
-            />
+          <label className="mb-1 block text-sm font-medium text-charcoal flex items-center gap-2">
+            <Paperclip className="h-4 w-4" />
+            Attachment (file)
+          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+          {form.attachment ? (
+            <div className="flex items-center gap-2 rounded-md border border-border-light bg-light px-3 py-2 text-sm text-charcoal">
+              <Paperclip className="h-4 w-4 text-steel" />
+              <span className="flex-1 truncate">{form.attachment.fileName}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => update('attachment', null)}
+                className="text-danger hover:bg-danger/10"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : form.currentFileUrl ? (
+            <div className="flex items-center gap-2 rounded-md border border-border-light bg-light px-3 py-2 text-sm">
+              <a
+                href={form.currentFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline truncate flex-1"
+              >
+                Current attachment (open)
+              </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Replace'}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+              {uploading ? 'Uploading…' : 'Choose file'}
+            </Button>
+          )}
+          <p className="mt-2 text-xs text-steel">Or add an external URL below.</p>
+          <div className="mt-2">
             <Input
               type="url"
               value={form.externalLink}
@@ -179,10 +348,10 @@ export default function AdminLicensesEditPage() {
           </div>
         </div>
         <div className="flex gap-3 pt-4">
-          <Button type="submit" disabled={saving} isLoading={saving}>
+          <Button type="submit" disabled={saving || uploading} isLoading={saving}>
             Update
           </Button>
-          <Link href="/admin/licenses">
+          <Link href={backHref}>
             <Button type="button" variant="outline">
               Cancel
             </Button>

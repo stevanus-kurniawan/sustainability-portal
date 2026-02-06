@@ -3,13 +3,14 @@ import {
   Award,
   ScrollText,
   MessageSquareWarning,
-  GitBranch,
-  Library,
+  FileBarChart,
+  ClipboardList,
   ArrowRight,
   Shield,
   Leaf,
   Globe,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { Card, CardContent } from '@/components/ui';
@@ -19,8 +20,8 @@ const features = [
   { name: 'Certifications', description: 'Sustainability certifications and standards compliance', href: '/certifications', icon: Award, color: 'bg-success/10 text-success' },
   { name: 'Licenses', description: 'Operating licenses and regulatory approvals', href: '/licenses', icon: ScrollText, color: 'bg-warning/10 text-warning' },
   { name: 'Grievance', description: 'Grievance mechanism for stakeholder concerns', href: '/grievance', icon: MessageSquareWarning, color: 'bg-danger/10 text-danger' },
-  { name: 'Traceability', description: 'Supply chain transparency and origin tracking', href: '/traceability', icon: GitBranch, color: 'bg-brand-deep/10 text-brand-deep' },
-  { name: 'Library', description: 'Browse and download public documents', href: '/library', icon: Library, color: 'bg-charcoal/10 text-charcoal' },
+  { name: 'Sustainability report', description: 'Annual sustainability reports and ESG performance documentation', href: '/sustainability/sustainability-report', icon: FileBarChart, color: 'bg-brand-deep/10 text-brand-deep' },
+  { name: 'SOP', description: 'Standard operating procedures and process documentation', href: '/procedure/sop', icon: ClipboardList, color: 'bg-charcoal/10 text-charcoal' },
 ];
 
 const highlights = [
@@ -38,8 +39,15 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24 sm:py-32">
           <div className="max-w-2xl">
             <div className="flex items-center gap-2 mb-6">
-              <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-                <Leaf className="h-7 w-7 text-white" />
+              <div className="h-12 w-12 rounded-lg flex items-center justify-center">
+                <Image
+                  src="/logo.png"
+                  alt="Sustainability portal logo"
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 object-contain"
+                  unoptimized
+                />
               </div>
               <span className="text-white/60 text-sm font-medium uppercase tracking-wider">Sustainability Portal</span>
             </div>

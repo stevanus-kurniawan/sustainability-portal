@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Leaf } from 'lucide-react';
+import Image from 'next/image';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
 import { adminLogin } from '@/lib/auth-api';
 
@@ -33,9 +33,15 @@ export default function AdminLoginPage() {
     <div className="min-h-[60vh] flex items-center justify-center py-16">
       <div className="w-full max-w-md mx-auto px-4">
         <div className="flex justify-center mb-6">
-          <div className="h-16 w-16 rounded-lg bg-primary flex items-center justify-center">
-            <Leaf className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Sustainability portal logo"
+            width={64}
+            height={64}
+            className="h-16 w-16 object-contain"
+            priority
+            unoptimized
+          />
         </div>
         <h1 className="font-heading text-h2 text-charcoal text-center mb-2">Admin Portal</h1>
         <p className="text-steel text-center mb-8 text-sm">

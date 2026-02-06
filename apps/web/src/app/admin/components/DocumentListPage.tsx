@@ -18,6 +18,7 @@ interface DocumentListPageProps {
   type: 'POLICY' | 'GENERAL';
   categorySlug?: string;
   categoryId?: number;
+  subContentId?: number;
   createHref: string;
   editHref: (id: number) => string;
   listKey?: string;
@@ -29,6 +30,7 @@ export function DocumentListPage({
   type,
   categorySlug,
   categoryId: categoryIdProp,
+  subContentId: subContentIdProp,
   createHref,
   editHref,
   listKey = 'documents',
@@ -41,7 +43,7 @@ export function DocumentListPage({
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [categoryId, setCategoryId] = useState<number | undefined>(categoryIdProp);
-  const [categories, setCategories] = useState<{ id: number; slug: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: number; slug: string; mode?: string }[]>([]);
   const [categoriesFetched, setCategoriesFetched] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -55,7 +57,13 @@ export function DocumentListPage({
       if (!res.ok) return;
       const data = await res.json();
       const arr = Array.isArray(data) ? data : data?.data ?? [];
-      setCategories(arr.map((c: { id: number; attributes?: { slug: string } }) => ({ id: c.id, slug: c.attributes?.slug ?? (c as { slug: string }).slug ?? '' })));
+      setCategories(
+        arr.map((c: { id: number; attributes?: { slug: string; mode?: string }; slug?: string; mode?: string }) => ({
+          id: c.id,
+          slug: c.attributes?.slug ?? (c as { slug: string }).slug ?? '',
+          mode: c.attributes?.mode ?? (c as { mode?: string }).mode,
+        }))
+      );
       if (categorySlug && !categoryIdProp) {
         const slugLower = categorySlug.toLowerCase();
         const found = arr.find(
@@ -82,6 +90,7 @@ export function DocumentListPage({
         type,
         search: search || undefined,
         categoryId: categoryId ?? categoryIdProp ?? undefined,
+        subContentId: subContentIdProp,
       };
       if (statusFilter === 'published') params.isPublished = true;
       if (statusFilter === 'draft') params.isPublished = false;
@@ -97,16 +106,20 @@ export function DocumentListPage({
     } finally {
       setLoading(false);
     }
-  }, [page, type, search, statusFilter, categoryId, categoryIdProp, router]);
+  }, [page, type, search, statusFilter, categoryId, categoryIdProp, subContentIdProp, router]);
 
   useEffect(() => {
-    if (type === 'GENERAL' && categorySlug) {
+    if (type === 'GENERAL' && (categorySlug || categoryIdProp != null)) {
       fetchCategories();
     }
-  }, [type, categorySlug, fetchCategories]);
+  }, [type, categorySlug, categoryIdProp, fetchCategories]);
 
   const effectiveCategoryId = categoryId ?? categoryIdProp;
-  const shouldFetchList = type === 'POLICY' || (type === 'GENERAL' && (!categorySlug || effectiveCategoryId != null));
+  const selectedCategory = effectiveCategoryId != null ? categories.find((c) => c.id === effectiveCategoryId) : null;
+  const showSubContentColumn = selectedCategory?.mode === 'WITH_SUBCONTENT';
+  const shouldFetchList =
+    type === 'POLICY' ||
+    (type === 'GENERAL' && (subContentIdProp != null || !categorySlug || effectiveCategoryId != null));
 
   useEffect(() => {
     if (!shouldFetchList) return;
@@ -227,15 +240,21 @@ export function DocumentListPage({
                   <thead>
                     <tr className="border-b border-border-medium text-steel">
                       <th className="pb-3 pr-4 font-medium">Title</th>
+                      {showSubContentColumn && <th className="pb-3 pr-4 font-medium">Sub-content</th>}
                       <th className="pb-3 pr-4 font-medium">Status</th>
                       <th className="pb-3 pr-4 font-medium">Updated</th>
                       <th className="pb-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((doc) => (
+                    {items.map((doc) => {
+                      const subContentTitle = doc.attributes.subContent?.data?.attributes?.title ?? null;
+                      return (
                       <tr key={doc.id} className="border-b border-border-light">
                         <td className="py-3 pr-4 font-medium text-charcoal">{doc.attributes.title}</td>
+                        {showSubContentColumn && (
+                          <td className="py-3 pr-4 text-steel">{subContentTitle ?? '—'}</td>
+                        )}
                         <td className="py-3 pr-4">
                           <StatusBadge status={doc.attributes.isPublished ? 'Published' : 'Draft'} />
                         </td>
@@ -260,7 +279,8 @@ export function DocumentListPage({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -2,7 +2,7 @@ import { Award, Building2, FileCheck } from 'lucide-react';
 import { Suspense } from 'react';
 
 import { PageHeader } from '@/components/PageHeader';
-import { Card, CardContent, StatusBadge, EmptyState, CardSkeleton } from '@/components/ui';
+import { Card, CardContent, EmptyState, CardSkeleton } from '@/components/ui';
 import { getCertifications, type Certification } from '@/lib/api';
 
 export const metadata = {
@@ -14,7 +14,11 @@ export const dynamic = 'force-dynamic';
 async function CertificationsList() {
   const { data: certifications } = await getCertifications({ pageSize: 50 });
 
-  if (!certifications || certifications.length === 0) {
+  // Only show non-expired certifications on the portal
+  const visibleCertifications =
+    certifications?.filter((c) => c.attributes.status !== 'EXPIRED') ?? [];
+
+  if (visibleCertifications.length === 0) {
     return (
       <EmptyState
         type="no-data"
@@ -36,11 +40,10 @@ async function CertificationsList() {
   const groupByStatus = (certs: Certification[]) => {
     const active = certs.filter((c) => c.attributes.status === 'ACTIVE');
     const expiring = certs.filter((c) => c.attributes.status === 'EXPIRING');
-    const expired = certs.filter((c) => c.attributes.status === 'EXPIRED');
-    return { active, expiring, expired };
+    return { active, expiring };
   };
 
-  const { active, expiring, expired } = groupByStatus(certifications);
+  const { active, expiring } = groupByStatus(visibleCertifications);
   const activeCerts = [...expiring, ...active];
 
   return (
@@ -61,21 +64,6 @@ async function CertificationsList() {
           <p className="text-steel">No active certifications at this time.</p>
         )}
       </div>
-
-      {expired.length > 0 && (
-        <div>
-          <h2 className="font-heading text-h3 text-charcoal mb-6 flex items-center gap-2">
-            <Award className="h-6 w-6 text-steel" />
-            Expired Certifications
-            <span className="text-sm font-normal text-steel">({expired.length})</span>
-          </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 opacity-70">
-            {expired.map((cert: Certification) => (
-              <CertificationCard key={cert.id} certification={cert} formatDate={formatDate} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -94,7 +82,6 @@ function CertificationCard({
           <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center">
             <Award className="h-6 w-6 text-success" />
           </div>
-          <StatusBadge status={certification.attributes.status} />
         </div>
         <h3 className="font-heading text-lg font-semibold text-charcoal mb-2">
           {certification.attributes.name}
@@ -113,31 +100,69 @@ function CertificationCard({
             </div>
           )}
         </div>
-        <div className="mt-4 pt-4 border-t border-border-light">
-          <div className="flex justify-between text-sm">
-            <div>
-              <span className="text-steel">Issued</span>
-              <p className="font-medium text-charcoal">{formatDate(certification.attributes.issuedDate)}</p>
+        {(() => {
+          const hasIssued =
+            certification.attributes.issuedDate &&
+            !Number.isNaN(new Date(certification.attributes.issuedDate).getTime());
+          const hasExpiry =
+            certification.attributes.expiryDate &&
+            !Number.isNaN(new Date(certification.attributes.expiryDate).getTime());
+          if (!hasIssued && !hasExpiry) return null;
+          return (
+            <div className="mt-4 pt-4 border-t border-border-light">
+              <div className="flex justify-between text-sm">
+                {hasIssued && (
+                  <div>
+                    <span className="text-steel">Issued</span>
+                    <p className="font-medium text-charcoal">
+                      {formatDate(certification.attributes.issuedDate)}
+                    </p>
+                  </div>
+                )}
+                {hasExpiry && (
+                  <div className={hasIssued ? 'text-right' : ''}>
+                    <span className="text-steel">Expires</span>
+                    <p className="font-medium text-charcoal">
+                      {formatDate(certification.attributes.expiryDate)}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-steel">Expires</span>
-              <p className="font-medium text-charcoal">{formatDate(certification.attributes.expiryDate)}</p>
+          );
+        })()}
+        {(() => {
+          const fileUrl =
+            certification.attributes.document?.data?.attributes?.currentVersion?.data?.attributes
+              ?.file?.data?.attributes?.url;
+          const externalLink = (certification.attributes as { externalLink?: string | null })
+            .externalLink;
+          if (!fileUrl && !externalLink) return null;
+          return (
+            <div className="mt-4 space-y-2">
+              {fileUrl && (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-outline text-sm w-full justify-center"
+                >
+                  View Certificate
+                </a>
+              )}
+              {externalLink && (
+                <a
+                  href={externalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-sm text-primary hover:underline text-center"
+                >
+                  Learn more →
+                </a>
+              )}
             </div>
-          </div>
-        </div>
-        {certification.attributes.document?.data?.attributes?.currentVersion?.data?.attributes?.file?.data && (
-          <a
-            href={
-              certification.attributes.document.data.attributes.currentVersion.data.attributes.file.data.attributes
-                .url
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-outline text-sm mt-4 w-full justify-center"
-          >
-            View Certificate
-          </a>
-        )}
+          );
+        })()}
       </CardContent>
     </Card>
   );
@@ -158,7 +183,7 @@ export default function CertificationsPage() {
     <div>
       <PageHeader
         title="Certifications"
-        description="View our sustainability certifications, environmental standards compliance, and third-party verifications."
+        description="Our sustainability certifications, environmental and social standards compliance, and third-party verifications. This page lists active and expiring certifications with issuers, certificate numbers, validity dates, and links to view or download certificates where available."
       />
       <section className="py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

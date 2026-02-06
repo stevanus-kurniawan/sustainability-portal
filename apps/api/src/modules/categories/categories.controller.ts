@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuard
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { CategoriesService } from './categories.service';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @ApiTags('admin/categories')
 @Controller('admin/categories')
@@ -21,15 +23,12 @@ export class CategoriesController {
   }
 
   @Post()
-  create(@Body() body: { name: string; slug: string; menuGroup?: string | null; isPublic?: boolean; displayOrder?: number }) {
+  create(@Body() body: CreateCategoryDto) {
     return this.service.create(body);
   }
 
   @Put(':id')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { name?: string; slug?: string; menuGroup?: string | null; isPublic?: boolean; displayOrder?: number },
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateCategoryDto) {
     return this.service.update(id, body);
   }
 

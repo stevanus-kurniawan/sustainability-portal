@@ -10,25 +10,80 @@ export class CategoriesService {
     const list = await this.prisma.category.findMany({
       where: wherePublic ? { isPublic: true } : undefined,
       orderBy: { displayOrder: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        menuGroup: true,
+        mode: true,
+        isPublic: true,
+        displayOrder: true,
+      },
     });
-    return list.map((c) => toStrapiLike(c.id, {
-      name: c.name,
-      slug: c.slug,
-      menuGroup: c.menuGroup,
-      isPublic: c.isPublic,
-      displayOrder: c.displayOrder,
-    }));
+    return list.map((c: {
+      id: number;
+      name: string;
+      slug: string;
+      menuGroup: string | null;
+      mode: string;
+      isPublic: boolean;
+      displayOrder: number;
+    }) =>
+      toStrapiLike(c.id, {
+        name: c.name,
+        slug: c.slug,
+        menuGroup: c.menuGroup,
+        mode: c.mode,
+        isPublic: c.isPublic,
+        displayOrder: c.displayOrder,
+      }),
+    );
   }
 
   async findOne(id: number) {
     return this.prisma.category.findUnique({ where: { id } });
   }
 
-  async create(data: { name: string; slug: string; menuGroup?: string | null; isPublic?: boolean; displayOrder?: number }) {
-    return this.prisma.category.create({ data });
+  /** Public: get category by slug (must be public). Returns null if not found or not public. */
+  async findBySlugPublic(slug: string) {
+    const c = await this.prisma.category.findFirst({
+      where: { slug, isPublic: true },
+    });
+    if (!c) return null;
+    return toStrapiLike(c.id, {
+      name: c.name,
+      slug: c.slug,
+      menuGroup: c.menuGroup,
+      mode: c.mode,
+      isPublic: c.isPublic,
+      displayOrder: c.displayOrder,
+    });
   }
 
-  async update(id: number, data: { name?: string; slug?: string; menuGroup?: string | null; isPublic?: boolean; displayOrder?: number }) {
+  async create(data: {
+    name: string;
+    slug: string;
+    menuGroup?: string | null;
+    mode?: 'DIRECT' | 'WITH_SUBCONTENT';
+    isPublic?: boolean;
+    displayOrder?: number;
+  }) {
+    return this.prisma.category.create({
+      data: { ...data, mode: data.mode ?? 'DIRECT' },
+    });
+  }
+
+  async update(
+    id: number,
+    data: {
+      name?: string;
+      slug?: string;
+      menuGroup?: string | null;
+      mode?: 'DIRECT' | 'WITH_SUBCONTENT';
+      isPublic?: boolean;
+      displayOrder?: number;
+    },
+  ) {
     return this.prisma.category.update({ where: { id }, data });
   }
 
@@ -52,6 +107,7 @@ export class CategoriesService {
       { slug: 'national', label: 'National' },
       { slug: 'international', label: 'International' },
       { slug: 'standard', label: 'Standard' },
+      { slug: 'license', label: 'License' },
     ],
   };
 
@@ -67,17 +123,18 @@ export class CategoriesService {
       orderBy: { displayOrder: 'asc' },
     });
 
-    const toChild = (c: { name: string; slug: string }) => ({
-      label: c.name,
-      href: `/library?category=${encodeURIComponent(c.slug)}`,
-    });
+    const toChild = (c: { name: string; slug: string; menuGroup: string | null; mode: 'DIRECT' | 'WITH_SUBCONTENT' }) => {
+      const menuGroup = c.menuGroup || 'procedure';
+      const base = `/${menuGroup}/${c.slug}`;
+      return { label: c.name, href: base };
+    };
 
     let procedure = categories
       .filter((c) => c.menuGroup === 'procedure')
       .map(toChild);
     let sustainability = categories
-      .filter((c) => c.menuGroup === 'sustainability')
-      .map(toChild);
+      .filter((c) => c.menuGroup === 'sustainability' || (c.menuGroup == null && c.mode === 'WITH_SUBCONTENT'))
+      .map((c) => ({ label: c.name, href: `/${c.menuGroup || 'sustainability'}/${c.slug}` }));
     let compliance = categories
       .filter((c) => c.menuGroup === 'compliance')
       .map(toChild);
@@ -85,19 +142,19 @@ export class CategoriesService {
     if (procedure.length === 0) {
       procedure = CategoriesService.NAV_FALLBACK.procedure.map(({ slug, label }) => ({
         label,
-        href: `/library?category=${encodeURIComponent(slug)}`,
+        href: `/procedure/${slug}`,
       }));
     }
     if (sustainability.length === 0) {
       sustainability = CategoriesService.NAV_FALLBACK.sustainability.map(({ slug, label }) => ({
         label,
-        href: `/library?category=${encodeURIComponent(slug)}`,
+        href: `/sustainability/${slug}`,
       }));
     }
     if (compliance.length === 0) {
       compliance = CategoriesService.NAV_FALLBACK.compliance.map(({ slug, label }) => ({
         label,
-        href: `/library?category=${encodeURIComponent(slug)}`,
+        href: `/compliance/${slug}`,
       }));
     }
 
@@ -109,11 +166,11 @@ export class CategoriesService {
       { label: 'Procedure', children: procedure },
       {
         label: 'Sustainability',
-        children: [...sustainability, { label: 'Certificate', href: '/certifications' }],
+        children: sustainability,
       },
       {
         label: 'Compliance',
-        children: [...compliance, { label: 'License', href: '/licenses' }],
+        children: compliance,
       },
       { label: 'Grievance', href: '/grievance' },
     ];

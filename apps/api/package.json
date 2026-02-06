@@ -23,6 +23,10 @@
     "prisma:studio": "prisma studio",
     "prisma:push": "prisma db push",
     "prisma:seed": "prisma db seed",
+    "seed:policies": "ts-node src/scripts/seed-policies.ts",
+    "seed:policies:dry": "ts-node src/scripts/seed-policies.ts -- --dry-run",
+    "seed:sop-forms": "ts-node src/scripts/seed-sop-forms.ts",
+    "seed:sop-forms:dry": "ts-node src/scripts/seed-sop-forms.ts -- --dry-run",
     "prisma:reset": "prisma migrate reset --force"
   },
   "dependencies": {

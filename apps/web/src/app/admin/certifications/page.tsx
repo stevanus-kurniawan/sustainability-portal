@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Pagination, StatusBadge } from '@/components/ui';
+import { adminCategoriesList, adminSubContentsList } from '@/lib/admin-api';
 
 interface CertificationAttributes {
   name: string;
@@ -14,6 +15,10 @@ interface CertificationAttributes {
   issuedDate: string | null;
   expiryDate: string | null;
   status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+  categoryId?: number | null;
+  subContentId?: number | null;
+  category?: { data: { id: number; attributes: { name: string; slug: string } } | null };
+  subContent?: { data: { id: number; attributes: { title: string; slug: string } } | null };
 }
 
 interface CertificationItem {
@@ -34,6 +39,8 @@ export default function AdminCertificationsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [subFilter, setSubFilter] = useState(searchParams.get('sub') || '');
+  const [subOptions, setSubOptions] = useState<{ categoryId: number; subContentId: number; label: string }[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const fetchList = useCallback(async () => {
@@ -43,6 +50,11 @@ export default function AdminCertificationsPage() {
     params.set('pageSize', '20');
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
+    if (subFilter) {
+      const parts = subFilter.split('_');
+      const subId = parts[1] ?? parts[0];
+      if (subId) params.set('subContentId', subId);
+    }
     try {
       const res = await fetch(`/api/admin/certifications?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
       if (res.status === 401) {
@@ -56,7 +68,7 @@ export default function AdminCertificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, router]);
+  }, [page, search, statusFilter, subFilter, router]);
 
   useEffect(() => {
     fetchList();
@@ -67,6 +79,7 @@ export default function AdminCertificationsPage() {
     params.set('page', '1');
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
+    if (subFilter) params.set('sub', subFilter);
     router.push(`/admin/certifications?${params.toString()}`);
   };
 
@@ -75,6 +88,41 @@ export default function AdminCertificationsPage() {
     params.set('page', String(newPage));
     router.push(`/admin/certifications?${params.toString()}`);
   };
+
+  useEffect(() => {
+    adminCategoriesList()
+      .then((arr) => {
+        const list = Array.isArray(arr) ? arr : [];
+        const cats = list.map((c: { id: number; attributes?: { name: string; slug: string; mode?: string } }) => ({
+          id: c.id,
+          name: (c as { attributes?: { name: string } }).attributes?.name ?? (c as { name: string }).name ?? '',
+          mode: (c as { attributes?: { mode?: string } }).attributes?.mode ?? undefined,
+        }));
+        const withSub = cats.filter((c) => c.mode === 'WITH_SUBCONTENT');
+        if (withSub.length === 0) {
+          setSubOptions([]);
+          return;
+        }
+        Promise.all(withSub.map((cat) => adminSubContentsList(cat.id)))
+          .then((responses) => {
+            const opts: { categoryId: number; subContentId: number; label: string }[] = [];
+            responses.forEach((res, i) => {
+              const cat = withSub[i];
+              const items = res?.data ?? [];
+              items.forEach((s: { id: number; attributes?: { title: string } }) => {
+                const title =
+                  (s as { attributes?: { title: string } }).attributes?.title ??
+                  (s as { title: string }).title ??
+                  '';
+                opts.push({ categoryId: cat.id, subContentId: s.id, label: `${cat.name} – ${title}` });
+              });
+            });
+            setSubOptions(opts);
+          })
+          .catch(() => setSubOptions([]));
+      })
+      .catch(() => setSubOptions([]));
+  }, []);
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this certification?')) return;
@@ -139,6 +187,26 @@ export default function AdminCertificationsPage() {
                 />
               </div>
             </div>
+            {subOptions.length > 0 && (
+              <div>
+                <label className="mb-1 block text-sm text-steel">Sub-content</label>
+                <select
+                  className="input min-w-[200px]"
+                  value={subFilter}
+                  onChange={(e) => setSubFilter(e.target.value)}
+                >
+                  <option value="">All</option>
+                  {subOptions.map((opt) => (
+                    <option
+                      key={`${opt.categoryId}_${opt.subContentId}`}
+                      value={`${opt.categoryId}_${opt.subContentId}`}
+                    >
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-sm text-steel">Status</label>
               <select
@@ -180,6 +248,7 @@ export default function AdminCertificationsPage() {
                   <thead>
                     <tr className="border-b border-border-medium text-steel">
                       <th className="pb-3 pr-4 font-medium">Name</th>
+                      <th className="pb-3 pr-4 font-medium">Sub-content</th>
                       <th className="pb-3 pr-4 font-medium">Issuer</th>
                       <th className="pb-3 pr-4 font-medium">Cert No</th>
                       <th className="pb-3 pr-4 font-medium">Issued</th>
@@ -192,6 +261,11 @@ export default function AdminCertificationsPage() {
                     {certifications.map((cert) => (
                       <tr key={cert.id} className="border-b border-border-light">
                         <td className="py-3 pr-4 font-medium text-charcoal">{cert.attributes.name}</td>
+                        <td className="py-3 pr-4 text-steel">
+                          {cert.attributes.subContent?.data?.attributes?.title ??
+                            cert.attributes.category?.data?.attributes?.name ??
+                            '—'}
+                        </td>
                         <td className="py-3 pr-4 text-steel">{cert.attributes.issuer || '—'}</td>
                         <td className="py-3 pr-4 text-steel">{cert.attributes.certificateNo || '—'}</td>
                         <td className="py-3 pr-4 text-steel">{formatDate(cert.attributes.issuedDate)}</td>

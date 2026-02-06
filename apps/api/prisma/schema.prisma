@@ -20,6 +20,8 @@ model User {
   name         String
   passwordHash String?    @map("password_hash")
   status       UserStatus @default(ACTIVE)
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  emailVerifiedAt DateTime? @map("email_verified_at")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -182,22 +184,50 @@ model Notification {
 // SLMS Content Models
 // ==========================================
 
-model Category {
-  id           Int      @id @default(autoincrement())
-  name         String
-  slug         String   @unique
-  menuGroup    String?  @map("menu_group") // procedure | sustainability | compliance — used for public header submenus
-  isPublic     Boolean  @default(true) @map("is_public")
-  displayOrder Int      @default(0) @map("display_order")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+enum CategoryMode {
+  DIRECT         // menu shows documents directly
+  WITH_SUBCONTENT // menu shows sub content list first (e.g. Sites), then documents per sub content
+}
 
-  documents Document[]
+model Category {
+  id           Int          @id @default(autoincrement())
+  name         String
+  slug         String       @unique
+  menuGroup    String?      @map("menu_group") // procedure | sustainability | compliance — used for public header submenus
+  mode         CategoryMode @default(DIRECT) @map("mode")
+  isPublic     Boolean      @default(true) @map("is_public")
+  displayOrder Int          @default(0) @map("display_order")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  documents      Document[]
+  subContents    SubContent[]
+  certifications Certification[]
 
   @@index([slug])
   @@index([isPublic])
   @@index([menuGroup])
   @@map("categories")
+}
+
+model SubContent {
+  id                 Int      @id @default(autoincrement())
+  parentCategoryId   Int      @map("parent_category_id")
+  title              String
+  slug               String
+  order              Int      @default(0)
+  description        String?  @db.Text
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  parentCategory Category  @relation(fields: [parentCategoryId], references: [id], onDelete: Cascade)
+  documents      Document[]
+  certifications Certification[]
+  licenses       License[]
+
+  @@unique([parentCategoryId, slug])
+  @@index([parentCategoryId])
+  @@map("sub_contents")
 }
 
 model Tag {
@@ -223,13 +253,18 @@ model Document {
   isPublished     Boolean   @default(false) @map("is_published")
   publishedAt     DateTime? @map("published_at")
   categoryId      Int?      @map("category_id")
+  subContentId    Int?      @map("sub_content_id")
   currentVersionId Int?     @unique @map("current_version_id")
   createdById     String?   @map("created_by_id")
   updatedById     String?   @map("updated_by_id")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
+  isDeleted       Boolean   @default(false) @map("is_deleted")
+  deletedById     String?   @map("deleted_by")
+  deletedAt       DateTime? @map("deleted_at")
 
   category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subContent      SubContent?       @relation(fields: [subContentId], references: [id], onDelete: SetNull)
   currentVersion  DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   versions        DocumentVersion[] @relation("DocumentVersions")
   tags            DocumentTag[]
@@ -242,7 +277,9 @@ model Document {
   @@index([isPublic])
   @@index([isPublished])
   @@index([categoryId])
+  @@index([subContentId])
   @@index([publishedAt])
+  @@index([isDeleted])
   @@map("documents")
 }
 
@@ -291,38 +328,47 @@ model Certification {
   status        CertificationStatus @default(ACTIVE)
   documentId    Int?                @map("document_id")
   externalLink  String?             @map("external_link")
+  categoryId    Int?                @map("category_id")
+  subContentId  Int?                @map("sub_content_id")
   createdById   String?             @map("created_by_id")
   updatedById   String?             @map("updated_by_id")
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
-  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  document  Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  category  Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subContent SubContent? @relation(fields: [subContentId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([documentId])
+  @@index([categoryId])
+  @@index([subContentId])
   @@index([expiryDate])
   @@map("certifications")
 }
 
 model License {
-  id           Int           @id @default(autoincrement())
-  name         String
-  authority    String?
-  licenseNo    String?       @map("license_no")
-  issuedDate   DateTime?     @map("issued_date")
-  expiryDate   DateTime?     @map("expiry_date")
-  status       LicenseStatus @default(ACTIVE)
-  documentId   Int?          @map("document_id")
-  externalLink String?       @map("external_link")
-  createdById  String?       @map("created_by_id")
-  updatedById  String?       @map("updated_by_id")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id            Int           @id @default(autoincrement())
+  name          String
+  authority     String?
+  licenseNo     String?       @map("license_no")
+  issuedDate    DateTime?     @map("issued_date")
+  expiryDate    DateTime?     @map("expiry_date")
+  status        LicenseStatus @default(ACTIVE)
+  documentId    Int?          @map("document_id")
+  subContentId  Int?          @map("sub_content_id")
+  externalLink  String?       @map("external_link")
+  createdById   String?       @map("created_by_id")
+  updatedById   String?       @map("updated_by_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  document    Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  subContent  SubContent? @relation(fields: [subContentId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([documentId])
+  @@index([subContentId])
   @@index([expiryDate])
   @@map("licenses")
 }
@@ -410,6 +456,7 @@ enum UserStatus {
   ACTIVE
   INACTIVE
   PENDING
+  PENDING_VERIFICATION
   SUSPENDED
 }
 

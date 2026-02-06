@@ -4,6 +4,7 @@ import {
   Body,
   UseGuards,
   Get,
+  Query,
   Request,
   Res,
   HttpCode,
@@ -22,9 +23,10 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
 
 const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
-const COOKIE_MAX_AGE_SECONDS = 15 * 60; // 15 minutes
 
 @ApiTags('auth')
 @Controller('auth')
@@ -40,15 +42,13 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Email already exists' })
   async register(
     @Body() dto: RegisterDto,
-    @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.register(
       dto.fullName,
       dto.email,
       dto.password,
     );
-    this.setUserCookie(res, result.accessToken);
-    return { user: result.user, expiresIn: result.expiresIn };
+    return result;
   }
 
   @Post('login')
@@ -62,7 +62,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.login(loginDto.email, loginDto.password);
-    this.setUserCookie(res, result.accessToken);
+    this.setUserCookie(res, result.accessToken, result.expiresIn);
     return { user: result.user, expiresIn: result.expiresIn };
   }
 
@@ -78,7 +78,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.refreshTokens(refreshDto.refreshToken);
-    this.setUserCookie(res, result.accessToken);
+    this.setUserCookie(res, result.accessToken, result.expiresIn);
     return { user: result.user, expiresIn: result.expiresIn };
   }
 
@@ -125,13 +125,43 @@ export class AuthController {
     };
   }
 
-  private setUserCookie(res: Response, token: string): void {
+  @Get('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email address (15-minute link)' })
+  @ApiResponse({ status: 200, description: 'Email verified' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired link' })
+  async verifyEmail(@Query('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend email verification link' })
+  @ApiBody({ type: ResendVerificationDto })
+  @ApiResponse({ status: 200, description: 'Generic success message' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerification(dto.email);
+  }
+
+  @Post('change-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change email before verification and resend link' })
+  @ApiBody({ type: ChangeEmailDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Generic success response (does not reveal account existence)',
+  })
+  async changeEmail(@Body() dto: ChangeEmailDto) {
+    return this.authService.changeEmail(dto.currentEmail, dto.newEmail);
+  }
+
+  private setUserCookie(res: Response, token: string, expiresInSeconds: number): void {
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'lax',
-      maxAge: COOKIE_MAX_AGE_SECONDS * 1000,
+      maxAge: expiresInSeconds * 1000,
       path: '/',
     });
   }

@@ -36,7 +36,7 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  JWT_EXPIRES_IN: string = '15m';
+  JWT_EXPIRES_IN: string = '8h';
 
   @IsString()
   @IsOptional()
@@ -57,6 +57,39 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SWAGGER_ENABLED: string = 'true';
+
+  // Email / App URLs (used for verification links and notifications)
+  @IsString()
+  @IsOptional()
+  APP_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @IsNumber()
+  @IsOptional()
+  SMTP_PORT?: number;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_SECURE?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM_ADDRESS?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

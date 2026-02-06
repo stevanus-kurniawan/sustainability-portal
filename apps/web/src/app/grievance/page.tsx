@@ -2,7 +2,7 @@ import { MessageSquareWarning, Calendar, AlertCircle, CheckCircle, Clock } from 
 import { Suspense } from 'react';
 
 import { PageHeader } from '@/components/PageHeader';
-import { Card, CardContent, StatusBadge, Badge, EmptyState, CardSkeleton } from '@/components/ui';
+import { Card, CardContent, Badge, EmptyState, CardSkeleton } from '@/components/ui';
 import { getGrievances, type GrievanceCase } from '@/lib/api';
 
 export const metadata = {
@@ -131,7 +131,6 @@ function GrievanceCard({
               <span className="font-mono text-sm text-primary font-medium">
                 #{grievance.attributes.caseNo}
               </span>
-              <StatusBadge status={grievance.attributes.status} />
               {grievance.attributes.category && (
                 <Badge variant="outline">{grievance.attributes.category}</Badge>
               )}

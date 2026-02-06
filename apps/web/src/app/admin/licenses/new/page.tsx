@@ -1,10 +1,11 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Paperclip, X } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
+import { adminSubContentsList, adminCategoriesList, adminDocumentCreate } from '@/lib/admin-api';
 
 const defaultForm = {
   name: '',
@@ -13,7 +14,9 @@ const defaultForm = {
   issuedDate: '',
   expiryDate: '',
   documentId: null as number | null,
+  subContentId: null as number | null,
   externalLink: '',
+  attachment: null as { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null,
 };
 
 function toFormValue(date: string | null): string {
@@ -25,27 +28,128 @@ function toFormValue(date: string | null): string {
 
 export default function AdminLicensesNewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const categoryIdStr = searchParams.get('categoryId');
+  const subContentIdStr = searchParams.get('subContentId');
+  const categoryId = categoryIdStr ? parseInt(categoryIdStr, 10) : undefined;
+  const subContentIdFromUrl = subContentIdStr ? parseInt(subContentIdStr, 10) : undefined;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
+  const [subContents, setSubContents] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [licenseCategoryId, setLicenseCategoryId] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const update = (field: keyof typeof defaultForm, value: string | number | null) => {
+  const backHref =
+    categoryIdStr && subContentIdStr
+      ? `/admin/licenses?categoryId=${categoryIdStr}&subContentId=${subContentIdStr}`
+      : '/admin/licenses';
+
+  useEffect(() => {
+    adminCategoriesList()
+      .then((arr) => {
+        const list = Array.isArray(arr) ? arr : [];
+        const licenseCat = list.find(
+          (c: { attributes?: { slug: string }; slug?: string }) =>
+            ((c.attributes?.slug ?? (c as { slug?: string }).slug) ?? '').toLowerCase() === 'license' ||
+            ((c.attributes?.slug ?? (c as { slug?: string }).slug) ?? '').toLowerCase() === 'licenses'
+        );
+        const catId = licenseCat?.id ?? categoryId;
+        if (catId) setLicenseCategoryId(catId);
+      })
+      .catch(() => {});
+  }, [categoryId]);
+
+  const effectiveCategoryId = categoryId ?? licenseCategoryId ?? undefined;
+
+  useEffect(() => {
+    if (!effectiveCategoryId) return;
+    adminSubContentsList(effectiveCategoryId)
+      .then((res) => {
+        const list = res?.data ?? [];
+        const mapped = list.map((s: { id: number; attributes?: { title: string; slug: string }; title?: string; slug?: string }) => ({
+          id: s.id,
+          title: s.attributes?.title ?? (s as { title?: string }).title ?? '',
+          slug: s.attributes?.slug ?? (s as { slug?: string }).slug ?? '',
+        }));
+        setSubContents(mapped);
+        if (subContentIdFromUrl && !Number.isNaN(subContentIdFromUrl) && mapped.some((x) => x.id === subContentIdFromUrl)) {
+          setForm((prev) => ({ ...prev, subContentId: subContentIdFromUrl }));
+        }
+      })
+      .catch(() => setSubContents([]));
+  }, [effectiveCategoryId, subContentIdFromUrl]);
+
+  const update = (field: keyof typeof defaultForm, value: string | number | null | typeof defaultForm.attachment) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError(null);
   };
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const presignRes = await fetch('/api/admin/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+      });
+      if (!presignRes.ok) {
+        const data = await presignRes.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to get upload URL');
+      }
+      const { url, key } = await presignRes.json();
+      if (!url || !key) throw new Error('Upload not configured');
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!putRes.ok) throw new Error('Upload failed');
+      update('attachment', {
+        fileKey: key,
+        fileName: file.name,
+        mimeType: file.type || undefined,
+        fileSize: file.size,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSaving(true);
     try {
+      let documentId: number | undefined = form.documentId ?? undefined;
+      if (form.attachment && licenseCategoryId) {
+        const doc = await adminDocumentCreate({
+          title: `License attachment: ${form.name.trim() || 'Untitled'}`,
+          type: 'GENERAL',
+          categoryId: licenseCategoryId,
+          subContentId: form.subContentId ?? undefined,
+          isPublic: false,
+          isPublished: false,
+          attachment: form.attachment,
+        });
+        documentId = doc.id;
+      }
       const body: Record<string, unknown> = {
         name: form.name.trim() || undefined,
         authority: form.authority.trim() || undefined,
         licenseNo: form.licenseNo.trim() || undefined,
         issuedDate: form.issuedDate || undefined,
         expiryDate: form.expiryDate || undefined,
-        documentId: form.documentId ?? undefined,
+        documentId: documentId ?? form.documentId ?? undefined,
+        subContentId: form.subContentId ?? undefined,
         externalLink: form.externalLink.trim() || undefined,
       };
       const res = await fetch('/api/admin/licenses', {
@@ -63,7 +167,7 @@ export default function AdminLicensesNewPage() {
         setError(data.message || data.error || res.statusText);
         return;
       }
-      router.push('/admin/licenses');
+      router.push(backHref);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
@@ -105,6 +209,29 @@ export default function AdminLicensesNewPage() {
             className="w-full"
           />
         </div>
+        {effectiveCategoryId != null && subContents.length > 0 && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content *</label>
+            <select
+              className="input w-full"
+              value={form.subContentId ?? ''}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  subContentId: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                }))
+              }
+              required
+            >
+              <option value="">— Select sub-content —</option>
+              {subContents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">Issued date</label>
@@ -126,17 +253,46 @@ export default function AdminLicensesNewPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-charcoal">Attachment / link</label>
-          <p className="mb-2 text-xs text-steel">Document ID or external URL.</p>
-          <div className="space-y-2">
-            <Input
-              type="number"
-              min={1}
-              value={form.documentId ?? ''}
-              onChange={(e) => update('documentId', e.target.value === '' ? null : parseInt(e.target.value, 10))}
-              placeholder="Document ID (optional)"
-              className="w-full"
-            />
+          <label className="mb-1 block text-sm font-medium text-charcoal flex items-center gap-2">
+            <Paperclip className="h-4 w-4" />
+            Attachment (file)
+          </label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+          {form.attachment ? (
+            <div className="flex items-center gap-2 rounded-md border border-border-light bg-light px-3 py-2 text-sm text-charcoal">
+              <Paperclip className="h-4 w-4 text-steel" />
+              <span className="flex-1 truncate">{form.attachment.fileName}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => update('attachment', null)}
+                className="text-danger hover:bg-danger/10"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+              {uploading ? 'Uploading…' : 'Choose file'}
+            </Button>
+          )}
+          <p className="mt-2 text-xs text-steel">Or add an external URL below.</p>
+          <div className="mt-2">
             <Input
               type="url"
               value={form.externalLink}
@@ -147,10 +303,10 @@ export default function AdminLicensesNewPage() {
           </div>
         </div>
         <div className="flex gap-3 pt-4">
-          <Button type="submit" disabled={saving} isLoading={saving}>
+          <Button type="submit" disabled={saving || uploading} isLoading={saving}>
             Create
           </Button>
-          <Link href="/admin/licenses">
+          <Link href={backHref}>
             <Button type="button" variant="outline">
               Cancel
             </Button>

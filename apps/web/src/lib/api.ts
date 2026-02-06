@@ -2,7 +2,7 @@
  * Public API client for SLMS (migrated from apps/web-public)
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 interface PaginationMeta {
   page: number;
@@ -53,13 +53,28 @@ async function fetchApi<T>(
 
 // Types
 
+export type CategoryMode = 'DIRECT' | 'WITH_SUBCONTENT';
+
 export interface Category {
   id: number;
   attributes: {
     name: string;
     slug: string;
+    menuGroup?: string | null;
+    mode?: CategoryMode;
     isPublic: boolean;
     displayOrder: number;
+  };
+}
+
+export interface SubContent {
+  id: number;
+  attributes: {
+    title: string;
+    slug: string;
+    order: number;
+    description?: string | null;
+    parentCategoryId?: number;
   };
 }
 
@@ -76,6 +91,7 @@ export interface DocumentFile {
   attributes: {
     name: string;
     url: string;
+    key?: string;
     mime: string;
     size: number;
   };
@@ -98,6 +114,7 @@ export interface Document {
     title: string;
     type: string;
     description: string;
+    externalLink?: string | null;
     isPublic: boolean;
     isPublished: boolean;
     publishedAt: string;
@@ -197,6 +214,66 @@ export async function getCategories(): Promise<Category[]> {
     tags: ['categories'],
   });
   return response.data || [];
+}
+
+export async function getCategoryBySlug(slug: string): Promise<{ data: Category | null }> {
+  const response = await fetch(`${API_BASE_URL}/public/categories/${encodeURIComponent(slug)}`, {
+    next: { revalidate: 300, tags: ['categories', `category-${slug}`] },
+  });
+  if (!response.ok) throw new Error(`API Error: ${response.status}`);
+  return response.json();
+}
+
+export async function getSubContents(categorySlug: string): Promise<ApiResponse<SubContent[]>> {
+  return fetchApi<SubContent[]>(
+    `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents`,
+    { revalidate: 60, tags: ['sub-contents', `category-${categorySlug}`] }
+  );
+}
+
+export async function getSubContentDocuments(
+  categorySlug: string,
+  subSlug: string,
+  params?: { page?: number; pageSize?: number }
+): Promise<ApiResponse<Document[]>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  const query = searchParams.toString();
+  return fetchApi<Document[]>(
+    `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents/${encodeURIComponent(subSlug)}/documents${query ? `?${query}` : ''}`,
+    { revalidate: 60, tags: ['library', `sub-${categorySlug}-${subSlug}`] }
+  );
+}
+
+export async function getSubContentLicenses(
+  categorySlug: string,
+  subSlug: string,
+  params?: { page?: number; pageSize?: number }
+): Promise<ApiResponse<License[]>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  const query = searchParams.toString();
+  return fetchApi<License[]>(
+    `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents/${encodeURIComponent(subSlug)}/licenses${query ? `?${query}` : ''}`,
+    { revalidate: 60, tags: ['licenses', `sub-${categorySlug}-${subSlug}`] }
+  );
+}
+
+export async function getSubContentCertifications(
+  categorySlug: string,
+  subSlug: string,
+  params?: { page?: number; pageSize?: number }
+): Promise<ApiResponse<Certification[]>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  const query = searchParams.toString();
+  return fetchApi<Certification[]>(
+    `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents/${encodeURIComponent(subSlug)}/certifications${query ? `?${query}` : ''}`,
+    { revalidate: 60, tags: ['certifications', `sub-${categorySlug}-${subSlug}`] }
+  );
 }
 
 export async function getTags(): Promise<Tag[]> {

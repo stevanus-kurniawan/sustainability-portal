@@ -38,10 +38,15 @@ export class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    const from = this.configService.get(
-      'SMTP_FROM',
-      'SLMS Notifications <noreply@slms.local>',
-    );
+    const mailFromName = this.configService.get<string>('MAIL_FROM_NAME');
+    const mailFromAddress = this.configService.get<string>('MAIL_FROM_ADDRESS');
+    const from =
+      mailFromName && mailFromAddress
+        ? `${mailFromName} <${mailFromAddress}>`
+        : this.configService.get(
+            'SMTP_FROM',
+            'SLMS Notifications <noreply@slms.local>',
+          );
 
     try {
       const result = await this.transporter.sendMail({

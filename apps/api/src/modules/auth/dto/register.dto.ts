@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, MinLength, Matches } from 'class-validator';
+import { VALIDATION, VALIDATION_MESSAGES } from '@slms/shared';
 
 const ALLOWED_DOMAIN = '@energi-up.com';
 
@@ -13,9 +14,19 @@ export class RegisterDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'SecureP@ss1', minLength: 8 })
+  @ApiProperty({
+    example: 'StrongP@ssw0rd!',
+    minLength: VALIDATION.PASSWORD.MIN_LENGTH,
+    description:
+      'At least 10 characters including uppercase, lowercase, number, and special character.',
+  })
   @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MinLength(VALIDATION.PASSWORD.MIN_LENGTH, {
+    message: VALIDATION_MESSAGES.MIN_LENGTH(VALIDATION.PASSWORD.MIN_LENGTH),
+  })
+  @Matches(VALIDATION.PASSWORD.PATTERN, {
+    message: VALIDATION_MESSAGES.PASSWORD_WEAK,
+  })
   password: string;
 }
 

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
@@ -19,7 +18,7 @@ export class GrievancesService {
   }) {
     const page = params.page ?? DEFAULT_PAGE;
     const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.GrievanceCaseWhereInput = {};
+    const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
     if (params.category) where.category = params.category;
     const [items, total] = await Promise.all([
@@ -52,7 +51,7 @@ export class GrievancesService {
   }) {
     const page = params.page ?? DEFAULT_PAGE;
     const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.GrievanceCaseWhereInput = {};
+    const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
     if (params.category) where.category = params.category;
     const [items, total] = await Promise.all([

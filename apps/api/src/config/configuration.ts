@@ -19,11 +19,11 @@ export default () => ({
   // JWT
   jwt: {
     secret: process.env.JWT_SECRET || 'super-secret-key-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-change-in-production',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     adminSecret: process.env.JWT_ADMIN_SECRET || 'admin-secret-key-change-in-production',
-    adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '15m',
+    adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '8h',
   },
 
   // CORS

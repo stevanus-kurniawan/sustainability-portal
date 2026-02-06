@@ -5,7 +5,6 @@ import {
   Filter,
   FileText,
   Calendar,
-  Eye,
   Download,
   X,
   Grid3X3,
@@ -14,7 +13,6 @@ import {
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useState, useCallback, useTransition } from 'react';
 
-import { DocumentViewer } from '@/components/DocumentViewer';
 import { Card, CardContent, Badge, Button, EmptyState, Pagination } from '@/components/ui';
 import type { Document, Category, Tag } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -48,8 +46,6 @@ export function LibraryClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -80,11 +76,6 @@ export function LibraryClient({
 
   const handleClearFilters = () => {
     startTransition(() => router.push(pathname));
-  };
-
-  const openDocument = (doc: Document) => {
-    setSelectedDoc(doc);
-    setViewerOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -265,23 +256,13 @@ export function LibraryClient({
               {viewMode === 'grid' ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {initialDocuments.map((doc) => (
-                    <DocumentCard
-                      key={doc.id}
-                      document={doc}
-                      formatDate={formatDate}
-                      onView={() => openDocument(doc)}
-                    />
+                    <DocumentCard key={doc.id} document={doc} formatDate={formatDate} />
                   ))}
                 </div>
               ) : (
                 <div className="space-y-4">
                   {initialDocuments.map((doc) => (
-                    <DocumentRow
-                      key={doc.id}
-                      document={doc}
-                      formatDate={formatDate}
-                      onView={() => openDocument(doc)}
-                    />
+                    <DocumentRow key={doc.id} document={doc} formatDate={formatDate} />
                   ))}
                 </div>
               )}
@@ -299,14 +280,6 @@ export function LibraryClient({
         </div>
       </section>
 
-      <DocumentViewer
-        doc={selectedDoc}
-        isOpen={viewerOpen}
-        onClose={() => {
-          setViewerOpen(false);
-          setSelectedDoc(null);
-        }}
-      />
     </>
   );
 }
@@ -314,13 +287,12 @@ export function LibraryClient({
 function DocumentCard({
   document: doc,
   formatDate,
-  onView,
 }: {
   document: Document;
   formatDate: (date: string) => string;
-  onView: () => void;
 }) {
   const fileUrl = doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.url;
+  const externalLink = doc.attributes.externalLink ?? null;
   return (
     <Card hover className="h-full flex flex-col">
       <CardContent className="p-5 flex-1 flex flex-col">
@@ -328,9 +300,6 @@ function DocumentCard({
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
             <FileText className="h-5 w-5 text-primary" />
           </div>
-          <Badge variant="info" className="text-xs">
-            {doc.attributes.type}
-          </Badge>
         </div>
         <h3 className="font-heading text-base font-semibold text-charcoal mb-2 line-clamp-2">
           {doc.attributes.title}
@@ -352,25 +321,17 @@ function DocumentCard({
             </Badge>
           ))}
         </div>
-        <div className="mt-auto pt-3 border-t border-border-light">
+        <div className="mt-auto pt-3 border-t border-border-light space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-steel flex items-center gap-1">
               <Calendar className="h-3 w-3" />
               {formatDate(doc.attributes.publishedAt)}
             </span>
             <div className="flex gap-2">
-              <button
-                onClick={onView}
-                className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
-                title="Preview"
-              >
-                <Eye className="h-4 w-4" />
-              </button>
               {fileUrl && (
                 <a
                   href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
                   className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
                   title="Download"
                 >
@@ -379,6 +340,16 @@ function DocumentCard({
               )}
             </div>
           </div>
+          {externalLink && (
+            <a
+              href={externalLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-sm text-primary hover:underline"
+            >
+              Learn more →
+            </a>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -388,13 +359,12 @@ function DocumentCard({
 function DocumentRow({
   document: doc,
   formatDate,
-  onView,
 }: {
   document: Document;
   formatDate: (date: string) => string;
-  onView: () => void;
 }) {
   const fileUrl = doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.url;
+  const externalLink = doc.attributes.externalLink ?? null;
   return (
     <Card hover>
       <CardContent className="p-4">
@@ -405,9 +375,6 @@ function DocumentRow({
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2 mb-1">
               <h3 className="font-medium text-charcoal truncate">{doc.attributes.title}</h3>
-              <Badge variant="info" className="text-xs flex-shrink-0">
-                {doc.attributes.type}
-              </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-steel">
               <span className="flex items-center gap-1">
@@ -422,17 +389,24 @@ function DocumentRow({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Button variant="ghost" size="sm" onClick={onView}>
-              <Eye className="h-4 w-4" />
-            </Button>
             {fileUrl && (
               <a
                 href={fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-outline text-sm px-3 py-1.5"
+                download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
+                className="btn-outline text-sm px-3 py-1.5 flex items-center gap-1"
               >
                 <Download className="h-4 w-4" />
+                Download
+              </a>
+            )}
+            {externalLink && (
+              <a
+                href={externalLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline"
+              >
+                Learn more →
               </a>
             )}
           </div>

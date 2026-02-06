@@ -11,6 +11,12 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REGISTRATION_ALLOWED_DOMAIN } from './dto/register.dto';
+import { EmailService } from '../notification-engine/email.service';
+import {
+  buildVerifyEmailHtml,
+  buildVerifyEmailSubject,
+  buildVerifyEmailText,
+} from './templates/verify-email.template';
 
 export interface JwtPayload {
   sub: string;
@@ -34,6 +40,27 @@ export interface TokenResponse {
 }
 
 const SALT_ROUNDS = 10;
+const EMAIL_VERIFICATION_EXPIRES_IN = '15m';
+
+type EmailVerificationPayload = {
+  user_id: string;
+  email: string;
+  purpose: 'email_verification';
+};
+
+/** Parse JWT expiry string (e.g. "15m", "1h", "7d") to seconds. */
+function parseExpiryToSeconds(expiresIn: string): number {
+  const match = /^(\d+)(m|h|d|s)$/.exec(expiresIn.trim().toLowerCase());
+  if (!match) return 60 * 60; // default 1h
+  const n = parseInt(match[1], 10);
+  switch (match[2]) {
+    case 's': return n;
+    case 'm': return n * 60;
+    case 'h': return n * 3600;
+    case 'd': return n * 86400;
+    default: return 60 * 60;
+  }
+}
 
 @Injectable()
 export class AuthService {
@@ -44,12 +71,17 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
+    private emailService: EmailService,
   ) {}
 
   /**
    * Register a new user. Email must end with @energi-up.com.
    */
-  async register(fullName: string, email: string, password: string): Promise<Omit<TokenResponse, 'refreshToken'>> {
+  async register(
+    fullName: string,
+    email: string,
+    password: string,
+  ): Promise<{ message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail.endsWith(REGISTRATION_ALLOWED_DOMAIN)) {
       throw new BadRequestException(
@@ -64,6 +96,21 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
+    // Basic password hardening guard (in addition to DTO validation)
+    const weakPasswords = [
+      'password',
+      'password123',
+      '12345678',
+      '123456789',
+      'qwerty123',
+      'admin123',
+    ];
+    if (weakPasswords.includes(password.toLowerCase())) {
+      throw new BadRequestException(
+        'Password is too common. Please choose a stronger password.',
+      );
+    }
+
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
     const user = await this.prisma.user.create({
@@ -71,7 +118,12 @@ export class AuthService {
         email: normalizedEmail,
         name: fullName.trim(),
         passwordHash,
-        status: 'ACTIVE',
+        status: 'PENDING_VERIFICATION' as any,
+        // cast to any so we can use newly added columns before Prisma client is regenerated
+        ...(true && ({
+          emailVerified: false,
+          emailVerifiedAt: null,
+        } as any)),
       },
       include: {
         userRoles: {
@@ -97,9 +149,9 @@ export class AuthService {
       });
     }
 
-    const userWithRoles = await this.usersService.findById(user.id);
+    await this.sendEmailVerificationLink(user.id, normalizedEmail);
     await this.logAudit(normalizedEmail, 'REGISTER', 'User', user.id);
-    return this.generateTokens(userWithRoles);
+    return { message: 'Verification email sent. Link expires in 15 minutes.' };
   }
 
   /**
@@ -107,14 +159,17 @@ export class AuthService {
    */
   async login(email: string, password: string): Promise<TokenResponse> {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.usersService.findByEmail(normalizedEmail);
+    const user = (await this.usersService.findByEmail(normalizedEmail)) as any;
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('User account is not active');
+    if (!user.emailVerified || user.status !== ('ACTIVE' as any)) {
+      throw new UnauthorizedException({
+        message: 'Please verify your email before logging in.',
+        canResendVerification: true,
+      });
     }
 
     if (!user.passwordHash) {
@@ -128,6 +183,174 @@ export class AuthService {
 
     await this.logAudit(user.email, 'LOGIN', 'User', user.id);
     return this.generateTokens(user);
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    try {
+      const payload = this.jwtService.verify<EmailVerificationPayload>(token, {
+        secret: this.configService.get('JWT_SECRET'),
+      });
+
+      if (payload?.purpose !== 'email_verification') {
+        throw new Error('Invalid token purpose');
+      }
+
+      const user = (await this.prisma.user.findUnique({
+        where: { id: payload.user_id },
+      })) as any;
+
+      if (!user || user.email !== payload.email) {
+        throw new Error('User not found');
+      }
+
+      // Idempotent: if already verified and active, do not error
+      if (user.emailVerified && user.status === ('ACTIVE' as any)) {
+        return { message: 'Email already verified.' };
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(true && ({
+            emailVerified: true,
+            emailVerifiedAt: new Date(),
+          } as any)),
+          status: 'ACTIVE' as any,
+        } as any,
+      });
+
+      await this.logAudit(user.email, 'VERIFY_EMAIL', 'User', user.id);
+      return { message: 'Email verified successfully.' };
+    } catch (e) {
+      this.logger.warn(
+        `Email verification failed: ${(e as Error).message || e} `,
+      );
+      throw new BadRequestException(
+        'Verification link expired or invalid. Please request a new one.',
+      );
+    }
+  }
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Always return generic success (do not reveal account existence)
+    const genericResponse = {
+      message: 'If your email exists, verification link sent.',
+    };
+
+    const user = (await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    })) as any;
+
+    if (!user || user.emailVerified) {
+      return genericResponse;
+    }
+
+    await this.sendEmailVerificationLink(user.id, user.email);
+    await this.logAudit(user.email, 'RESEND_VERIFICATION', 'User', user.id);
+    return genericResponse;
+  }
+
+  async changeEmail(
+    currentEmail: string,
+    newEmail: string,
+  ): Promise<{ message: string }> {
+    const oldEmail = currentEmail.trim().toLowerCase();
+    const nextEmail = newEmail.trim().toLowerCase();
+
+    const genericResponse = {
+      message:
+        'If your account is eligible, a new verification link has been sent.',
+    };
+
+    if (!oldEmail || !nextEmail) {
+      return genericResponse;
+    }
+
+    const user = (await this.prisma.user.findUnique({
+      where: { email: oldEmail },
+    })) as any;
+
+    if (
+      !user ||
+      user.emailVerified ||
+      user.status !== ('PENDING_VERIFICATION' as any)
+    ) {
+      return genericResponse;
+    }
+
+    const existingTarget = await this.prisma.user.findUnique({
+      where: { email: nextEmail },
+    });
+    if (existingTarget && existingTarget.id !== user.id) {
+      throw new BadRequestException(
+        'This email is already associated with another account.',
+      );
+    }
+
+    const updated = (await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: nextEmail,
+        ...(true && ({
+          emailVerified: false,
+          emailVerifiedAt: null,
+        } as any)),
+        status: 'PENDING_VERIFICATION' as any,
+      } as any,
+    })) as any;
+
+    await this.sendEmailVerificationLink(updated.id, updated.email);
+    await this.logAudit(
+      updated.email,
+      'CHANGE_EMAIL_BEFORE_VERIFICATION',
+      'User',
+      updated.id,
+      { previousEmail: oldEmail },
+    );
+
+    return genericResponse;
+  }
+
+  private createEmailVerificationToken(params: {
+    userId: string;
+    email: string;
+  }): string {
+    const payload: EmailVerificationPayload = {
+      user_id: params.userId,
+      email: params.email,
+      purpose: 'email_verification',
+    };
+
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get('JWT_SECRET'),
+      expiresIn: EMAIL_VERIFICATION_EXPIRES_IN,
+    });
+  }
+
+  private async sendEmailVerificationLink(
+    userId: string,
+    email: string,
+  ): Promise<void> {
+    const token = this.createEmailVerificationToken({ userId, email });
+    const appBaseUrl =
+      this.configService.get('APP_BASE_URL') ||
+      this.configService.get('WEB_URL', 'http://localhost:3000');
+    const verifyUrl = `${String(appBaseUrl).replace(/\/$/, '')}/auth/verify-email?token=${encodeURIComponent(token)}`;
+
+    const ok = await this.emailService.sendEmail({
+      to: email,
+      subject: buildVerifyEmailSubject(),
+      text: buildVerifyEmailText({ verifyUrl }),
+      html: buildVerifyEmailHtml({ verifyUrl }),
+    });
+
+    if (!ok) {
+      this.logger.error(
+        `Failed to send verification email to ${email}. Check SMTP configuration and logs from EmailService.`,
+      );
+    }
   }
 
   /**
@@ -232,10 +455,13 @@ export class AuthService {
       },
     });
 
+    const accessExpiresInStr = this.configService.get('JWT_EXPIRES_IN', '1h');
+    const expiresInSeconds = parseExpiryToSeconds(accessExpiresInStr);
+
     return {
       accessToken,
       refreshToken,
-      expiresIn: 900,
+      expiresIn: expiresInSeconds,
       user: {
         id: user.id,
         email: user.email,

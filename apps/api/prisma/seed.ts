@@ -72,7 +72,7 @@ const CATEGORIES = [
   },
   // Content categories for admin document lists and public header (menuGroup for submenus)
   {
-    name: 'SOP (Standard Operating Procedures)',
+    name: 'SOP',
     slug: 'sop',
     menuGroup: 'procedure',
     isPublic: true,
@@ -93,25 +93,33 @@ const CATEGORIES = [
     displayOrder: 9,
   },
   {
+    name: 'Certificate',
+    slug: 'certificate',
+    menuGroup: 'sustainability',
+    mode: 'WITH_SUBCONTENT',
+    isPublic: true,
+    displayOrder: 10,
+  },
+  {
     name: 'National',
     slug: 'national',
     menuGroup: 'compliance',
     isPublic: true,
-    displayOrder: 10,
+    displayOrder: 11,
   },
   {
     name: 'International',
     slug: 'international',
     menuGroup: 'compliance',
     isPublic: true,
-    displayOrder: 11,
+    displayOrder: 12,
   },
   {
     name: 'Standard',
     slug: 'standard',
     menuGroup: 'compliance',
     isPublic: true,
-    displayOrder: 12,
+    displayOrder: 13,
   },
 ];
 
@@ -301,12 +309,20 @@ async function seedCategoriesAndTags() {
   console.log('📚 Seeding categories and tags...');
 
   for (const category of CATEGORIES) {
-    const c = category as { name: string; slug: string; menuGroup?: string; isPublic?: boolean; displayOrder?: number };
+    const c = category as {
+      name: string;
+      slug: string;
+      menuGroup?: string;
+      mode?: 'DIRECT' | 'WITH_SUBCONTENT';
+      isPublic?: boolean;
+      displayOrder?: number;
+    };
     await prisma.category.upsert({
       where: { slug: c.slug },
       update: {
         name: c.name,
         menuGroup: c.menuGroup ?? undefined,
+        mode: c.mode === 'WITH_SUBCONTENT' ? 'WITH_SUBCONTENT' : 'DIRECT',
         isPublic: c.isPublic ?? true,
         displayOrder: c.displayOrder ?? 0,
       },
@@ -314,10 +330,36 @@ async function seedCategoriesAndTags() {
         name: c.name,
         slug: c.slug,
         menuGroup: c.menuGroup ?? undefined,
+        mode: c.mode === 'WITH_SUBCONTENT' ? 'WITH_SUBCONTENT' : 'DIRECT',
         isPublic: c.isPublic ?? true,
         displayOrder: c.displayOrder ?? 0,
       },
     });
+  }
+
+  // Sub-contents for WITH_SUBCONTENT categories (e.g. Certificate → Sites)
+  const certCategory = await prisma.category.findUnique({ where: { slug: 'certificate' } });
+  if (certCategory) {
+    const subContents = [
+      { title: 'Jakarta', slug: 'jakarta', order: 0, description: 'Certificates for Jakarta site' },
+      { title: 'Tanjung Pura', slug: 'tanjung-pura', order: 1, description: 'Certificates for Tanjung Pura site' },
+    ];
+    for (const sub of subContents) {
+      await prisma.subContent.upsert({
+        where: {
+          parentCategoryId_slug: { parentCategoryId: certCategory.id, slug: sub.slug },
+        },
+        update: { title: sub.title, order: sub.order, description: sub.description ?? null },
+        create: {
+          parentCategoryId: certCategory.id,
+          title: sub.title,
+          slug: sub.slug,
+          order: sub.order,
+          description: sub.description ?? null,
+        },
+      });
+    }
+    console.log(`  ✅ Sub-contents for Certificate: ${subContents.length} (Jakarta, Tanjung Pura)`);
   }
 
   for (const tag of TAGS) {

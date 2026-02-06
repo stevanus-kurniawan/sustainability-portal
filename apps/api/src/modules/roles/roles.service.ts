@@ -126,13 +126,13 @@ export class RolesService {
     });
 
     if (permissions.length !== permissionCodes.length) {
-      const foundCodes = permissions.map((p) => p.code);
+      const foundCodes = permissions.map((p: { code: string }) => p.code);
       const missing = permissionCodes.filter((c) => !foundCodes.includes(c));
       throw new NotFoundException(`Permissions not found: ${missing.join(', ')}`);
     }
 
     await this.prisma.rolePermission.createMany({
-      data: permissions.map((permission) => ({
+      data: permissions.map((permission: { id: string }) => ({
         roleId,
         permissionId: permission.id,
       })),

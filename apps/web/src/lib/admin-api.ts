@@ -26,14 +26,30 @@ export interface DocumentItem {
     publishedAt: string | null;
     createdAt: string;
     category: { data: { id: number; attributes: { name: string; slug: string } } | null };
+    subContent?: { data: { id: number; attributes: { title: string; slug: string } } | null };
     tags: { data: Array<{ id: number; attributes: { name: string; slug: string } }> };
     currentVersion: { data: unknown } | null;
   };
 }
 
+export type CategoryMode = 'DIRECT' | 'WITH_SUBCONTENT';
+
 export interface CategoryItem {
   id: number;
-  attributes: { name: string; slug: string; isPublic: boolean; displayOrder: number };
+  attributes: { name: string; slug: string; menuGroup?: string | null; mode?: CategoryMode; isPublic: boolean; displayOrder: number };
+}
+
+export interface SubContentItem {
+  id: number;
+  attributes: {
+    title: string;
+    slug: string;
+    order: number;
+    description?: string | null;
+    parentCategoryId?: number;
+    createdAt?: string;
+    updatedAt?: string;
+  };
 }
 
 export interface ListResponse<T> {
@@ -55,12 +71,14 @@ export async function adminDocumentsList(params: {
   search?: string;
   isPublished?: boolean;
   categoryId?: number;
+  subContentId?: number;
 }): Promise<ListResponse<DocumentItem>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
   if (params.pageSize != null) sp.set('pageSize', String(params.pageSize));
   if (params.type) sp.set('type', params.type);
   if (params.search) sp.set('search', params.search);
+  if (params.subContentId != null) sp.set('subContentId', String(params.subContentId));
   if (params.isPublished !== undefined) sp.set('isPublished', String(params.isPublished));
   if (params.categoryId != null) sp.set('categoryId', String(params.categoryId));
   const res = await adminFetch(`/api/admin/documents?${sp.toString()}`, { cache: 'no-store' });
@@ -83,6 +101,7 @@ export async function adminDocumentCreate(body: {
   isPublic?: boolean;
   isPublished?: boolean;
   categoryId?: number;
+  subContentId?: number | null;
   tagIds?: number[];
   attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
 }): Promise<DocumentItem> {
@@ -104,6 +123,7 @@ export async function adminDocumentUpdate(
     isPublic: boolean;
     isPublished: boolean;
     categoryId: number | null;
+    subContentId: number | null;
     tagIds: number[];
     attachment: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
   }>
@@ -144,6 +164,7 @@ export async function adminCategoryCreate(body: {
   name: string;
   slug: string;
   menuGroup?: string | null;
+  mode?: CategoryMode;
   isPublic?: boolean;
   displayOrder?: number;
 }): Promise<CategoryItemWithMenuGroup> {
@@ -157,7 +178,7 @@ export async function adminCategoryCreate(body: {
 
 export async function adminCategoryUpdate(
   id: number,
-  body: { name?: string; slug?: string; menuGroup?: string | null; isPublic?: boolean; displayOrder?: number }
+  body: { name?: string; slug?: string; menuGroup?: string | null; mode?: CategoryMode; isPublic?: boolean; displayOrder?: number }
 ): Promise<CategoryItemWithMenuGroup> {
   const res = await adminFetch(`/api/admin/categories/${id}`, {
     method: 'PUT',
@@ -165,6 +186,43 @@ export async function adminCategoryUpdate(
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
+}
+
+export async function adminSubContentsList(categoryId: number): Promise<{ data: SubContentItem[] }> {
+  const res = await adminFetch(`/api/admin/categories/${categoryId}/sub-contents`, { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminSubContentCreate(
+  categoryId: number,
+  body: { title: string; slug: string; order?: number; description?: string | null }
+): Promise<SubContentItem> {
+  const res = await adminFetch(`/api/admin/categories/${categoryId}/sub-contents`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminSubContentUpdate(
+  categoryId: number,
+  subId: number,
+  body: { title?: string; slug?: string; order?: number; description?: string | null }
+): Promise<SubContentItem> {
+  const res = await adminFetch(`/api/admin/categories/${categoryId}/sub-contents/${subId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminSubContentDelete(categoryId: number, subId: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/categories/${categoryId}/sub-contents/${subId}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204)
+    throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
 }
 
 export async function adminCategoryDelete(id: number): Promise<void> {

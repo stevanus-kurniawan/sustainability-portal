@@ -15,7 +15,7 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/api ./apps/api
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 RUN pnpm --filter @slms/shared build
 RUN pnpm --filter @slms/api build
 WORKDIR /app/apps/api

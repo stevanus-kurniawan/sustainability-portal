@@ -4,7 +4,12 @@ import type { NextRequest } from 'next/server';
 const USER_ACCESS_TOKEN = 'user_access_token';
 const ADMIN_ACCESS_TOKEN = 'admin_access_token';
 
-const PUBLIC_USER_ROUTES = ['/login', '/register'];
+const PUBLIC_USER_ROUTES = [
+  '/login',
+  '/register',
+  '/register/verify-email',
+  '/auth/verify-email',
+];
 const ADMIN_PREFIX = '/admin';
 const ADMIN_LOGIN = '/admin/login';
 
@@ -33,7 +38,7 @@ export function middleware(req: NextRequest) {
   // Public user routes: allow without cookie; if authenticated, redirect to landing
   if (PUBLIC_USER_ROUTES.some((r) => pathname === r || pathname === r + '/')) {
     if (hasUserCookie(req)) {
-      return NextResponse.redirect(new URL('/home', req.url));
+      return NextResponse.redirect(new URL('/', req.url));
     }
     return NextResponse.next();
   }
@@ -50,6 +55,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|assets|images|api).*)',
+    '/((?!_next/static|_next/image|favicon.ico|assets|images|api|logo\\.png).*)',
   ],
 };

@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from './email.service';
-import {
-  NotificationObjectType,
-  NotificationChannel,
-  NotificationStatus,
-} from '@prisma/client';
+// Use string literal types here instead of Prisma enums to avoid
+// depending on generated enum exports during Docker builds.
+type NotificationObjectType = 'CERTIFICATION' | 'LICENSE' | 'DOC_VERSION';
+type NotificationChannel = 'EMAIL' | 'INAPP';
 
 interface ExpiringItem {
   id: number;
@@ -64,8 +63,12 @@ export class NotificationEngineService {
     ]);
 
     // Group rules by object type
-    const certRules = rules.filter((r) => r.objectType === 'CERTIFICATION');
-    const licenseRules = rules.filter((r) => r.objectType === 'LICENSE');
+    const certRules = rules.filter(
+      (r: { objectType: string }) => r.objectType === 'CERTIFICATION',
+    );
+    const licenseRules = rules.filter(
+      (r: { objectType: string }) => r.objectType === 'LICENSE',
+    );
 
     // Process certifications
     for (const cert of certifications) {
@@ -216,13 +219,13 @@ export class NotificationEngineService {
             objectId: String(item.id),
             daysBeforeExp: daysBeforeExpiry,
             idempotencyKey: recipientIdempotencyKey,
-            status: NotificationStatus.SENT,
+            status: 'SENT',
             sentAt: new Date(),
           },
         });
 
         // Send email if channel is EMAIL
-        if (channel === NotificationChannel.EMAIL) {
+        if (channel === 'EMAIL') {
           const sent = await this.emailService.sendExpiryNotification(
             recipient,
             itemTypeLabel,
@@ -298,7 +301,7 @@ export class NotificationEngineService {
       select: { email: true },
     });
 
-    return users.map((u) => u.email);
+    return users.map((u: { email: string }) => u.email);
   }
 
   /**
@@ -310,7 +313,7 @@ export class NotificationEngineService {
         where: { expiryDate: { not: null } },
         select: { id: true, name: true, expiryDate: true, issuer: true },
       });
-      return items.map((c) => ({
+      return items.map((c: { id: number; name: string; expiryDate: Date | null; issuer: string | null }) => ({
         id: c.id,
         name: c.name,
         expiryDate: c.expiryDate?.toISOString() ?? '',
@@ -332,7 +335,7 @@ export class NotificationEngineService {
         where: { expiryDate: { not: null } },
         select: { id: true, name: true, expiryDate: true, authority: true },
       });
-      return items.map((c) => ({
+      return items.map((c: { id: number; name: string; expiryDate: Date | null; authority: string | null }) => ({
         id: c.id,
         name: c.name,
         expiryDate: c.expiryDate?.toISOString() ?? '',
@@ -351,7 +354,7 @@ export class NotificationEngineService {
   async getNotificationsForUser(
     userEmail: string,
     params: {
-      status?: NotificationStatus;
+      status?: 'SENT' | 'READ' | 'FAILED';
       channel?: NotificationChannel;
       page?: number;
       pageSize?: number;
@@ -403,7 +406,7 @@ export class NotificationEngineService {
     return this.prisma.notification.update({
       where: { id },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ',
         readAt: new Date(),
       },
     });
@@ -416,7 +419,7 @@ export class NotificationEngineService {
     return this.prisma.notification.count({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
     });
   }
@@ -428,10 +431,10 @@ export class NotificationEngineService {
     const result = await this.prisma.notification.updateMany({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ',
         readAt: new Date(),
       },
     });

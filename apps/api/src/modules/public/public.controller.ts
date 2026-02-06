@@ -1,13 +1,16 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CategoriesService } from '../categories/categories.service';
 import { CertificationsService } from '../certifications/certifications.service';
 import { DocumentsService } from '../documents/documents.service';
 import { GrievancesService } from '../grievances/grievances.service';
 import { LicensesService } from '../licenses/licenses.service';
+import { SubContentsService } from '../sub-contents/sub-contents.service';
 import { TagsService } from '../tags/tags.service';
 import { TraceabilityService } from '../traceability/traceability.service';
+import { UploadService } from '../upload/upload.service';
 
 @ApiTags('public')
 @Controller('public')
@@ -15,12 +18,14 @@ import { TraceabilityService } from '../traceability/traceability.service';
 export class PublicController {
   constructor(
     private readonly categoriesService: CategoriesService,
+    private readonly uploadService: UploadService,
     private readonly tagsService: TagsService,
     private readonly documentsService: DocumentsService,
     private readonly certificationsService: CertificationsService,
     private readonly licensesService: LicensesService,
     private readonly grievancesService: GrievancesService,
     private readonly traceabilityService: TraceabilityService,
+    private readonly subContentsService: SubContentsService,
   ) {}
 
   @Get('navigation')
@@ -28,9 +33,87 @@ export class PublicController {
     return this.categoriesService.getNavigationForPublic();
   }
 
+  /** Stream file with Content-Disposition: inline for PDF/image preview in browser (iframe). */
+  @Get('files/preview')
+  async getFilePreview(@Query('key') key: string | undefined, @Res() res: Response) {
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({ message: 'Missing or invalid key parameter' });
+    }
+    const result = await this.uploadService.getObjectStream(key);
+    if (!result) {
+      return res.status(502).json({ message: 'Failed to stream file' });
+    }
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    result.stream.on('error', () => {
+      if (!res.headersSent) res.status(500).json({ message: 'Stream error' });
+    });
+    result.stream.pipe(res);
+  }
+
   @Get('categories')
   getCategories() {
     return this.categoriesService.findAll(true).then((list) => ({ data: list }));
+  }
+
+  @Get('categories/:slug')
+  getCategoryBySlug(@Param('slug') slug: string) {
+    return this.categoriesService.findBySlugPublic(slug).then((c) =>
+      c ? { data: c } : { data: null },
+    );
+  }
+
+  @Get('categories/:slug/sub-contents')
+  getSubContents(@Param('slug') slug: string) {
+    return this.subContentsService.findAllByCategorySlugPublic(slug).then((list) => ({
+      data: list,
+    }));
+  }
+
+  @Get('categories/:slug/sub-contents/:subSlug/documents')
+  getSubContentDocuments(
+    @Param('slug') slug: string,
+    @Param('subSlug') subSlug: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.documentsService.findDocumentsByCategorySlugAndSubSlugPublic(
+      slug,
+      subSlug,
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+    );
+  }
+
+  @Get('categories/:slug/sub-contents/:subSlug/licenses')
+  getSubContentLicenses(
+    @Param('slug') slug: string,
+    @Param('subSlug') subSlug: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.licensesService.findByCategorySlugAndSubSlugPublic(
+      slug,
+      subSlug,
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+    );
+  }
+
+  @Get('categories/:slug/sub-contents/:subSlug/certifications')
+  getSubContentCertifications(
+    @Param('slug') slug: string,
+    @Param('subSlug') subSlug: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.certificationsService.findByCategorySlugAndSubSlugPublic(
+      slug,
+      subSlug,
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+    );
   }
 
   @Get('tags')

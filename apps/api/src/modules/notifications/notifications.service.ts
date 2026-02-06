@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationStatus, NotificationObjectType, NotificationChannel } from '@prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -12,7 +11,7 @@ export class NotificationsService {
 
   async findAll(params: {
     userEmail?: string;
-    status?: NotificationStatus;
+    status?: 'SENT' | 'READ' | 'FAILED';
     skip?: number;
     take?: number;
   }) {
@@ -45,12 +44,12 @@ export class NotificationsService {
     userEmail: string;
     title: string;
     message: string;
-    status?: NotificationStatus;
+    status?: 'SENT' | 'READ' | 'FAILED';
   }) {
     return this.prisma.notification.create({
       data: {
         ...data,
-        status: data.status || NotificationStatus.SENT,
+        status: data.status || ('SENT' as 'SENT' | 'READ' | 'FAILED'),
         sentAt: new Date(),
       },
     });
@@ -62,7 +61,7 @@ export class NotificationsService {
     return this.prisma.notification.update({
       where: { id },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ' as 'SENT' | 'READ' | 'FAILED',
         readAt: new Date(),
       },
     });
@@ -72,10 +71,10 @@ export class NotificationsService {
     return this.prisma.notification.updateMany({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ' as 'SENT' | 'READ' | 'FAILED',
         readAt: new Date(),
       },
     });
@@ -85,7 +84,7 @@ export class NotificationsService {
     return this.prisma.notification.count({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
     });
   }
@@ -103,12 +102,13 @@ export class NotificationsService {
   // ==========================================
 
   async findAllRules(params?: {
-    objectType?: NotificationObjectType;
-    channel?: NotificationChannel;
+    // keep shape but avoid relying on Prisma enums at compile-time
+    objectType?: string;
+    channel?: string;
     isActive?: boolean;
   }) {
     return this.prisma.notificationRule.findMany({
-      where: params,
+      where: (params as any) || undefined,
       orderBy: [{ objectType: 'asc' }, { daysBeforeExpiry: 'desc' }],
     });
   }
@@ -126,16 +126,16 @@ export class NotificationsService {
   }
 
   async createRule(data: {
-    objectType: NotificationObjectType;
+    objectType: string;
     daysBeforeExpiry: number;
-    channel: NotificationChannel;
+    channel: string;
     isActive?: boolean;
   }) {
     return this.prisma.notificationRule.create({
       data: {
         ...data,
         isActive: data.isActive ?? true,
-      },
+      } as any,
     });
   }
 

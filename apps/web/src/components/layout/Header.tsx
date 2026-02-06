@@ -1,6 +1,7 @@
 'use client';
 
-import { Menu, X, Leaf, LogOut, User, ChevronDown, ChevronRight } from 'lucide-react';
+import { Menu, X, LogOut, User, ChevronDown, ChevronRight } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
@@ -97,8 +98,15 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2 group">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform group-hover:scale-105">
-                <Leaf className="h-6 w-6" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg transition-transform group-hover:scale-105">
+                <Image
+                  src="/logo.png"
+                  alt="Sustainability portal logo"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
+                  unoptimized
+                />
               </div>
               <div className="hidden sm:block">
                 <span className="font-heading text-lg font-bold text-charcoal">SLMS</span>

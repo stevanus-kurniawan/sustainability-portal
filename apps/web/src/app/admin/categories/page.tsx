@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Plus, Trash2, FolderTree } from 'lucide-react';
+import { Pencil, Plus, Trash2, FolderTree, Layers } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -20,8 +20,16 @@ const MENU_GROUPS = [
   { value: 'compliance', label: 'Compliance' },
 ];
 
+const CATEGORY_MODES = [
+  { value: 'DIRECT', label: 'Direct (show documents directly)' },
+  { value: 'WITH_SUBCONTENT', label: 'With sub-content (e.g. Sites → then documents)' },
+];
+
 function getAttr(c: { id: number; attributes?: Record<string, unknown> }, key: string): unknown {
-  return (c.attributes && c.attributes[key]) ?? (c as Record<string, unknown>)[key];
+  const v = (c.attributes && c.attributes[key]) ?? (c as Record<string, unknown>)[key];
+  // Normalize mode: API may send enum as string; ensure we read it
+  if (key === 'mode' && (v === undefined || v === null)) return 'DIRECT';
+  return v;
 }
 
 export default function AdminCategoriesPage() {
@@ -34,6 +42,7 @@ export default function AdminCategoriesPage() {
     name: '',
     slug: '',
     menuGroup: '' as string,
+    mode: 'DIRECT' as 'DIRECT' | 'WITH_SUBCONTENT',
     isPublic: true,
     displayOrder: 0,
   });
@@ -66,6 +75,7 @@ export default function AdminCategoriesPage() {
       name: String(getAttr(c, 'name') ?? ''),
       slug: String(getAttr(c, 'slug') ?? ''),
       menuGroup: String(getAttr(c, 'menuGroup') ?? '') || '',
+      mode: (getAttr(c, 'mode') as 'DIRECT' | 'WITH_SUBCONTENT') || 'DIRECT',
       isPublic: Boolean(getAttr(c, 'isPublic') ?? true),
       displayOrder: Number(getAttr(c, 'displayOrder') ?? 0),
     });
@@ -74,7 +84,7 @@ export default function AdminCategoriesPage() {
   const startCreate = () => {
     setCreating(true);
     setEditingId(null);
-    setForm({ name: '', slug: '', menuGroup: '', isPublic: true, displayOrder: list.length });
+    setForm({ name: '', slug: '', menuGroup: '', mode: 'DIRECT', isPublic: true, displayOrder: list.length });
   };
 
   const cancelForm = () => {
@@ -89,6 +99,7 @@ export default function AdminCategoriesPage() {
           name: form.name.trim(),
           slug: form.slug.trim().toLowerCase().replace(/\s+/g, '-'),
           menuGroup: form.menuGroup || undefined,
+          mode: form.mode,
           isPublic: form.isPublic,
           displayOrder: form.displayOrder,
         });
@@ -97,6 +108,7 @@ export default function AdminCategoriesPage() {
           name: form.name.trim(),
           slug: form.slug.trim().toLowerCase().replace(/\s+/g, '-'),
           menuGroup: form.menuGroup || null,
+          mode: form.mode,
           isPublic: form.isPublic,
           displayOrder: form.displayOrder,
         });
@@ -152,7 +164,7 @@ export default function AdminCategoriesPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="e.g. SOP (Standard Operating Procedures)"
+                placeholder="e.g. SOP"
               />
             </div>
             <div>
@@ -176,6 +188,25 @@ export default function AdminCategoriesPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">Content mode</label>
+              <select
+                className="input w-full"
+                value={form.mode}
+                onChange={(e) => setForm((p) => ({ ...p, mode: e.target.value as 'DIRECT' | 'WITH_SUBCONTENT' }))}
+              >
+                {CATEGORY_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              {form.mode === 'WITH_SUBCONTENT' && (
+                <p className="mt-1 text-xs text-steel">
+                  Portal will show a list of sub-contents (e.g. Sites) first; documents live under each sub-content.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -226,19 +257,28 @@ export default function AdminCategoriesPage() {
                     <th className="pb-3 pr-4 font-medium">Name</th>
                     <th className="pb-3 pr-4 font-medium">Slug</th>
                     <th className="pb-3 pr-4 font-medium">Menu group</th>
+                    <th className="pb-3 pr-4 font-medium">Mode</th>
                     <th className="pb-3 pr-4 font-medium">Order</th>
                     <th className="pb-3 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((c) => (
+                    {list.map((c) => (
                     <tr key={c.id} className="border-b border-border-light">
                       <td className="py-3 pr-4 font-medium text-charcoal">{String(getAttr(c, 'name'))}</td>
                       <td className="py-3 pr-4 text-steel">{String(getAttr(c, 'slug'))}</td>
                       <td className="py-3 pr-4 text-steel">{String(getAttr(c, 'menuGroup') || '—')}</td>
+                      <td className="py-3 pr-4 text-steel">{String(getAttr(c, 'mode') || 'DIRECT')}</td>
                       <td className="py-3 pr-4 text-steel">{Number(getAttr(c, 'displayOrder'))}</td>
                       <td className="py-3 text-right">
                         <div className="flex justify-end gap-2">
+                          {getAttr(c, 'mode') === 'WITH_SUBCONTENT' && (
+                            <Link href={`/admin/categories/${c.id}/sub-contents`}>
+                              <Button variant="ghost" size="sm" leftIcon={<Layers className="h-4 w-4" />}>
+                                Sub-contents
+                              </Button>
+                            </Link>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

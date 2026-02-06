@@ -60,7 +60,7 @@ async function main() {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({
-        name: 'SOP (Standard Operating Procedures)',
+        name: 'SOP',
         slug: 'sop',
         isPublic: true,
         displayOrder: 7,

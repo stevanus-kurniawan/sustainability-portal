@@ -2,10 +2,10 @@
 
 import { Loader2, Paperclip, ExternalLink, X } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
-import { adminDocumentGet, adminDocumentCreate, adminDocumentUpdate, adminCategoriesList } from '@/lib/admin-api';
+import { adminDocumentGet, adminDocumentCreate, adminDocumentUpdate, adminCategoriesList, adminSubContentsList } from '@/lib/admin-api';
 import type { DocumentItem } from '@/lib/admin-api';
 
 interface DocumentFormProps {
@@ -20,18 +20,23 @@ interface DocumentFormProps {
 
 export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdProp, backHref, title }: DocumentFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const subContentIdFromUrl = searchParams.get('subContentId');
+  const categoryIdFromUrl = searchParams.get('categoryId');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [categories, setCategories] = useState<{ id: number; name: string; slug: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: number; name: string; slug: string; mode?: string }[]>([]);
+  const [subContents, setSubContents] = useState<{ id: number; title: string; slug: string }[]>([]);
   const [form, setForm] = useState({
     title: '',
     description: '',
     externalLink: '',
     isPublished: false,
     categoryId: categoryIdProp ?? ('' as number | ''),
+    subContentId: '' as number | '',
     tagIds: [] as number[],
     attachment: null as { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null,
     currentFileUrl: null as string | null,
@@ -42,10 +47,11 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     adminCategoriesList()
       .then((arr) => {
         const list = Array.isArray(arr) ? arr : [];
-        const mapped = list.map((c: { id: number; attributes?: { name: string; slug: string } }) => ({
+        const mapped = list.map((c: { id: number; attributes?: { name: string; slug: string; mode?: string } }) => ({
           id: c.id,
           name: (c as { attributes?: { name: string } }).attributes?.name ?? (c as { name: string }).name ?? '',
           slug: (c as { attributes?: { slug: string } }).attributes?.slug ?? (c as { slug: string }).slug ?? '',
+          mode: (c as { attributes?: { mode?: string } }).attributes?.mode ?? undefined,
         }));
         setCategories(mapped);
         if (categorySlug && !categoryIdProp) {
@@ -53,9 +59,41 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
           const found = mapped.find((c) => (c.slug || '').toLowerCase() === slugLower);
           if (found) setForm((prev) => ({ ...prev, categoryId: found.id }));
         }
+        if (categoryIdFromUrl) {
+          const cid = parseInt(categoryIdFromUrl, 10);
+          if (!Number.isNaN(cid)) setForm((prev) => ({ ...prev, categoryId: cid }));
+        }
       })
       .catch(() => {});
-  }, [categorySlug, categoryIdProp]);
+  }, [categorySlug, categoryIdProp, categoryIdFromUrl]);
+
+  const effectiveCategoryId = typeof form.categoryId === 'number' ? form.categoryId : categoryIdProp ?? null;
+  const selectedCategory = effectiveCategoryId != null ? categories.find((c) => c.id === effectiveCategoryId) : null;
+  const needsSubContent = selectedCategory?.mode === 'WITH_SUBCONTENT';
+
+  useEffect(() => {
+    if (!needsSubContent || effectiveCategoryId == null) {
+      setSubContents([]);
+      return;
+    }
+    adminSubContentsList(effectiveCategoryId)
+      .then((res) => {
+        const list = res?.data ?? [];
+        const mapped = list.map((s: { id: number; attributes?: { title: string; slug: string } }) => ({
+          id: s.id,
+          title: (s as { attributes?: { title: string } }).attributes?.title ?? (s as { title: string }).title ?? '',
+          slug: (s as { attributes?: { slug: string } }).attributes?.slug ?? (s as { slug: string }).slug ?? '',
+        }));
+        setSubContents(mapped);
+        if (subContentIdFromUrl && !id) {
+          const sid = parseInt(subContentIdFromUrl, 10);
+          if (!Number.isNaN(sid) && mapped.some((s) => s.id === sid)) {
+            setForm((prev) => ({ ...prev, subContentId: sid }));
+          }
+        }
+      })
+      .catch(() => setSubContents([]));
+  }, [needsSubContent, effectiveCategoryId, subContentIdFromUrl, id]);
 
   useEffect(() => {
     if (!id) {
@@ -70,6 +108,8 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         const attrs = doc.attributes as {
           externalLink?: string | null;
           currentVersion?: { data?: { attributes?: { file?: { data?: { attributes?: { url?: string; name?: string } } } } } | null };
+          subContentId?: number | null;
+          subContent?: { data?: { id: number } } | null;
         };
         const fileUrl = attrs.currentVersion?.data?.attributes?.file?.data?.attributes?.url ?? null;
         setForm({
@@ -78,6 +118,7 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
           externalLink: (doc.attributes as { externalLink?: string | null }).externalLink ?? '',
           isPublished: doc.attributes.isPublished,
           categoryId: doc.attributes.category?.data?.id ?? categoryIdProp ?? ('' as number | ''),
+          subContentId: attrs.subContentId ?? attrs.subContent?.data?.id ?? ('' as number | ''),
           tagIds: (doc.attributes.tags?.data ?? []).map((t: { id: number }) => t.id),
           attachment: null,
           currentFileUrl: fileUrl || null,
@@ -141,6 +182,13 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         const found = categories.find((c) => (c.slug || '').toLowerCase() === slugLower);
         if (found) categoryId = found.id;
       }
+      const subContentId =
+        needsSubContent && typeof form.subContentId === 'number' ? form.subContentId : needsSubContent ? undefined : null;
+      if (needsSubContent && (subContentId == null || subContentId === 0)) {
+        setError('Please select a sub-content for this section.');
+        setSaving(false);
+        return;
+      }
       const body = {
         title: form.title.trim(),
         type,
@@ -149,6 +197,7 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         isPublic: form.isPublished,
         isPublished: form.isPublished,
         categoryId: categoryId ?? (categoryIdProp ?? undefined),
+        subContentId: needsSubContent ? subContentId : null,
         tagIds: form.tagIds,
         ...(form.attachment && { attachment: form.attachment }),
       };
@@ -156,6 +205,7 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         await adminDocumentUpdate(id, {
           ...body,
           externalLink: form.externalLink.trim() || null,
+          subContentId: body.subContentId ?? null,
           attachment: form.clearAttachment ? null : (form.attachment ?? undefined),
         });
       } else {
@@ -296,6 +346,7 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
                 setForm((prev) => ({
                   ...prev,
                   categoryId: e.target.value === '' ? ('' as number | '') : parseInt(e.target.value, 10),
+                  subContentId: '' as number | '',
                 }))
               }
             >
@@ -306,6 +357,30 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
                 </option>
               ))}
             </select>
+          </div>
+        )}
+        {needsSubContent && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content *</label>
+            <select
+              className="input w-full"
+              value={form.subContentId === '' ? '' : form.subContentId}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  subContentId: e.target.value === '' ? ('' as number | '') : parseInt(e.target.value, 10),
+                }))
+              }
+              required={needsSubContent}
+            >
+              <option value="">— Select sub-content (e.g. site) —</option>
+              {subContents.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-steel">This section uses sub-contents; select one (e.g. Jakarta, Tanjung Pura).</p>
           </div>
         )}
         <div>

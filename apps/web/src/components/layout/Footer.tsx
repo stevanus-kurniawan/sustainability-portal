@@ -1,4 +1,4 @@
-import { Leaf } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 const footerLinks = {
@@ -21,8 +21,15 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <Leaf className="h-6 w-6 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg">
+                <Image
+                  src="/logo.png"
+                  alt="Sustainability portal logo"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
+                  unoptimized
+                />
               </div>
               <div>
                 <span className="font-heading text-lg font-bold text-white">SLMS</span>

@@ -52,6 +52,36 @@ export class UploadService {
     }
   }
 
+  /**
+   * Stream object from MinIO for inline preview. Returns { stream, contentType } or null.
+   * Caller should pipe stream to response with Content-Disposition: inline.
+   */
+  async getObjectStream(key: string): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
+    if (!this.client) return null;
+    try {
+      const stream = await this.client.getObject(this.bucket, key);
+      let contentType = 'application/octet-stream';
+      try {
+        const stat = await this.client.statObject(this.bucket, key);
+        const ct = stat.metaData?.['content-type'] ?? stat.metaData?.['Content-Type'];
+        if (ct) {
+          contentType = String(ct);
+        } else if (key.toLowerCase().endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        } else if (key.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
+          const ext = key.toLowerCase().slice(key.lastIndexOf('.'));
+          contentType = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        }
+      } catch {
+        if (key.toLowerCase().endsWith('.pdf')) contentType = 'application/pdf';
+      }
+      return { stream, contentType };
+    } catch (err) {
+      this.logger.error('MinIO getObject failed', err);
+      return null;
+    }
+  }
+
   getPublicUrl(key: string): string {
     const base = this.config.get<string>('minio.publicUrl') || `http://localhost:9000/${this.bucket}`;
     return base.endsWith('/') ? `${base}${key}` : `${base}/${key}`;

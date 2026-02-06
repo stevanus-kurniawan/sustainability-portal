@@ -21,6 +21,10 @@ export interface UserAuthResponse {
   expiresIn: number;
 }
 
+export interface UserRegisterResponse {
+  message: string;
+}
+
 export interface UserMeResponse {
   id: string;
   email: string;
@@ -44,7 +48,11 @@ export async function userLogin(email: string, password: string): Promise<UserAu
   return res.json();
 }
 
-export async function userRegister(params: { fullName: string; email: string; password: string }): Promise<UserAuthResponse> {
+export async function userRegister(params: {
+  fullName: string;
+  email: string;
+  password: string;
+}): Promise<UserRegisterResponse> {
   const res = await fetch(`${API_BASE_URL}/auth/register`, {
     ...defaultOptions,
     method: 'POST',
@@ -53,6 +61,43 @@ export async function userRegister(params: { fullName: string; email: string; pa
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.message || 'Registration failed');
+  }
+  return res.json();
+}
+
+export interface ResendVerificationResponse {
+  message: string;
+}
+
+export async function resendUserVerification(email: string): Promise<ResendVerificationResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+    ...defaultOptions,
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to send verification email');
+  }
+  return res.json();
+}
+
+export interface ChangeEmailResponse {
+  message: string;
+}
+
+export async function changeUserEmail(params: {
+  currentEmail: string;
+  newEmail: string;
+}): Promise<ChangeEmailResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/change-email`, {
+    ...defaultOptions,
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to update email address');
   }
   return res.json();
 }

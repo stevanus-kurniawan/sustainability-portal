@@ -1,4 +1,3 @@
-import { DocumentType } from '@prisma/client';
 import { toStrapiLike } from './response';
 
 function fileUrl(fileKey: string | null, baseUrl: string): string {
@@ -17,13 +16,18 @@ export function getFileBaseUrl(): string {
 export type DocumentWithRelations = {
   id: number;
   title: string;
-  type: DocumentType;
+  // keep this in sync with schema.prisma DocumentType enum, but avoid a hard dependency
+  // on generated Prisma enums so Docker builds remain stable.
+  type: 'POLICY' | 'CERTIFICATION' | 'LICENSE' | 'GRIEVANCE' | 'TRACEABILITY' | 'GENERAL';
   description: string | null;
   externalLink: string | null;
   isPublic: boolean;
   isPublished: boolean;
   publishedAt: Date | null;
   createdAt: Date;
+  isDeleted?: boolean;
+  deletedById?: string | null;
+  deletedAt?: Date | null;
   category: { id: number; name: string; slug: string; isPublic: boolean; displayOrder: number } | null;
   tags: { tag: { id: number; name: string; slug: string } }[];
   currentVersion: {
@@ -39,6 +43,18 @@ export type DocumentWithRelations = {
   } | null;
 };
 
+/**
+ * Returns mapped document for API response, or null if doc is missing or soft-deleted.
+ * Use this whenever exposing document data so deleted documents are never shown.
+ */
+export function documentDataForResponse(
+  doc: (DocumentWithRelations & { isDeleted?: boolean }) | null | undefined,
+  baseUrl?: string,
+): ReturnType<typeof mapDocumentToStrapi> | null {
+  if (!doc || doc.isDeleted) return null;
+  return mapDocumentToStrapi(doc as DocumentWithRelations, baseUrl);
+}
+
 export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string) {
   const base = baseUrl ?? getFileBaseUrl();
   return toStrapiLike(doc.id, {
@@ -50,6 +66,11 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
     isPublished: doc.isPublished,
     publishedAt: doc.publishedAt?.toISOString() ?? null,
     createdAt: doc.createdAt.toISOString(),
+    ...(doc.isDeleted !== undefined && {
+      isDeleted: doc.isDeleted,
+      deletedById: doc.deletedById ?? null,
+      deletedAt: doc.deletedAt?.toISOString() ?? null,
+    }),
     category: {
       data: doc.category
         ? toStrapiLike(doc.category.id, {
@@ -60,6 +81,17 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
           })
         : null,
     },
+    ...((doc as { subContentId?: number | null }).subContentId != null && {
+      subContentId: (doc as unknown as { subContentId: number }).subContentId,
+    }),
+    ...((doc as { subContent?: { id: number; title: string; slug: string } | null }).subContent != null && {
+      subContent: {
+        data: toStrapiLike((doc as unknown as { subContent: { id: number; title: string; slug: string } }).subContent.id, {
+          title: (doc as unknown as { subContent: { title: string } }).subContent.title,
+          slug: (doc as unknown as { subContent: { slug: string } }).subContent.slug,
+        }),
+      },
+    }),
     tags: {
       data: doc.tags.map((t) => toStrapiLike(t.tag.id, { name: t.tag.name, slug: t.tag.slug })),
     },
@@ -72,6 +104,7 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
                 ? toStrapiLike(0, {
                     name: doc.currentVersion.fileName || 'file',
                     url: fileUrl(doc.currentVersion.fileKey, base),
+                    key: doc.currentVersion.fileKey,
                     mime: doc.currentVersion.mimeType || 'application/octet-stream',
                     size: doc.currentVersion.fileSize ?? 0,
                   })

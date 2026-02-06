@@ -15,7 +15,6 @@ import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { NotificationStatus, NotificationObjectType, NotificationChannel } from '@prisma/client';
 
 @ApiTags('notifications')
 @Controller('notifications')
@@ -30,12 +29,12 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get notifications for current user' })
-  @ApiQuery({ name: 'status', enum: NotificationStatus, required: false })
+  @ApiQuery({ name: 'status', enum: ['SENT', 'READ', 'FAILED'], required: false })
   @ApiQuery({ name: 'skip', type: Number, required: false })
   @ApiQuery({ name: 'take', type: Number, required: false })
   findAll(
     @Request() req: any,
-    @Query('status') status?: NotificationStatus,
+    @Query('status') status?: 'SENT' | 'READ' | 'FAILED',
     @Query('skip') skip?: number,
     @Query('take') take?: number,
   ) {
@@ -90,12 +89,12 @@ export class NotificationsController {
   @UseGuards(RolesGuard)
   @Roles('SustainabilityAdmin')
   @ApiOperation({ summary: 'Get all notification rules' })
-  @ApiQuery({ name: 'objectType', enum: NotificationObjectType, required: false })
-  @ApiQuery({ name: 'channel', enum: NotificationChannel, required: false })
+  @ApiQuery({ name: 'objectType', enum: ['CERTIFICATION', 'LICENSE', 'DOC_VERSION'], required: false })
+  @ApiQuery({ name: 'channel', enum: ['EMAIL', 'INAPP'], required: false })
   @ApiQuery({ name: 'isActive', type: Boolean, required: false })
   findAllRules(
-    @Query('objectType') objectType?: NotificationObjectType,
-    @Query('channel') channel?: NotificationChannel,
+    @Query('objectType') objectType?: string,
+    @Query('channel') channel?: string,
     @Query('isActive') isActive?: boolean,
   ) {
     return this.service.findAllRules({ objectType, channel, isActive });
@@ -116,9 +115,9 @@ export class NotificationsController {
   createRule(
     @Body()
     data: {
-      objectType: NotificationObjectType;
+      objectType: string;
       daysBeforeExpiry: number;
-      channel: NotificationChannel;
+      channel: string;
       isActive?: boolean;
     },
   ) {

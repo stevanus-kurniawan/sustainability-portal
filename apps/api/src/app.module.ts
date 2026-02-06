@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { SubContentsModule } from './modules/sub-contents/sub-contents.module';
 import { CertificationsModule } from './modules/certifications/certifications.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { GrievancesModule } from './modules/grievances/grievances.module';
@@ -57,6 +58,7 @@ import { validate } from './config/env.validation';
     RolesModule,
     OrganizationsModule,
     CategoriesModule,
+    SubContentsModule,
     TagsModule,
     DocumentsModule,
     CertificationsModule,

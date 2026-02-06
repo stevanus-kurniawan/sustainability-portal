@@ -27,10 +27,21 @@ export class CertificationsController {
   }
 
   @Get()
-  findAll(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('subContentId') subContentId?: string,
+  ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search: search || undefined,
+      status: status || undefined,
+      categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
+      subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
     });
   }
 
@@ -50,6 +61,8 @@ export class CertificationsController {
       expiryDate?: string;
       documentId?: number;
       externalLink?: string;
+      categoryId?: number | null;
+      subContentId?: number | null;
     },
   ) {
     return this.service.create(body);
@@ -67,6 +80,8 @@ export class CertificationsController {
       expiryDate?: string;
       documentId?: number | null;
       externalLink?: string | null;
+      categoryId?: number | null;
+      subContentId?: number | null;
     },
   ) {
     return this.service.update(id, body);
