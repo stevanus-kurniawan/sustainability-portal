@@ -88,7 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             href="/admin"
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 text-sm font-medium',
-              pathname === '/admin' && pathname !== '/admin/login'
+              pathname === '/admin'
                 ? 'bg-primary/10 text-primary border-l-2 border-primary'
                 : 'text-steel hover:bg-light hover:text-charcoal'
             )}

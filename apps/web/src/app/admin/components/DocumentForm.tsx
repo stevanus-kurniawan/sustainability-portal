@@ -47,12 +47,20 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     adminCategoriesList()
       .then((arr) => {
         const list = Array.isArray(arr) ? arr : [];
-        const mapped = list.map((c: { id: number; attributes?: { name: string; slug: string; mode?: string } }) => ({
-          id: c.id,
-          name: (c as { attributes?: { name: string } }).attributes?.name ?? (c as { name: string }).name ?? '',
-          slug: (c as { attributes?: { slug: string } }).attributes?.slug ?? (c as { slug: string }).slug ?? '',
-          mode: (c as { attributes?: { mode?: string } }).attributes?.mode ?? undefined,
-        }));
+        const mapped = list.map(
+          (c: {
+            id: number;
+            attributes?: { name?: string; slug?: string; mode?: string };
+            name?: string;
+            slug?: string;
+            mode?: string;
+          }) => ({
+            id: c.id,
+            name: c.attributes?.name ?? c.name ?? '',
+            slug: c.attributes?.slug ?? c.slug ?? '',
+            mode: c.attributes?.mode ?? c.mode,
+          }),
+        );
         setCategories(mapped);
         if (categorySlug && !categoryIdProp) {
           const slugLower = categorySlug.toLowerCase();
@@ -79,11 +87,18 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     adminSubContentsList(effectiveCategoryId)
       .then((res) => {
         const list = res?.data ?? [];
-        const mapped = list.map((s: { id: number; attributes?: { title: string; slug: string } }) => ({
-          id: s.id,
-          title: (s as { attributes?: { title: string } }).attributes?.title ?? (s as { title: string }).title ?? '',
-          slug: (s as { attributes?: { slug: string } }).attributes?.slug ?? (s as { slug: string }).slug ?? '',
-        }));
+        const mapped = list.map(
+          (s: {
+            id: number;
+            attributes?: { title?: string; slug?: string };
+            title?: string;
+            slug?: string;
+          }) => ({
+            id: s.id,
+            title: s.attributes?.title ?? s.title ?? '',
+            slug: s.attributes?.slug ?? s.slug ?? '',
+          }),
+        );
         setSubContents(mapped);
         if (subContentIdFromUrl && !id) {
           const sid = parseInt(subContentIdFromUrl, 10);
@@ -135,24 +150,19 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     setError(null);
     setUploading(true);
     try {
-      const presignRes = await fetch('/api/admin/upload', {
+      const formData = new FormData();
+      formData.set('file', file, file.name);
+      const uploadRes = await fetch('/api/admin/upload/upload', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        body: formData,
       });
-      if (!presignRes.ok) {
-        const data = await presignRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to get upload URL');
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => ({}));
+        throw new Error(data.message || 'Upload failed');
       }
-      const { url, key } = await presignRes.json();
-      if (!url || !key) throw new Error('Upload not configured');
-      const putRes = await fetch(url, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
+      const { key } = await uploadRes.json();
+      if (!key) throw new Error('Upload not configured');
       setForm((prev) => ({
         ...prev,
         attachment: {

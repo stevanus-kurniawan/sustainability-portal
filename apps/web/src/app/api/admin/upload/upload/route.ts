@@ -13,24 +13,26 @@ export async function POST(request: NextRequest) {
   if (!token) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
-  let body: { fileName?: string; contentType?: string };
+  let formData: FormData;
   try {
-    body = await request.json();
+    formData = await request.formData();
   } catch {
-    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ message: 'Invalid form data' }, { status: 400 });
   }
-  const url = `${API_BASE}/admin/upload/presign`;
+  const file = formData.get('file');
+  if (!file || !(file instanceof Blob)) {
+    return NextResponse.json({ message: 'No file provided' }, { status: 400 });
+  }
+  const url = `${API_BASE}/admin/upload/upload`;
   try {
+    const body = new FormData();
+    body.set('file', file, file instanceof File ? file.name : 'file');
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        fileName: body.fileName || 'document',
-        contentType: body.contentType,
-      }),
+      body,
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

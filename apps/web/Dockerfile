@@ -25,6 +25,9 @@ RUN pnpm --filter @slms/web build
 
 # Production runner
 FROM node:20-alpine AS runner
+RUN corepack enable && corepack prepare pnpm@latest --activate
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -34,4 +37,5 @@ COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/web ./apps/web
 WORKDIR /app/apps/web
 EXPOSE 3000
-CMD ["pnpm", "start"]
+# Use shell so the process is sh; it finds pnpm in PATH (avoids node treating "pnpm" as a script path)
+CMD ["sh", "-c", "pnpm start"]

@@ -92,24 +92,19 @@ export default function AdminLicensesNewPage() {
     setError(null);
     setUploading(true);
     try {
-      const presignRes = await fetch('/api/admin/upload', {
+      const formData = new FormData();
+      formData.set('file', file, file.name);
+      const uploadRes = await fetch('/api/admin/upload/upload', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        body: formData,
       });
-      if (!presignRes.ok) {
-        const data = await presignRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to get upload URL');
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => ({}));
+        throw new Error(data.message || 'Upload failed');
       }
-      const { url, key } = await presignRes.json();
-      if (!url || !key) throw new Error('Upload not configured');
-      const putRes = await fetch(url, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      });
-      if (!putRes.ok) throw new Error('Upload failed');
+      const { key } = await uploadRes.json();
+      if (!key) throw new Error('Upload not configured');
       update('attachment', {
         fileKey: key,
         fileName: file.name,

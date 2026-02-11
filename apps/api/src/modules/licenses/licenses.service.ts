@@ -94,8 +94,10 @@ export class LicensesService {
     page = DEFAULT_PAGE,
     pageSize = DEFAULT_PAGE_SIZE,
   ) {
+    const slugLower = categorySlug.toLowerCase();
+    const licenseSlugs = slugLower === 'license' || slugLower === 'licenses' ? ['license', 'licenses'] : [categorySlug];
     const category = await this.prisma.category.findFirst({
-      where: { slug: categorySlug, isPublic: true, mode: 'WITH_SUBCONTENT' },
+      where: { slug: { in: licenseSlugs }, isPublic: true, mode: 'WITH_SUBCONTENT' },
     });
     if (!category) return wrapPaginated([], paginationMeta(0, page, pageSize));
     const subContent = await this.prisma.subContent.findUnique({

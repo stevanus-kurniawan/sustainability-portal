@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { Readable } from 'stream';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
@@ -29,15 +30,42 @@ export class UploadService {
     }
   }
 
+  /** Generate a unique key for uploads (uploads/${uuid}${ext}). */
+  generateUploadKey(ext: string): string {
+    return `uploads/${randomUUID()}${ext}`;
+  }
+
   async getPresignedPutUrl(fileName: string, contentType?: string): Promise<{ url: string; key: string } | null> {
     if (!this.client) return null;
     const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '';
-    const key = `uploads/${randomUUID()}${ext}`;
+    const key = this.generateUploadKey(ext);
     try {
       const url = await this.client.presignedPutObject(this.bucket, key, 60 * 15);
       return { url, key };
     } catch (err) {
       this.logger.error('MinIO presign failed', err);
+      return null;
+    }
+  }
+
+  /**
+   * Upload a file stream to MinIO. Use this when the client cannot reach MinIO directly
+   * (e.g. presigned URL uses internal host like minio:9000). Returns the object key or null.
+   */
+  async uploadStream(
+    key: string,
+    stream: Readable,
+    size: number,
+    contentType?: string,
+  ): Promise<string | null> {
+    if (!this.client) return null;
+    try {
+      const meta: Record<string, string> = {};
+      if (contentType) meta['Content-Type'] = contentType;
+      await this.client.putObject(this.bucket, key, stream, size, meta);
+      return key;
+    } catch (err) {
+      this.logger.error('MinIO putObject failed', err);
       return null;
     }
   }

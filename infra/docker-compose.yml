@@ -141,6 +141,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Ensure server-side Next.js routes call the API by its Docker hostname.
+      NEXT_PUBLIC_API_URL: http://slms-api:3001/api/v1
+      # Hint to any code that wants to detect Dockerized web runtime.
+      SLMS_DOCKER_WEB: "true"
     depends_on:
       api:
         condition: service_healthy

@@ -93,11 +93,18 @@ export default function AdminCertificationsPage() {
     adminCategoriesList()
       .then((arr) => {
         const list = Array.isArray(arr) ? arr : [];
-        const cats = list.map((c: { id: number; attributes?: { name: string; slug: string; mode?: string } }) => ({
-          id: c.id,
-          name: (c as { attributes?: { name: string } }).attributes?.name ?? (c as { name: string }).name ?? '',
-          mode: (c as { attributes?: { mode?: string } }).attributes?.mode ?? undefined,
-        }));
+        const cats = list.map(
+          (c: {
+            id: number;
+            attributes?: { name?: string; slug?: string; mode?: string };
+            name?: string;
+            mode?: string;
+          }) => ({
+            id: c.id,
+            name: c.attributes?.name ?? c.name ?? '',
+            mode: c.attributes?.mode ?? c.mode,
+          }),
+        );
         const withSub = cats.filter((c) => c.mode === 'WITH_SUBCONTENT');
         if (withSub.length === 0) {
           setSubOptions([]);
@@ -109,11 +116,8 @@ export default function AdminCertificationsPage() {
             responses.forEach((res, i) => {
               const cat = withSub[i];
               const items = res?.data ?? [];
-              items.forEach((s: { id: number; attributes?: { title: string } }) => {
-                const title =
-                  (s as { attributes?: { title: string } }).attributes?.title ??
-                  (s as { title: string }).title ??
-                  '';
+              items.forEach((s: { id: number; attributes?: { title?: string }; title?: string }) => {
+                const title = s.attributes?.title ?? s.title ?? '';
                 opts.push({ categoryId: cat.id, subContentId: s.id, label: `${cat.name} – ${title}` });
               });
             });

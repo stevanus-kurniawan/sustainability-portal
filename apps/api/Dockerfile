@@ -31,7 +31,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api ./apps/api
 COPY apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
-RUN chmod +x /app/apps/api/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh && chmod +x /app/apps/api/docker-entrypoint.sh
 WORKDIR /app/apps/api
 EXPOSE 3001
 ENTRYPOINT ["/app/apps/api/docker-entrypoint.sh"]

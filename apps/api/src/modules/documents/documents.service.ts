@@ -233,10 +233,15 @@ export class DocumentsService {
       }
     }
     const { tagIds, attachment, ...rest } = data;
+    // When published, always set isPublic so the document appears on the public site (policies, library, etc.)
+    const isPublished = rest.isPublished === true;
+    const isPublic = isPublished ? true : (rest.isPublic ?? false);
     const doc = await this.prisma.document.create({
       data: {
         ...rest,
-        publishedAt: rest.isPublished ? new Date() : null,
+        isPublic,
+        isPublished,
+        publishedAt: isPublished ? new Date() : null,
         createdById: createdById ?? undefined,
         updatedById: createdById ?? undefined,
       } as any,
@@ -305,6 +310,11 @@ export class DocumentsService {
       }
     }
     const { tagIds, attachment, ...rest } = data;
+    // When published, always set isPublic so the document appears on the public site (policies, library, etc.)
+    const isPublished = rest.isPublished === true;
+    const isPublic = rest.isPublic !== undefined
+      ? (isPublished ? true : rest.isPublic)
+      : (isPublished ? true : undefined);
     if (tagIds !== undefined) {
       await this.prisma.documentTag.deleteMany({ where: { documentId: id } });
       if (tagIds.length > 0) {
@@ -338,7 +348,9 @@ export class DocumentsService {
       where: { id },
       data: {
         ...rest,
-        publishedAt: rest.isPublished ? new Date() : undefined,
+        ...(isPublic !== undefined && { isPublic }),
+        ...(rest.isPublished !== undefined && { isPublished }),
+        publishedAt: isPublished ? new Date() : (rest.isPublished === false ? null : undefined),
         ...(currentVersionId !== undefined && { currentVersionId }),
         updatedById: updatedById ?? undefined,
       } as any,

@@ -93,6 +93,8 @@ export default function EditCertificationPage() {
         categoryId: cert.attributes.categoryId ?? null,
         subContentId: cert.attributes.subContentId ?? null,
         currentFileUrl: fileUrl,
+        // No attachment selected by default when editing
+        attachment: null,
       }
     : undefined;
 

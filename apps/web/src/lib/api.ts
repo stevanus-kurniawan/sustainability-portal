@@ -1,7 +1,11 @@
 /**
  * Public API client for SLMS (migrated from apps/web-public)
+ * Uses getInternalApiBase() so server-side fetches in Docker hit slms-api, not localhost.
  */
 
+import { getInternalApiBase } from '@/lib/internal-api';
+
+/** Public API base URL (for client or non-Docker server). Use getInternalApiBase() for server fetches in Docker. */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 interface PaginationMeta {
@@ -42,7 +46,8 @@ async function fetchApi<T>(
     if (tags) fetchOptions.next.tags = tags;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+  const base = typeof window === 'undefined' ? getInternalApiBase() : API_BASE_URL;
+  const response = await fetch(`${base}${endpoint}`, fetchOptions);
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -199,7 +204,8 @@ export function isNavItemWithChildren(item: NavItem): item is NavItemWithChildre
 }
 
 export async function getNavigation(): Promise<{ items: NavItem[] }> {
-  const response = await fetch(`${API_BASE_URL}/public/navigation`, {
+  const base = typeof window === 'undefined' ? getInternalApiBase() : API_BASE_URL;
+  const response = await fetch(`${base}/public/navigation`, {
     next: { revalidate: 300, tags: ['navigation'] },
   });
   if (!response.ok) throw new Error('Failed to fetch navigation');
@@ -217,7 +223,8 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getCategoryBySlug(slug: string): Promise<{ data: Category | null }> {
-  const response = await fetch(`${API_BASE_URL}/public/categories/${encodeURIComponent(slug)}`, {
+  const base = typeof window === 'undefined' ? getInternalApiBase() : API_BASE_URL;
+  const response = await fetch(`${base}/public/categories/${encodeURIComponent(slug)}`, {
     next: { revalidate: 300, tags: ['categories', `category-${slug}`] },
   });
   if (!response.ok) throw new Error(`API Error: ${response.status}`);

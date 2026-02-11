@@ -1,15 +1,19 @@
 import { notFound } from 'next/navigation';
 
-import { getCategoryBySlug, getSubContents, getLibrary } from '@/lib/api';
+import { getCategoryBySlug, getSubContents, getLibrary, getLicenses } from '@/lib/api';
 import { getSectionConfigOrDefault } from '@/config/sections';
 import { PageHeader } from '@/components/PageHeader';
 import { SectionSubContentList } from '@/components/section/SectionSubContentList';
 import { SectionDocumentsClient } from '@/components/section/SectionDocumentsClient';
+import { LicenseCard, formatLicenseDate } from '@/components/section/LicenseCard';
+import { EmptyState } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
 const MENU_GROUP = 'compliance';
 const SECTION_PATH = 'compliance';
+/** When this section is Licenses and mode is DIRECT, show licenses (from License table) instead of library documents. */
+const LICENSE_SLUGS = ['license', 'licenses'];
 
 interface PageProps {
   params: Promise<{ sectionSlug: string }>;
@@ -39,6 +43,40 @@ export default async function ComplianceSectionPage({ params, searchParams }: Pa
   const config = getSectionConfigOrDefault(MENU_GROUP, sectionSlug, name, `Compliance: ${name}`);
 
   if (mode === 'DIRECT') {
+    const isLicenseSection = LICENSE_SLUGS.includes(sectionSlug.toLowerCase());
+    if (isLicenseSection) {
+      const { data: licenses } = await getLicenses({ pageSize: 100 });
+      return (
+        <div>
+          <PageHeader
+            title={config.title}
+            description={config.description}
+            bannerImage={config.bannerImage}
+          />
+          <section className="py-8">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              {!licenses || licenses.length === 0 ? (
+                <EmptyState
+                  type="no-data"
+                  title="No licenses available"
+                  description="Licenses will be displayed here once they are published."
+                />
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {licenses.map((license) => (
+                    <LicenseCard
+                      key={license.id}
+                      license={license}
+                      formatDate={formatLicenseDate}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      );
+    }
     const { data: documents, meta } = await getLibrary({
       category: sectionSlug,
       page,

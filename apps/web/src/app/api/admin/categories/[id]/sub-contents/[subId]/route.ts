@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getInternalApiBase } from '@/lib/internal-api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+const API_BASE = getInternalApiBase();
 const COOKIE_NAME = 'admin_access_token';
 
 function getToken(request: NextRequest): string | undefined {
