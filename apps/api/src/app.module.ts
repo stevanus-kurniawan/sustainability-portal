@@ -24,6 +24,10 @@ import { HealthModule } from './modules/health/health.module';
 import { QueuesModule } from './queues/queues.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 @Module({
   imports: [
@@ -34,6 +38,9 @@ import { validate } from './config/env.validation';
       validate,
       envFilePath: ['.env.local', '.env'],
     }),
+
+    // Rate limiting (global, use library defaults)
+    ThrottlerModule.forRoot(),
 
     // BullMQ for Redis queues
     BullModule.forRootAsync({
@@ -72,6 +79,20 @@ import { validate } from './config/env.validation';
     NotificationEngineModule,
     HealthModule,
     QueuesModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

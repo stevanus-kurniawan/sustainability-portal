@@ -10,7 +10,7 @@ import type { DocumentItem } from '@/lib/admin-api';
 
 interface DocumentFormProps {
   id?: number;
-  type: 'POLICY' | 'GENERAL';
+  type: 'POLICY' | 'GRIEVANCE' | 'GENERAL';
   /** When set, category is fixed from the page context; category dropdown is hidden and this slug is resolved to categoryId on submit. */
   categorySlug?: string;
   categoryId?: number;

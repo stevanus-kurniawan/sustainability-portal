@@ -68,13 +68,25 @@ pnpm db:seed
 
 ### 5. Configure Environment Files
 
+For local development:
+
 ```bash
-# API
+# API (local)
 cp apps/api/env.example apps/api/.env
 
-# Web
+# Web (local)
 cp apps/web/env.example apps/web/.env.local
 ```
+
+For other environments, use dedicated files (for example):
+
+- `apps/api/.env.dev`, `apps/api/.env.uat`, `apps/api/.env.prod`
+- `apps/web/.env.dev.local`, `apps/web/.env.uat.local`, `apps/web/.env.prod.local`
+
+Each environment **must** have:
+
+- Its own `DATABASE_URL` and MinIO credentials (no sharing between local/dev/uat/prod).
+- Strong, unique `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `JWT_ADMIN_SECRET` (do not reuse `env.example` placeholders).
 
 ### 6. Start Development
 
@@ -144,7 +156,7 @@ This starts:
 
 ### Environment Variables
 
-**API (`apps/api/.env`):**
+**API (`apps/api/.env` – local example):**
 ```env
 PORT=3001
 DATABASE_URL="postgresql://slms:slms@localhost:5544/slms?schema=public"
@@ -154,6 +166,13 @@ MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=slms-docs
 ```
+
+In `NODE_ENV=production` or `NODE_ENV=uat`, the API will **refuse to start** if:
+
+- Any JWT secret (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ADMIN_SECRET`) is missing or still uses the default placeholder.
+- MinIO credentials (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`) are missing or still use `minioadmin`.
+
+`infra/env.example` is intended for **local Docker-only** usage and must **not** be reused for UAT or production secrets.
 
 **Web (`apps/web/.env.local`):**
 ```env
@@ -210,10 +229,10 @@ If you can't free a port, modify the environment files:
 # apps/api/.env - change API port
 PORT=3002
 
-# apps/web-public/.env.local - update API URL if API port changed
+# apps/web/.env.local - update API URL if API port changed
 NEXT_PUBLIC_API_URL=http://localhost:3002/api/v1
 
-# apps/web-public/package.json - change web port
+# apps/web/package.json - change web port
 "dev": "next dev -p 3010"
 ```
 

@@ -17,18 +17,6 @@ services:
         reservations:
           memory: 512M
 
-  postgres-cms:
-    restart: always
-    environment:
-      POSTGRES_USER: ${CMS_DB_USER:-slms}
-      POSTGRES_PASSWORD: ${CMS_DB_PASSWORD}
-      POSTGRES_DB: ${CMS_DB_NAME:-slms_cms}
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
   redis:
     restart: always
@@ -40,10 +28,10 @@ services:
         reservations:
           memory: 128M
 
-  # Web Public (Next.js)
-  web-public:
+  # Web Portal (Next.js)
+  web:
     build:
-      context: ../apps/web-public
+      context: ../apps/web
       dockerfile: Dockerfile
     restart: always
     environment:
@@ -54,7 +42,6 @@ services:
       - "3000:3000"
     depends_on:
       - api
-      - cms
 
   # API (NestJS)
   api:
@@ -80,35 +67,8 @@ services:
       redis:
         condition: service_healthy
 
-  # CMS (Strapi)
-  cms:
-    build:
-      context: ../apps/cms
-      dockerfile: Dockerfile
-    restart: always
-    environment:
-      NODE_ENV: production
-      HOST: 0.0.0.0
-      PORT: 1337
-      DATABASE_CLIENT: postgres
-      DATABASE_HOST: postgres-cms
-      DATABASE_PORT: 5432
-      DATABASE_NAME: ${CMS_DB_NAME:-slms_cms}
-      DATABASE_USERNAME: ${CMS_DB_USER:-slms}
-      DATABASE_PASSWORD: ${CMS_DB_PASSWORD}
-      ADMIN_JWT_SECRET: ${CMS_ADMIN_JWT_SECRET}
-      API_TOKEN_SALT: ${CMS_API_TOKEN_SALT}
-      TRANSFER_TOKEN_SALT: ${CMS_TRANSFER_TOKEN_SALT}
-      APP_KEYS: ${CMS_APP_KEYS}
-    ports:
-      - "1337:1337"
-    depends_on:
-      postgres-cms:
-        condition: service_healthy
-
 volumes:
   postgres_data:
-  postgres_cms_data:
   redis_data:
 
 networks:

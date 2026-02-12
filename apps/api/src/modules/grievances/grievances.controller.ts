@@ -13,6 +13,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { GrievancesService } from './grievances.service';
+import { CreateGrievanceDto } from './dto/create-grievance.dto';
+import { UpdateGrievanceDto } from './dto/update-grievance.dto';
 
 @ApiTags('admin/grievances')
 @Controller('admin/grievances')
@@ -43,16 +45,7 @@ export class GrievancesController {
 
   @Post()
   create(
-    @Body()
-    body: {
-      caseNo: string;
-      status?: string;
-      category?: string;
-      receivedDate: string;
-      publicSummary?: string;
-      evidenceDocumentId?: number;
-      externalLink?: string;
-    },
+    @Body() body: CreateGrievanceDto,
   ) {
     return this.service.create(body);
   }
@@ -60,14 +53,7 @@ export class GrievancesController {
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    body: {
-      status?: string;
-      category?: string;
-      publicSummary?: string;
-      evidenceDocumentId?: number | null;
-      externalLink?: string | null;
-    },
+    @Body() body: UpdateGrievanceDto,
   ) {
     return this.service.update(id, body);
   }

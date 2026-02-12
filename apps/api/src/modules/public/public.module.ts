@@ -4,7 +4,6 @@ import { CategoriesModule } from '../categories/categories.module';
 import { SubContentsModule } from '../sub-contents/sub-contents.module';
 import { CertificationsModule } from '../certifications/certifications.module';
 import { DocumentsModule } from '../documents/documents.module';
-import { GrievancesModule } from '../grievances/grievances.module';
 import { LicensesModule } from '../licenses/licenses.module';
 import { TagsModule } from '../tags/tags.module';
 import { TraceabilityModule } from '../traceability/traceability.module';
@@ -19,7 +18,6 @@ import { UploadModule } from '../upload/upload.module';
     DocumentsModule,
     CertificationsModule,
     LicensesModule,
-    GrievancesModule,
     TraceabilityModule,
   ],
   controllers: [PublicController],

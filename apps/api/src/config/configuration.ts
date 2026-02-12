@@ -1,66 +1,99 @@
-export default () => ({
-  // Server
-  port: parseInt(process.env.PORT || '3001', 10),
-  apiPrefix: process.env.API_PREFIX || 'api/v1',
-  nodeEnv: process.env.NODE_ENV || 'development',
+const DEFAULT_USER_JWT_SECRET = 'super-secret-key-change-in-production';
+const DEFAULT_REFRESH_JWT_SECRET = 'refresh-secret-key-change-in-production';
+const DEFAULT_ADMIN_JWT_SECRET = 'admin-secret-key-change-in-production';
+const DEFAULT_MINIO_ACCESS_KEY = 'minioadmin';
+const DEFAULT_MINIO_SECRET_KEY = 'minioadmin';
 
-  // Registration: only restrict to energi-up.com in production; dev/local allow any email.
-  // Set REGISTRATION_DOMAIN_RESTRICTION_ENABLED=false to allow any email (e.g. local Docker with NODE_ENV=production).
-  registration: {
-    domainRestrictionEnabled:
-      process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED === 'true' ||
-      (process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED !== 'false' &&
-        process.env.NODE_ENV === 'production'),
-  },
+export default () => {
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const isProdLike = nodeEnv === 'production' || nodeEnv === 'uat';
 
-  // Database
-  database: {
-    url: process.env.DATABASE_URL,
-  },
+  const jwtSecret = process.env.JWT_SECRET || DEFAULT_USER_JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || DEFAULT_REFRESH_JWT_SECRET;
+  const jwtAdminSecret = process.env.JWT_ADMIN_SECRET || DEFAULT_ADMIN_JWT_SECRET;
 
-  // Redis
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    password: process.env.REDIS_PASSWORD || undefined,
-  },
+  const minioAccessKey = process.env.MINIO_ACCESS_KEY || DEFAULT_MINIO_ACCESS_KEY;
+  const minioSecretKey = process.env.MINIO_SECRET_KEY || DEFAULT_MINIO_SECRET_KEY;
 
-  // JWT
-  jwt: {
-    secret: process.env.JWT_SECRET || 'super-secret-key-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-change-in-production',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    adminSecret: process.env.JWT_ADMIN_SECRET || 'admin-secret-key-change-in-production',
-    adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '8h',
-  },
+  if (
+    isProdLike &&
+    (jwtSecret === DEFAULT_USER_JWT_SECRET ||
+      jwtRefreshSecret === DEFAULT_REFRESH_JWT_SECRET ||
+      jwtAdminSecret === DEFAULT_ADMIN_JWT_SECRET ||
+      minioAccessKey === DEFAULT_MINIO_ACCESS_KEY ||
+      minioSecretKey === DEFAULT_MINIO_SECRET_KEY)
+  ) {
+    throw new Error(
+      'Security error: In production/UAT environments, JWT and MinIO secrets must be set and must not use default placeholder values.',
+    );
+  }
 
-  // CORS (include 3002 for Docker web; 127.0.0.1 variants are added in main.ts)
-  cors: {
-    origins: process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002,http://localhost:1337',
-  },
+  return {
+    // Server
+    port: parseInt(process.env.PORT || '3001', 10),
+    apiPrefix: process.env.API_PREFIX || 'api/v1',
+    nodeEnv,
 
-  // MinIO (document storage)
-  minio: {
-    endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.MINIO_PORT || '9000', 10),
-    useSSL: process.env.MINIO_USE_SSL === 'true',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-    secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-    bucket: process.env.MINIO_BUCKET || 'slms-docs',
-    publicUrl: process.env.MINIO_PUBLIC_URL || 'http://localhost:9000/slms-docs',
-  },
+    // Registration: only restrict to energi-up.com in production; dev/local allow any email.
+    // Set REGISTRATION_DOMAIN_RESTRICTION_ENABLED=false to allow any email (e.g. local Docker with NODE_ENV=production).
+    registration: {
+      domainRestrictionEnabled:
+        process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED === 'true' ||
+        (process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED !== 'false' &&
+          nodeEnv === 'production'),
+    },
 
-  // Swagger
-  swagger: {
-    enabled: process.env.SWAGGER_ENABLED !== 'false',
-  },
+    // Database
+    database: {
+      url: process.env.DATABASE_URL,
+    },
 
-  // Future: Keycloak OIDC
-  // keycloak: {
-  //   realm: process.env.KEYCLOAK_REALM,
-  //   authServerUrl: process.env.KEYCLOAK_AUTH_SERVER_URL,
-  //   clientId: process.env.KEYCLOAK_CLIENT_ID,
-  //   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
-  // },
-});
+    // Redis
+    redis: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD || undefined,
+    },
+
+    // JWT
+    jwt: {
+      secret: jwtSecret,
+      expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+      refreshSecret: jwtRefreshSecret,
+      refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      adminSecret: jwtAdminSecret,
+      adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '8h',
+    },
+
+    // CORS (include 3002 for Docker web; 127.0.0.1 variants are added in main.ts)
+    cors: {
+      origins:
+        process.env.CORS_ORIGINS ||
+        'http://localhost:3000,http://localhost:3002,http://localhost:1337',
+    },
+
+    // MinIO (document storage)
+    minio: {
+      endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+      port: parseInt(process.env.MINIO_PORT || '9000', 10),
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+      accessKey: minioAccessKey,
+      secretKey: minioSecretKey,
+      bucket: process.env.MINIO_BUCKET || 'slms-docs',
+      publicUrl: process.env.MINIO_PUBLIC_URL || 'http://localhost:9000/slms-docs',
+    },
+
+    // Swagger
+    swagger: {
+      enabled: process.env.SWAGGER_ENABLED !== 'false',
+    },
+
+    // Future: Keycloak OIDC
+    // keycloak: {
+    //   realm: process.env.KEYCLOAK_REALM,
+    //   authServerUrl: process.env.KEYCLOAK_AUTH_SERVER_URL,
+    //   clientId: process.env.KEYCLOAK_CLIENT_ID,
+    //   clientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
+    // },
+  };
+};

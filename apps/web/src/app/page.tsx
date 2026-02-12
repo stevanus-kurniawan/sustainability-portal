@@ -120,18 +120,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="bg-charcoal py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="font-heading text-h2 text-white mb-4">Have Questions or Concerns?</h2>
-          <p className="text-white/70 max-w-2xl mx-auto mb-8">
-            Our grievance mechanism is available for stakeholders to raise concerns
-            about our sustainability practices.
-          </p>
-          <Link href="/grievance" className="btn bg-primary text-white hover:bg-primary-hover px-8 py-3 text-base">
-            Access Grievance Portal
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }
