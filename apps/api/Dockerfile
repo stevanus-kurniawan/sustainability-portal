@@ -1,6 +1,7 @@
 # Build from monorepo root: docker build -f apps/api/Dockerfile .
 # Alpine + Prisma OpenSSL 3 binary (binaryTargets in schema.prisma) — no Debian/apt-get.
 FROM node:20-alpine AS base
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
 WORKDIR /app
 
@@ -24,7 +25,7 @@ RUN npx prisma generate
 
 # Production runner
 FROM node:20-alpine AS runner
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget openssl
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
