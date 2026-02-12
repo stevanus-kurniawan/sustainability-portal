@@ -75,7 +75,8 @@ export class AuthService {
   ) {}
 
   /**
-   * Register a new user. Email must end with @energi-up.com.
+   * Register a new user. In production, email must end with @energi-up.com;
+   * in dev/local the domain restriction is not applied.
    */
   async register(
     fullName: string,
@@ -83,7 +84,13 @@ export class AuthService {
     password: string,
   ): Promise<{ message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail.endsWith(REGISTRATION_ALLOWED_DOMAIN)) {
+    const domainRestrictionEnabled = this.configService.get<boolean>(
+      'registration.domainRestrictionEnabled',
+    );
+    if (
+      domainRestrictionEnabled &&
+      !normalizedEmail.endsWith(REGISTRATION_ALLOWED_DOMAIN)
+    ) {
       throw new BadRequestException(
         'Only @energi-up.com email addresses are allowed to register.',
       );

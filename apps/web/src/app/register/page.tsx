@@ -10,6 +10,10 @@ import { userRegister } from '@/lib/auth-api';
 
 const ALLOWED_DOMAIN = '@energi-up.com';
 
+/** When true, only @energi-up.com can register (production). When false/undefined, any email allowed (dev/local). */
+const isDomainRestrictionEnabled =
+  process.env.NEXT_PUBLIC_REGISTRATION_DOMAIN_RESTRICTION_ENABLED === 'true';
+
 export default function RegisterPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
@@ -21,7 +25,9 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const emailValid = email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN);
+  const emailValid = isDomainRestrictionEnabled
+    ? email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN)
+    : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const passwordsMatch = password === confirmPassword && password.length > 0;
   const strongPasswordPattern =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/;
@@ -43,7 +49,7 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!emailValid) {
+    if (isDomainRestrictionEnabled && !email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN)) {
       setError('Only @energi-up.com email addresses are allowed to register.');
       return;
     }
@@ -95,19 +101,34 @@ export default function RegisterPage() {
         <Card className="p-6">
           <CardHeader>
             <CardTitle>Create account</CardTitle>
-            <p className="text-sm text-steel mt-1">Registration is restricted to {ALLOWED_DOMAIN} email addresses.</p>
+            <p className="text-sm text-steel mt-1">
+              {isDomainRestrictionEnabled
+                ? `Registration is restricted to ${ALLOWED_DOMAIN} email addresses.`
+                : 'Enter your email and a strong password to create an account.'}
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && <Alert variant="error">{error}</Alert>}
-              {!emailValid && email.length > 0 && <Alert variant="warning">Only @energi-up.com email addresses are allowed to register.</Alert>}
+              {isDomainRestrictionEnabled && !emailValid && email.length > 0 && (
+                <Alert variant="warning">Only @energi-up.com email addresses are allowed to register.</Alert>
+              )}
               <div>
                 <label htmlFor="fullName" className="label block mb-2 text-charcoal">Full name</label>
                 <Input id="fullName" type="text" autoComplete="name" placeholder="Jane Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} required className="w-full" />
               </div>
               <div>
                 <label htmlFor="email" className="label block mb-2 text-charcoal">Email</label>
-                <Input id="email" type="email" autoComplete="email" placeholder={"you" + ALLOWED_DOMAIN} value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full" />
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={isDomainRestrictionEnabled ? 'you' + ALLOWED_DOMAIN : 'you@example.com'}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full"
+                />
               </div>
               <div>
                 <label htmlFor="password" className="label block mb-2 text-charcoal">Password</label>

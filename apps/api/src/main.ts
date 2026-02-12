@@ -16,9 +16,19 @@ async function bootstrap() {
   const apiPrefix = configService.get('API_PREFIX', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
 
-  // CORS
+  // CORS: allow configured origins plus 127.0.0.1 variants (same ports) so both localhost and 127.0.0.1 work
+  const corsOriginsRaw =
+    configService.get('CORS_ORIGINS') ?? configService.get('cors.origins') ?? 'http://localhost:3000,http://localhost:3002,http://localhost:1337';
+  const corsOriginsList = (typeof corsOriginsRaw === 'string' ? corsOriginsRaw.split(',') : corsOriginsRaw as string[])
+    .map((o) => (typeof o === 'string' ? o.trim() : ''))
+    .filter(Boolean);
+  const expandedOrigins = new Set<string>(corsOriginsList);
+  corsOriginsList.forEach((origin) => {
+    const match = /^(https?):\/\/localhost:(\d+)$/.exec(origin);
+    if (match) expandedOrigins.add(`${match[1]}://127.0.0.1:${match[2]}`);
+  });
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:1337').split(','),
+    origin: Array.from(expandedOrigins),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
