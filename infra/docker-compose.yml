@@ -94,8 +94,7 @@ services:
       REGISTRATION_DOMAIN_RESTRICTION_ENABLED: "false"
       PORT: 3001
       API_PREFIX: api/v1
-      # Force Prisma OpenSSL 3 engine on Alpine (avoids libssl.so.1.1 missing)
-      PRISMA_QUERY_ENGINE_LIBRARY: /app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+      # Prisma engine path is set by docker-entrypoint.sh when present under apps/api
       DATABASE_URL: postgresql://${POSTGRES_USER:-slms}:${POSTGRES_PASSWORD:-slms}@postgres:5432/${POSTGRES_DB:-slms}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
