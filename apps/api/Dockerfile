@@ -25,7 +25,8 @@ RUN npx prisma generate
 
 # Production runner
 FROM node:20-alpine AS runner
-RUN apk add --no-cache wget openssl
+# OpenSSL so Prisma can detect version and load the correct engine binary
+RUN apk add --no-cache wget openssl openssl-dev
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -34,6 +35,9 @@ COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api ./apps/api
 COPY apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh && chmod +x /app/apps/api/docker-entrypoint.sh
+# Generate Prisma client in the final image so the linux-musl engine binary exists
+# where the runtime resolves @prisma/client (avoids "No such file or directory")
 WORKDIR /app/apps/api
+RUN npx prisma generate
 EXPOSE 3001
 ENTRYPOINT ["/app/apps/api/docker-entrypoint.sh"]
