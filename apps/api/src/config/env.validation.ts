@@ -14,7 +14,7 @@ class EnvironmentVariables {
 
   @IsNumber()
   @IsOptional()
-  PORT: number = 4000;
+  PORT: number = 3001;
 
   @IsString()
   DATABASE_URL: string;
@@ -39,8 +39,7 @@ class EnvironmentVariables {
   JWT_EXPIRES_IN: string = '8h';
 
   @IsString()
-  @IsOptional()
-  JWT_REFRESH_SECRET?: string;
+  JWT_REFRESH_SECRET: string;
 
   @IsString()
   @IsOptional()
@@ -90,6 +89,26 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   MAIL_FROM_ADDRESS?: string;
+
+  // Admin JWT
+  @IsString()
+  JWT_ADMIN_SECRET: string;
+
+  // MinIO (document storage)
+  @IsString()
+  MINIO_ACCESS_KEY: string;
+
+  @IsString()
+  MINIO_SECRET_KEY: string;
+
+  // Throttling (rate limiting)
+  @IsNumber()
+  @IsOptional()
+  THROTTLE_TTL?: number;
+
+  @IsNumber()
+  @IsOptional()
+  THROTTLE_LIMIT?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

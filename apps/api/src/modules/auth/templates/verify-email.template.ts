@@ -1,3 +1,5 @@
+import { renderBaseEmailTemplate } from '../../notification-engine/templates/base-email.template';
+
 export function buildVerifyEmailSubject(): string {
   return 'Verify your email';
 }
@@ -13,38 +15,30 @@ export function buildVerifyEmailText(params: { verifyUrl: string }): string {
   ].join('\n');
 }
 
-export function buildVerifyEmailHtml(params: { verifyUrl: string }): string {
-  const { verifyUrl } = params;
-  return `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 24px; }
-      .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; background: #fff; }
-      .btn { display: inline-block; padding: 12px 18px; background: #2563eb; color: #fff !important; text-decoration: none; border-radius: 8px; }
-      .muted { color: #6b7280; font-size: 12px; }
-      .code { word-break: break-all; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="card">
-        <p>Welcome!</p>
-        <p>Please verify your email address to activate your account.</p>
-        <p style="margin: 18px 0;">
-          <a class="btn" href="${verifyUrl}">Verify your email</a>
-        </p>
-        <p class="muted">If the button doesn't work, copy and paste this link:</p>
-        <p class="code"><a href="${verifyUrl}">${verifyUrl}</a></p>
-        <p class="muted"><strong>This link expires in 15 minutes.</strong></p>
-      </div>
-    </div>
-  </body>
-</html>
-  `.trim();
+export interface VerifyEmailHtmlParams {
+  verifyUrl: string;
+  /** Web app base URL for logo (e.g. http://localhost:3000) */
+  webUrl?: string;
 }
 
+export function buildVerifyEmailHtml(params: VerifyEmailHtmlParams): string {
+  const { verifyUrl, webUrl } = params;
+
+  const contentHtml = `
+<p style="margin: 0 0 16px 0; color: #6B6B6B; font-size: 14px;">If the button doesn&apos;t work, copy and paste this link into your browser:</p>
+<p style="margin: 0 0 16px 0; word-break: break-all;"><a href="${verifyUrl}" style="color: #C43A31; text-decoration: underline;">${verifyUrl}</a></p>
+<p style="margin: 0; color: #6B6B6B; font-size: 14px;"><strong>This link expires in 15 minutes.</strong></p>
+`.trim();
+
+  return renderBaseEmailTemplate({
+    headerTitle: 'Verify your email',
+    logoUrl: webUrl ? `${webUrl.replace(/\/$/, '')}/logo.png` : undefined,
+    greeting: 'Welcome!',
+    subtitle: 'Please verify your email address to activate your account.',
+    contentHtml,
+    cta: { text: 'Verify your email', url: verifyUrl },
+    footerText:
+      'This is an automated message from the Sustainability Licensing Management System (SLMS). Please do not reply to this email.',
+    previewText: 'Please verify your email address to activate your account.',
+  });
+}

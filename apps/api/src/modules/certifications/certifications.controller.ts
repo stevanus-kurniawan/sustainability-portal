@@ -13,6 +13,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { CertificationsService } from './certifications.service';
+import { CreateCertificationDto } from './dto/create-certification.dto';
+import { UpdateCertificationDto } from './dto/update-certification.dto';
 
 @ApiTags('certifications')
 @Controller('certifications')
@@ -52,18 +54,7 @@ export class CertificationsController {
 
   @Post()
   create(
-    @Body()
-    body: {
-      name: string;
-      issuer?: string;
-      certificateNo?: string;
-      issuedDate?: string;
-      expiryDate?: string;
-      documentId?: number;
-      externalLink?: string;
-      categoryId?: number | null;
-      subContentId?: number | null;
-    },
+    @Body() body: CreateCertificationDto,
   ) {
     return this.service.create(body);
   }
@@ -71,18 +62,7 @@ export class CertificationsController {
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    body: {
-      name?: string;
-      issuer?: string;
-      certificateNo?: string;
-      issuedDate?: string;
-      expiryDate?: string;
-      documentId?: number | null;
-      externalLink?: string | null;
-      categoryId?: number | null;
-      subContentId?: number | null;
-    },
+    @Body() body: UpdateCertificationDto,
   ) {
     return this.service.update(id, body);
   }

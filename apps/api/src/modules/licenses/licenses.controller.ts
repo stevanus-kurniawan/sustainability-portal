@@ -13,6 +13,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { LicensesService } from './licenses.service';
+import { CreateLicenseDto } from './dto/create-license.dto';
+import { UpdateLicenseDto } from './dto/update-license.dto';
 
 @ApiTags('licenses')
 @Controller('licenses')
@@ -50,17 +52,7 @@ export class LicensesController {
 
   @Post()
   create(
-    @Body()
-    body: {
-      name: string;
-      authority?: string;
-      licenseNo?: string;
-      issuedDate?: string;
-      expiryDate?: string;
-      documentId?: number;
-      subContentId?: number | null;
-      externalLink?: string;
-    },
+    @Body() body: CreateLicenseDto,
   ) {
     return this.service.create(body);
   }
@@ -68,17 +60,7 @@ export class LicensesController {
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    body: {
-      name?: string;
-      authority?: string;
-      licenseNo?: string;
-      issuedDate?: string;
-      expiryDate?: string;
-      documentId?: number | null;
-      subContentId?: number | null;
-      externalLink?: string | null;
-    },
+    @Body() body: UpdateLicenseDto,
   ) {
     return this.service.update(id, body);
   }

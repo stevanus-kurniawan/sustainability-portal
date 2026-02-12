@@ -36,25 +36,19 @@ cd "$SCRIPT_DIR/../.."
 # Start infrastructure services
 echo -e "${YELLOW}Starting infrastructure services...${NC}"
 cd infra
-docker-compose up -d postgres postgres-cms redis mailhog
+docker-compose up -d postgres redis mailhog
 cd ..
 
 # Wait for PostgreSQL to be ready
 echo -e "${YELLOW}Waiting for databases to be ready...${NC}"
 sleep 5
 
-# Check if databases are ready
+# Check if database is ready
 until docker exec slms-postgres pg_isready -U slms > /dev/null 2>&1; do
     echo "Waiting for API database..."
     sleep 2
 done
 echo -e "${GREEN}✓ API database is ready${NC}"
-
-until docker exec slms-postgres-cms pg_isready -U slms > /dev/null 2>&1; do
-    echo "Waiting for CMS database..."
-    sleep 2
-done
-echo -e "${GREEN}✓ CMS database is ready${NC}"
 
 # Install dependencies
 echo -e "${YELLOW}Installing dependencies...${NC}"
@@ -71,13 +65,11 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Available services:"
 echo "  - PostgreSQL (API):    localhost:5432"
-echo "  - PostgreSQL (CMS):    localhost:5433"
 echo "  - Redis:               localhost:6379"
 echo "  - Mailhog UI:          http://localhost:8025"
 echo ""
 echo "Run the applications:"
 echo "  pnpm dev:web    - Start Next.js (port 3000)"
 echo "  pnpm dev:api    - Start NestJS API (port 4000)"
-echo "  pnpm dev:cms    - Start Strapi CMS (port 1337)"
-echo "  pnpm dev        - Start all apps"
+echo "  pnpm dev        - Start API + Web"
 echo ""

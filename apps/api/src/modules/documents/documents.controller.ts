@@ -15,6 +15,8 @@ import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { DocumentsService } from './documents.service';
+import { CreateDocumentDto } from './dto/create-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 
 @ApiTags('admin/documents')
 @Controller('admin/documents')
@@ -67,19 +69,7 @@ export class DocumentsController {
   @Post()
   create(
     @Req() req: Request & { user: { id: string } },
-    @Body()
-    body: {
-      title: string;
-      type: string;
-      description?: string;
-      externalLink?: string;
-      isPublic?: boolean;
-      isPublished?: boolean;
-      categoryId?: number;
-      subContentId?: number | null;
-      tagIds?: number[];
-      attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
-    },
+    @Body() body: CreateDocumentDto,
   ) {
     return this.service.create(body, req.user?.id);
   }
@@ -88,19 +78,7 @@ export class DocumentsController {
   update(
     @Req() req: Request & { user: { id: string } },
     @Param('id', ParseIntPipe) id: number,
-    @Body()
-    body: {
-      title?: string;
-      type?: string;
-      description?: string;
-      externalLink?: string | null;
-      isPublic?: boolean;
-      isPublished?: boolean;
-      categoryId?: number | null;
-      subContentId?: number | null;
-      tagIds?: number[];
-      attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
-    },
+    @Body() body: UpdateDocumentDto,
   ) {
     return this.service.update(id, body, req.user?.id);
   }

@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button, Card, CardContent, CardHeader, CardTitle, Alert, Input } from '@/components/ui';
 import { resendUserVerification, changeUserEmail } from '@/lib/auth-api';
 
 export default function VerifyEmailPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialEmail = searchParams.get('email') || '';
   const initialMessage =
@@ -95,38 +94,99 @@ export default function VerifyEmailPage() {
         </div>
         <Card className="p-6">
           <CardHeader>
-            <CardTitle>Check your email</CardTitle>
+            <CardTitle>
+              {isEditingEmail ? 'Change email' : 'Check your email'}
+            </CardTitle>
             <p className="text-sm text-steel mt-1">
-              We&apos;ve sent a verification link to your email address. The link expires in 15
-              minutes.
+              {isEditingEmail
+                ? 'Enter a new email address and we&apos;ll send a verification link. The link expires in 15 minutes.'
+                : 'We&apos;ve sent a verification link to your email address. The link expires in 15 minutes.'}
             </p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleResend} className="space-y-4">
-              {info && <Alert variant="success">{info}</Alert>}
-              {error && <Alert variant="error">{error}</Alert>}
+            {isEditingEmail ? (
+              <form onSubmit={handleChangeEmail} className="space-y-4">
+                {info && <Alert variant="success">{info}</Alert>}
+                {error && <Alert variant="error">{error}</Alert>}
 
-              <div className="space-y-2">
-                <label htmlFor="email" className="label block mb-1 text-charcoal">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  readOnly={!isEditingEmail}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setNewEmail(e.target.value);
-                  }}
-                  required
-                  className="w-full disabled:opacity-100"
-                />
-                {!isEditingEmail ? (
+                <div>
+                  <label htmlFor="current-email" className="label block mb-1 text-charcoal">
+                    Current email
+                  </label>
+                  <Input
+                    id="current-email"
+                    type="email"
+                    value={email}
+                    readOnly
+                    className="w-full bg-light cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="new-email" className="label block mb-1 text-charcoal">
+                    New email address
+                  </label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Enter your new email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setIsEditingEmail(false);
+                      setNewEmail(email);
+                      setError('');
+                      setInfo('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    isLoading={loading}
+                    disabled={loading}
+                  >
+                    Save &amp; resend verification
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleResend} className="space-y-4">
+                {info && <Alert variant="success">{info}</Alert>}
+                {error && <Alert variant="error">{error}</Alert>}
+
+                <div>
+                  <label htmlFor="email" className="label block mb-1 text-charcoal">
+                    Current email
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    readOnly
+                    className="w-full bg-light cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>
+                    Resend verification link
+                  </Button>
                   <button
                     type="button"
-                    className="text-xs text-primary hover:underline"
+                    className="text-sm text-primary hover:underline font-medium"
                     onClick={() => {
                       setIsEditingEmail(true);
                       setNewEmail(email);
@@ -134,46 +194,9 @@ export default function VerifyEmailPage() {
                   >
                     Change email
                   </button>
-                ) : (
-                  <div className="space-y-2">
-                    <Input
-                      id="newEmail"
-                      type="email"
-                      autoComplete="email"
-                      placeholder="Enter new email address"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      required
-                      className="w-full mt-1"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditingEmail(false);
-                          setNewEmail(email);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleChangeEmail}
-                        isLoading={loading}
-                        disabled={loading}
-                      >
-                        Save &amp; resend verification
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>
-                Resend verification link
-              </Button>
-            </form>
+                </div>
+              </form>
+            )}
 
             <p className="mt-4 text-sm text-steel text-center">
               Already verified?{' '}

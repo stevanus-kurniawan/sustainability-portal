@@ -89,7 +89,7 @@ services:
     ports:
       - "${API_PORT:-3001}:3001"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       # Allow any email when testing locally (set to "true" only in real production)
       REGISTRATION_DOMAIN_RESTRICTION_ENABLED: "false"
       PORT: 3001
@@ -111,10 +111,13 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-slms-docs}
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_SECURE: "false"
-      SMTP_FROM: SLMS Notifications <noreply@slms.local>
+      # SMTP configuration (defaults to Mailhog but can be overridden via infra/.env)
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-"false"}
+      SMTP_USER: ${SMTP_USER:-""}
+      SMTP_PASS: ${SMTP_PASS:-""}
+      SMTP_FROM: ${SMTP_FROM:-SLMS Notifications <noreply@slms.local>}
       WEB_URL: http://localhost:3000
     depends_on:
       postgres:
@@ -141,7 +144,7 @@ services:
       # Use WEB_PORT (default 3002) so local dev on 3000 doesn't conflict
       - "${WEB_PORT:-3002}:3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       # Ensure server-side Next.js routes call the API by its Docker hostname.
       NEXT_PUBLIC_API_URL: http://slms-api:3001/api/v1

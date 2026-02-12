@@ -5,7 +5,6 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CategoriesService } from '../categories/categories.service';
 import { CertificationsService } from '../certifications/certifications.service';
 import { DocumentsService } from '../documents/documents.service';
-import { GrievancesService } from '../grievances/grievances.service';
 import { LicensesService } from '../licenses/licenses.service';
 import { SubContentsService } from '../sub-contents/sub-contents.service';
 import { TagsService } from '../tags/tags.service';
@@ -23,7 +22,6 @@ export class PublicController {
     private readonly documentsService: DocumentsService,
     private readonly certificationsService: CertificationsService,
     private readonly licensesService: LicensesService,
-    private readonly grievancesService: GrievancesService,
     private readonly traceabilityService: TraceabilityService,
     private readonly subContentsService: SubContentsService,
   ) {}
@@ -39,6 +37,15 @@ export class PublicController {
     if (!key || typeof key !== 'string') {
       return res.status(400).json({ message: 'Missing or invalid key parameter' });
     }
+
+    // Enforce that only document uploads can be accessed via this public endpoint.
+    // Keys must be under the "uploads/" prefix and contain only safe characters.
+    // Example valid key: uploads/uuid-v4.pdf
+    const safeKeyPattern = /^uploads\/[a-zA-Z0-9._\-\/]+$/;
+    if (!safeKeyPattern.test(key)) {
+      return res.status(400).json({ message: 'Invalid file key format' });
+    }
+
     const result = await this.uploadService.getObjectStream(key);
     if (!result) {
       return res.status(502).json({ message: 'Failed to stream file' });
@@ -192,19 +199,15 @@ export class PublicController {
     );
   }
 
-  @Get('grievances')
-  getGrievances(
+  @Get('grievance-documents')
+  getGrievanceDocuments(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
-    @Query('status') status?: string,
-    @Query('category') category?: string,
   ) {
-    return this.grievancesService.findAllPublic({
-      page: page ? parseInt(page, 10) : undefined,
-      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
-      status,
-      category,
-    });
+    return this.documentsService.findGrievanceDocumentsPublic(
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+    );
   }
 
   @Get('traceability')

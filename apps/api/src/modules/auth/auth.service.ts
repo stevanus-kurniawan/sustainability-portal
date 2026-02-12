@@ -350,7 +350,7 @@ export class AuthService {
       to: email,
       subject: buildVerifyEmailSubject(),
       text: buildVerifyEmailText({ verifyUrl }),
-      html: buildVerifyEmailHtml({ verifyUrl }),
+      html: buildVerifyEmailHtml({ verifyUrl, webUrl: appBaseUrl }),
     });
 
     if (!ok) {

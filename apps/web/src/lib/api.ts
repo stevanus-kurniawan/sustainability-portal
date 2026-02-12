@@ -15,17 +15,28 @@ interface PaginationMeta {
   total: number;
 }
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   data: T;
   meta?: {
     pagination?: PaginationMeta;
   };
 }
 
+export interface ApiResult<T> {
+  data: T | null;
+  error: string | null;
+}
+
 interface FetchOptions {
   cache?: RequestCache;
   revalidate?: number;
   tags?: string[];
+}
+
+function normalizeApiError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unexpected error while contacting the API';
 }
 
 async function fetchApi<T>(
@@ -54,6 +65,18 @@ async function fetchApi<T>(
   }
 
   return response.json();
+}
+
+export async function safeFetchApi<T>(
+  endpoint: string,
+  options: FetchOptions = {},
+): Promise<ApiResult<T>> {
+  try {
+    const res = await fetchApi<T>(endpoint, options);
+    return { data: res.data, error: null };
+  } catch (err) {
+    return { data: null, error: normalizeApiError(err) };
+  }
 }
 
 // Types
@@ -383,22 +406,18 @@ export async function getDocument(id: number): Promise<Document | null> {
   }
 }
 
-export async function getGrievances(params?: {
+export async function getGrievanceDocuments(params?: {
   page?: number;
   pageSize?: number;
-  status?: string;
-  category?: string;
-}): Promise<ApiResponse<GrievanceCase[]>> {
+}): Promise<ApiResponse<Document[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
-  if (params?.status) searchParams.set('status', params.status);
-  if (params?.category) searchParams.set('category', params.category);
 
   const query = searchParams.toString();
-  return fetchApi<GrievanceCase[]>(`/public/grievances${query ? `?${query}` : ''}`, {
+  return fetchApi<Document[]>(`/public/grievance-documents${query ? `?${query}` : ''}`, {
     revalidate: 300,
-    tags: ['grievances'],
+    tags: ['grievance-documents'],
   });
 }
 

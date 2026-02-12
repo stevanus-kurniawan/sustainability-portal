@@ -15,7 +15,7 @@ import {
 interface DocumentListPageProps {
   title: string;
   description?: string;
-  type: 'POLICY' | 'GENERAL';
+  type: 'POLICY' | 'GRIEVANCE' | 'GENERAL';
   categorySlug?: string;
   categoryId?: number;
   subContentId?: number;
@@ -119,6 +119,7 @@ export function DocumentListPage({
   const showSubContentColumn = selectedCategory?.mode === 'WITH_SUBCONTENT';
   const shouldFetchList =
     type === 'POLICY' ||
+    type === 'GRIEVANCE' ||
     (type === 'GENERAL' && (subContentIdProp != null || !categorySlug || effectiveCategoryId != null));
 
   useEffect(() => {

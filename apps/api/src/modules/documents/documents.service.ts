@@ -35,6 +35,22 @@ export class DocumentsService {
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
   }
 
+  async findGrievanceDocumentsPublic(page = DEFAULT_PAGE, pageSize = DEFAULT_PAGE_SIZE) {
+    const where = { type: 'GRIEVANCE' as const, isPublic: true, isPublished: true, ...this.notDeleted };
+    const [items, total] = await Promise.all([
+      this.prisma.document.findMany({
+        where,
+        include: this.includeForPublic,
+        orderBy: { publishedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.document.count({ where }),
+    ]);
+    const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
   async findLibraryPublic(params: {
     page?: number;
     pageSize?: number;

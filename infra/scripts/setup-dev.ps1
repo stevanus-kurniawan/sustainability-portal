@@ -29,14 +29,14 @@ Set-Location "$ScriptDir\..\.."
 # Start infrastructure services
 Write-Host "Starting infrastructure services..." -ForegroundColor Yellow
 Set-Location "infra"
-docker-compose up -d postgres postgres-cms redis mailhog
+docker-compose up -d postgres redis mailhog
 Set-Location ".."
 
 # Wait for PostgreSQL to be ready
 Write-Host "Waiting for databases to be ready..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
-# Check if databases are ready
+# Check if database is ready
 $maxRetries = 30
 $retryCount = 0
 do {
@@ -53,21 +53,6 @@ if ($retryCount -ge $maxRetries) {
 }
 Write-Host "✓ API database is ready" -ForegroundColor Green
 
-$retryCount = 0
-do {
-    $result = docker exec slms-postgres-cms pg_isready -U slms 2>&1
-    if ($LASTEXITCODE -eq 0) { break }
-    Write-Host "Waiting for CMS database..."
-    Start-Sleep -Seconds 2
-    $retryCount++
-} while ($retryCount -lt $maxRetries)
-
-if ($retryCount -ge $maxRetries) {
-    Write-Host "Error: CMS database failed to start" -ForegroundColor Red
-    exit 1
-}
-Write-Host "✓ CMS database is ready" -ForegroundColor Green
-
 # Install dependencies
 Write-Host "Installing dependencies..." -ForegroundColor Yellow
 pnpm install
@@ -83,13 +68,11 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Available services:"
 Write-Host "  - PostgreSQL (API):    localhost:5432"
-Write-Host "  - PostgreSQL (CMS):    localhost:5433"
 Write-Host "  - Redis:               localhost:6379"
 Write-Host "  - Mailhog UI:          http://localhost:8025"
 Write-Host ""
 Write-Host "Run the applications:"
 Write-Host "  pnpm dev:web    - Start Next.js (port 3000)"
 Write-Host "  pnpm dev:api    - Start NestJS API (port 4000)"
-Write-Host "  pnpm dev:cms    - Start Strapi CMS (port 1337)"
-Write-Host "  pnpm dev        - Start all apps"
+Write-Host "  pnpm dev        - Start API + Web"
 Write-Host ""
