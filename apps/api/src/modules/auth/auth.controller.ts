@@ -35,10 +35,12 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'User registration (email must be @energi-up.com)' })
+  @ApiOperation({
+    summary: 'User registration (production: @energi-up.com only; dev/local: any email)',
+  })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'Registration successful' })
-  @ApiResponse({ status: 400, description: 'Invalid email domain' })
+  @ApiResponse({ status: 400, description: 'Invalid email domain (production only)' })
   @ApiResponse({ status: 409, description: 'Email already exists' })
   async register(
     @Body() dto: RegisterDto,

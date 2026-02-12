@@ -4,6 +4,15 @@ export default () => ({
   apiPrefix: process.env.API_PREFIX || 'api/v1',
   nodeEnv: process.env.NODE_ENV || 'development',
 
+  // Registration: only restrict to energi-up.com in production; dev/local allow any email.
+  // Set REGISTRATION_DOMAIN_RESTRICTION_ENABLED=false to allow any email (e.g. local Docker with NODE_ENV=production).
+  registration: {
+    domainRestrictionEnabled:
+      process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED === 'true' ||
+      (process.env.REGISTRATION_DOMAIN_RESTRICTION_ENABLED !== 'false' &&
+        process.env.NODE_ENV === 'production'),
+  },
+
   // Database
   database: {
     url: process.env.DATABASE_URL,
@@ -26,9 +35,9 @@ export default () => ({
     adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '8h',
   },
 
-  // CORS
+  // CORS (include 3002 for Docker web; 127.0.0.1 variants are added in main.ts)
   cors: {
-    origins: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    origins: process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002,http://localhost:1337',
   },
 
   // MinIO (document storage)

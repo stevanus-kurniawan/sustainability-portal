@@ -1,6 +1,7 @@
 # Build from monorepo root: docker build -f apps/api/Dockerfile .
+# Alpine + Prisma OpenSSL 3 binary (binaryTargets in schema.prisma) — no Debian/apt-get.
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
 WORKDIR /app
 
 # Dependencies
@@ -21,7 +22,7 @@ RUN pnpm --filter @slms/api build
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
-# Production runner: copy app + deps needed at runtime
+# Production runner
 FROM node:20-alpine AS runner
 RUN apk add --no-cache wget
 WORKDIR /app
