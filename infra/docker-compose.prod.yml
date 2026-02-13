@@ -1,15 +1,22 @@
-version: '3.8'
-
 # Production Docker Compose configuration
-# Extends the base docker-compose.yml with production-specific settings
+# Usage: from repo root: docker compose -f infra/docker-compose.prod.yml up -d
+# Ensure infra/.env exists (copy from env.example) with DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, API_URL, etc.
 
 services:
   postgres:
+    image: postgres:16
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-slms}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-slms}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-slms} -d ${DB_NAME:-slms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
@@ -17,10 +24,17 @@ services:
         reservations:
           memory: 512M
 
-
   redis:
+    image: redis:7
     restart: always
+    volumes:
+      - redis_data:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
@@ -31,8 +45,8 @@ services:
   # Web Portal (Next.js)
   web:
     build:
-      context: ../apps/web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/web/Dockerfile
     restart: always
     environment:
       NODE_ENV: production
@@ -46,8 +60,8 @@ services:
   # API (NestJS)
   api:
     build:
-      context: ../apps/api
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/api/Dockerfile
     restart: always
     environment:
       NODE_ENV: production
