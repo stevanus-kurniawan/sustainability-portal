@@ -406,18 +406,22 @@ export async function getDocument(id: number): Promise<Document | null> {
   }
 }
 
-export async function getGrievanceDocuments(params?: {
+export async function getGrievances(params?: {
   page?: number;
   pageSize?: number;
-}): Promise<ApiResponse<Document[]>> {
+  status?: string;
+  category?: string;
+}): Promise<ApiResponse<GrievanceCase[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.category) searchParams.set('category', params.category);
 
   const query = searchParams.toString();
-  return fetchApi<Document[]>(`/public/grievance-documents${query ? `?${query}` : ''}`, {
+  return fetchApi<GrievanceCase[]>(`/public/grievances${query ? `?${query}` : ''}`, {
     revalidate: 300,
-    tags: ['grievance-documents'],
+    tags: ['grievances'],
   });
 }
 
