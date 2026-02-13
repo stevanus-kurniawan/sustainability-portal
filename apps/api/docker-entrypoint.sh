@@ -7,5 +7,5 @@ PRISMA_ENGINE_PATH=$(find /app -path '*node_modules*' -name 'libquery_engine-lin
 if [ -n "$PRISMA_ENGINE_PATH" ]; then
   export PRISMA_QUERY_ENGINE_LIBRARY="$PRISMA_ENGINE_PATH"
 fi
-npx prisma migrate deploy --skip-generate
+npx prisma migrate deploy
 exec node dist/main.js
