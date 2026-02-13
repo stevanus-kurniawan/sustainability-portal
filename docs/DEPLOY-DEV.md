@@ -67,20 +67,44 @@ This starts Postgres, Redis, and the API. The API **entrypoint runs `prisma migr
 
 ### 1.4 Verify migrations
 
-Check API logs to confirm migrations ran:
+**1. API logs** – On a successful start you should see Prisma apply migrations then the app listening:
 
 ```bash
 docker compose -f infra/docker-compose.prod.backend.yml logs api
 ```
 
-You should see Prisma migrate output and then the app listening (e.g. port 4000).
+Look for lines like `Applying migration \`20250129000000_init_schema\`` and no `Error: P3009` / `Error: P3018`. If the API stays running and listens on port 4000, migrate almost certainly succeeded.
+
+**2. Prisma migrate status** – Lists which migrations are applied and whether any are pending:
+
+```bash
+docker compose -f infra/docker-compose.prod.backend.yml exec api npx prisma migrate status
+```
+
+You want: `Database schema is up to date!` and no pending migrations.
+
+**3. Database table** – Applied migrations are recorded in `_prisma_migrations`:
+
+```bash
+docker compose -f infra/docker-compose.prod.backend.yml exec postgres psql -U slms -d slms -c "SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY finished_at;"
+```
+
+Each migration should have a non-null `finished_at`. If you have 12 migrations in `prisma/migrations`, you should see 12 rows with `finished_at` set.
+
+**4. Health check** – If the API responds with DB connected, the schema is in use:
+
+```bash
+curl -s http://172.28.92.57:4000/api/v1/health
+```
+
+Expect something like `{"status":"ok","database":"connected",...}`.
 
 ### 1.5 Run database seed (one-time)
 
 Seeding is **not** run in the entrypoint. Run it once after first deploy:
 
 ```bash
-docker compose -f infra/docker-compose.prod.backend.yml exec api pnpm prisma db seed
+docker compose -f infra/docker-compose.prod.backend.yml exec api npx prisma db seed
 ```
 
 Default accounts created by seed:
@@ -150,7 +174,7 @@ Login and API calls should go to `http://172.28.92.57:4000/api/v1` (or whatever 
 | 1 | Backend (57) | Create `infra/.env` with DB, Redis, JWT, `CORS_ORIGIN` |
 | 2 | Backend (57) | `docker compose -f infra/docker-compose.prod.backend.yml up -d` |
 | 3 | Backend (57) | Check `logs api` for successful migrate |
-| 4 | Backend (57) | Run `docker compose ... exec api pnpm prisma db seed` once |
+| 4 | Backend (57) | Run `docker compose ... exec api npx prisma db seed` once |
 | 5 | Frontend (56) | Create `infra/.env` with `API_URL=http://172.28.92.57:4000/api/v1` |
 | 6 | Frontend (56) | `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build` |
 | 7 | Both | Verify app and API from browser and curl |
@@ -343,7 +367,7 @@ cd /path/to/sustainability-portal
 # Edit infra/.env (DB_*, REDIS_*, JWT_*, CORS_ORIGIN)
 docker compose -f infra/docker-compose.prod.backend.yml up -d
 docker compose -f infra/docker-compose.prod.backend.yml logs -f api   # confirm migrate
-docker compose -f infra/docker-compose.prod.backend.yml exec api pnpm prisma db seed
+docker compose -f infra/docker-compose.prod.backend.yml exec api npx prisma db seed
 ```
 
 **Frontend (172.28.92.56):**
