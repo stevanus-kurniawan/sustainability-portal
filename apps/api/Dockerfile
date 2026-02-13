@@ -1,5 +1,5 @@
 # Build from monorepo root: docker build -f apps/api/Dockerfile .
-# Alpine + Prisma OpenSSL 3 binary (binaryTargets in schema.prisma) — no Debian/apt-get.
+# Builder: Alpine. Runner: Debian slim so Prisma's OpenSSL detection works (no musl/libssl.so.1.1 issues).
 FROM node:20-alpine AS base
 RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
@@ -23,10 +23,9 @@ RUN pnpm --filter @slms/api build
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
-# Production runner (Alpine 3.18 so openssl1.1-compat is available for Prisma engine)
-FROM node:20-alpine3.18 AS runner
-# OpenSSL 3 + OpenSSL 1.1 compat so Prisma engine can load (libssl.so.1.1)
-RUN apk add --no-cache openssl openssl-dev openssl1.1-compat
+# Production runner: Debian slim — Prisma detects OpenSSL 3 reliably (no "failed to detect" / libssl.so.1.1)
+FROM node:20-slim AS runner
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -35,8 +34,7 @@ COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api ./apps/api
 COPY apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh && chmod +x /app/apps/api/docker-entrypoint.sh
-# Generate Prisma client in the final image so the linux-musl engine binary exists
-# where the runtime resolves @prisma/client (avoids "No such file or directory")
+# Generate Prisma client in final image so debian-openssl-3.0.x engine is present for this runtime
 WORKDIR /app/apps/api
 RUN npx prisma generate
 EXPOSE 3001
