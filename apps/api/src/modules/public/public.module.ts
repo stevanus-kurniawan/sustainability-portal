@@ -8,6 +8,7 @@ import { LicensesModule } from '../licenses/licenses.module';
 import { TagsModule } from '../tags/tags.module';
 import { TraceabilityModule } from '../traceability/traceability.module';
 import { UploadModule } from '../upload/upload.module';
+import { GrievancesModule } from '../grievances/grievances.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UploadModule } from '../upload/upload.module';
     DocumentsModule,
     CertificationsModule,
     LicensesModule,
+    GrievancesModule,
     TraceabilityModule,
   ],
   controllers: [PublicController],
