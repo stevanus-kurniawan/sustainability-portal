@@ -229,6 +229,20 @@ If a migration fails with `relation "documents" does not exist` (e.g. `202501301
    ```
 2. Restart the API so `migrate deploy` runs again; it will apply `20250130110000_create_content_tables` then the previously failed migration.
 
+**If `migrate resolve` fails with P3009** (e.g. "migrate found failed migrations... new migrations will not be applied"), Prisma is blocking the resolve command. Fix it by clearing the failed migration row directly in the database, then let the API run `migrate deploy` on restart. Ensure the server has the latest code (including `20250130110000_create_content_tables`), then:
+
+1. Connect to Postgres and remove the failed migration record (replace the migration name if yours is different):
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml exec postgres psql -U slms -d slms -c "DELETE FROM _prisma_migrations WHERE migration_name = '20250130120000_add_external_link_and_attachment';"
+   ```
+   If your DB user is different (e.g. from `DB_USER` in `.env`), use that user: `psql -U $DB_USER -d slms -c "..."`.
+
+2. Restart the API so it runs `migrate deploy`:
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml up -d api
+   ```
+   Deploy will apply `20250130110000_create_content_tables` (creating the content tables), then `20250130120000_add_external_link_and_attachment`, then any later migrations.
+
 **Alternative: full reset (dev only, all data lost)**  
 If you can discard all data and want a clean state:
 
@@ -240,9 +254,41 @@ If you see `Authentication failed against database server at postgres, the provi
 
 - **Backend (prod compose):** The API uses `DB_USER`, `DB_PASSWORD`, `DB_NAME` from `infra/.env`. They must match what Postgres was created with. Postgres sets the user/password only on **first** startup (when the data volume is empty). If you later change `DB_PASSWORD` in `.env`, the existing volume still has the **old** password.
   - **Fix 1:** Set `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `infra/.env` to the credentials that were used when the Postgres volume was first created (e.g. if you never had a custom password, try `DB_PASSWORD=slms`).
-  - **Fix 2 (dev only, data loss):** Remove the volume and start fresh so Postgres re-initializes with the current `.env`:  
+  - **Fix 2:** Reset the database user password inside Postgres (see **Reset DB password** below), then set the same password in `infra/.env` and restart the API.
+  - **Fix 3 (dev only, data loss):** Remove the volume and start fresh so Postgres re-initializes with the current `.env`:  
     `docker compose -f infra/docker-compose.prod.backend.yml down -v` then `up -d`.
 - If the password contains `@`, `#`, `:`, `/`, or `%`, URL-encode it in `DATABASE_URL` (e.g. `%40` for `@`). Prefer a password without those characters to avoid quoting issues in shell/env.
+
+**Reset DB password**  
+To set a new password for the `slms` DB user so it matches `infra/.env`:
+
+1. From the server (e.g. SSH), open a shell in the Postgres container and connect as the superuser `postgres` (local connection inside the container does not require the app password):
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml exec postgres psql -U postgres -d postgres
+   ```
+   If `postgres` is not allowed (e.g. image only created `slms`), use the same user as `DB_USER` with the **current** password if you know it, or use the **host** user and `sudo` to exec as root and then run `psql` (see alternative below).
+
+2. In the `psql` prompt, set the new password (replace `YourNewPassword` and `slms` if your `DB_USER` is different):
+   ```sql
+   ALTER USER slms PASSWORD 'YourNewPassword';
+   \q
+   ```
+
+3. Update `infra/.env` with the same password:
+   ```bash
+   DB_PASSWORD=YourNewPassword
+   ```
+
+4. Restart the API so it picks up the new credentials:
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml up -d api
+   ```
+
+   **If "role postgres does not exist":** The image was started with `POSTGRES_USER=slms`, so only the `slms` DB role exists. Try connecting as `slms` over the local socket (no `-h`); some setups allow peer or trust for local connections:
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml exec postgres psql -U slms -d slms -c "ALTER USER slms PASSWORD 'YourNewPassword';"
+   ```
+   If that prompts for a password you don’t know, or fails, the only way to set a known password is **Fix 3**: remove the Postgres data volume and recreate the DB so it is initialized with the password from `.env` (all data in that DB is lost).
 
 ### 4.4 Seeding is one-time
 
