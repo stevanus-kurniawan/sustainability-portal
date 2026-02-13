@@ -1,11 +1,11 @@
 # Build from monorepo root: docker build -f apps/api/Dockerfile .
-# Builder: Alpine. Runner: Debian slim so Prisma's OpenSSL detection works (no musl/libssl.so.1.1 issues).
-FROM node:20-alpine AS base
-RUN apk add --no-cache openssl
+# All stages use Debian (node:20-slim) so native modules (bcrypt, Prisma) are built for glibc and run correctly.
+FROM node:20-slim AS base
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
 WORKDIR /app
 
-# Dependencies
+# Dependencies (Debian so bcrypt native addon is built for glibc, not musl)
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared packages/shared
@@ -23,7 +23,7 @@ RUN pnpm --filter @slms/api build
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
-# Production runner: Debian slim — Prisma detects OpenSSL 3 reliably (no "failed to detect" / libssl.so.1.1)
+# Production runner (same Debian base = no musl/glibc mismatch)
 FROM node:20-slim AS runner
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
