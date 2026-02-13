@@ -189,6 +189,61 @@ sudo ufw enable
 
 Migrations run in the API container entrypoint (`prisma migrate deploy`). If migrate fails, the container exits so you see the error in `docker compose logs api`. No need to run migrate manually unless you are debugging.
 
+**Do I need to create the database?** No. The database is created automatically: the Postgres container uses `POSTGRES_DB=slms` (or your `infra/.env` value), so the `slms` database exists as soon as Postgres is healthy. P3009 means a **migration failed** in the past and is recorded as failed in `_prisma_migrations`; the fix is to resolve that failure, not to create the DB.
+
+**Resolving failed migrations (P3009)**  
+If you see:
+
+```text
+Error: P3009
+migrate found failed migrations in the target database...
+The `20250130000000_add_user_password_and_admin` migration ... failed
+```
+
+then a previous migration run failed and Prisma will not apply any new migrations until you resolve it.
+
+1. From your **host** (or a one-off container with network access to Postgres), set `DATABASE_URL` to the **same** database the API uses and run:
+
+   **Local dev (Docker Compose from infra, Postgres on host port 5544):**
+
+   ```powershell
+   cd apps\api
+   $env:DATABASE_URL = "postgresql://slms:slms@localhost:5544/slms?schema=public"
+   npx prisma migrate resolve --rolled-back "20250130000000_add_user_password_and_admin"
+   ```
+
+   **Production / backend server (Postgres not exposed; run inside API container):**
+
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml run --rm api npx prisma migrate resolve --rolled-back "20250130000000_add_user_password_and_admin"
+   ```
+
+2. Restart the API so it runs `prisma migrate deploy` again. The failed migration will be re-applied (and should succeed if the schema is now correct, e.g. after adding an init migration that creates the `users` table).
+
+**Migration failed: "relation documents does not exist" (P3018)**  
+If a migration fails with `relation "documents" does not exist` (e.g. `20250130120000_add_external_link_and_attachment`), the migration history was missing a step that creates the content tables. A fix migration `20250130110000_create_content_tables` has been added to create `categories`, `documents`, `certifications`, `licenses`, `grievance_cases`, and related tables. After pulling the latest code:
+
+1. Mark the failed migration as rolled back (use the migration name from the error):
+   ```bash
+   docker compose -f infra/docker-compose.prod.backend.yml run --rm api npx prisma migrate resolve --rolled-back "20250130120000_add_external_link_and_attachment"
+   ```
+2. Restart the API so `migrate deploy` runs again; it will apply `20250130110000_create_content_tables` then the previously failed migration.
+
+**Alternative: full reset (dev only, all data lost)**  
+If you can discard all data and want a clean state:
+
+- **Local:** Remove the Postgres volume and start again, e.g. `docker compose -f infra/docker-compose.yml down -v`, then `up -d`. Or run `npx prisma migrate reset --force` from `apps/api` with `DATABASE_URL=postgresql://slms:slms@localhost:5544/slms?schema=public`.
+- **Production:** Prefer resolving the failed migration (steps above); use reset only in a dedicated dev/staging DB.
+
+**Authentication failed (P1000)**  
+If you see `Authentication failed against database server at postgres, the provided database credentials for slms are not valid`:
+
+- **Backend (prod compose):** The API uses `DB_USER`, `DB_PASSWORD`, `DB_NAME` from `infra/.env`. They must match what Postgres was created with. Postgres sets the user/password only on **first** startup (when the data volume is empty). If you later change `DB_PASSWORD` in `.env`, the existing volume still has the **old** password.
+  - **Fix 1:** Set `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `infra/.env` to the credentials that were used when the Postgres volume was first created (e.g. if you never had a custom password, try `DB_PASSWORD=slms`).
+  - **Fix 2 (dev only, data loss):** Remove the volume and start fresh so Postgres re-initializes with the current `.env`:  
+    `docker compose -f infra/docker-compose.prod.backend.yml down -v` then `up -d`.
+- If the password contains `@`, `#`, `:`, `/`, or `%`, URL-encode it in `DATABASE_URL` (e.g. `%40` for `@`). Prefer a password without those characters to avoid quoting issues in shell/env.
+
 ### 4.4 Seeding is one-time
 
 `prisma db seed` is idempotent (upserts). Run it once per environment. Re-running is safe. Do **not** run it from a cron; run manually after deploy or as part of a release script.
