@@ -50,13 +50,25 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
+      # Prisma + Nest
+      DATABASE_URL: postgresql://${DB_USER:-slms}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-slms}?schema=public
       DB_HOST: postgres
-      DB_PORT: 5432
+      DB_PORT: "5432"
       DB_USERNAME: ${DB_USER:-slms}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_DATABASE: ${DB_NAME:-slms}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-refresh-secret-change-in-production}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:-admin-secret-change-in-production}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT: "9000"
+      MINIO_BUCKET: ${MINIO_BUCKET:-slms-docs}
     ports:
       - "4000:4000"
     depends_on:
