@@ -3,7 +3,8 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  // native: local dev; debian-openssl-3.0.x: Docker (node:20-slim); linux-musl: Alpine fallback
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
