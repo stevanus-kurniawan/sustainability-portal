@@ -5,6 +5,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CategoriesService } from '../categories/categories.service';
 import { CertificationsService } from '../certifications/certifications.service';
 import { DocumentsService } from '../documents/documents.service';
+import { GrievancesService } from '../grievances/grievances.service';
 import { LicensesService } from '../licenses/licenses.service';
 import { SubContentsService } from '../sub-contents/sub-contents.service';
 import { TagsService } from '../tags/tags.service';
@@ -22,6 +23,7 @@ export class PublicController {
     private readonly documentsService: DocumentsService,
     private readonly certificationsService: CertificationsService,
     private readonly licensesService: LicensesService,
+    private readonly grievancesService: GrievancesService,
     private readonly traceabilityService: TraceabilityService,
     private readonly subContentsService: SubContentsService,
   ) {}
@@ -199,15 +201,19 @@ export class PublicController {
     );
   }
 
-  @Get('grievance-documents')
-  getGrievanceDocuments(
+  @Get('grievances')
+  getGrievances(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('category') category?: string,
   ) {
-    return this.documentsService.findGrievanceDocumentsPublic(
-      page ? parseInt(page, 10) : undefined,
-      pageSize ? parseInt(pageSize, 10) : undefined,
-    );
+    return this.grievancesService.findAllPublic({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      status,
+      category,
+    });
   }
 
   @Get('traceability')

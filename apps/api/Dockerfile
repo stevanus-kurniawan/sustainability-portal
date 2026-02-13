@@ -23,10 +23,10 @@ RUN pnpm --filter @slms/api build
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
-# Production runner
-FROM node:20-alpine AS runner
-# OpenSSL so Prisma can detect version and load the correct engine binary
-RUN apk add --no-cache wget openssl openssl-dev
+# Production runner (Alpine 3.18 so openssl1.1-compat is available for Prisma engine)
+FROM node:20-alpine3.18 AS runner
+# OpenSSL 3 + OpenSSL 1.1 compat so Prisma engine can load (libssl.so.1.1)
+RUN apk add --no-cache openssl openssl-dev openssl1.1-compat
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
