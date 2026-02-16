@@ -157,16 +157,31 @@ curl -s http://172.28.92.57:3001/api/v1/health
 
 Create `infra/.env` in the repo on the **frontend** server. The important variable is **`API_URL`**: it is passed as **build-time** `NEXT_PUBLIC_API_URL` for the Next.js app. If you change it later, you must **rebuild** the image.
 
+**Option A – Direct API URL (browser calls backend directly):**
+
 ```bash
 # API base URL (no trailing slash) – used by the browser to call the backend
-# Use backend IP and port, or later your API domain
 API_URL=http://<backend-public-ip>:3001/api/v1
 
-# Optional: CMS URL if you have a separate CMS
+# Optional: CMS URL
 # CMS_URL=
 ```
 
-Do **not** use `localhost` here; the browser runs on the user’s machine and must reach the backend at 172.28.92.57 (or the public API URL).
+Do **not** use `localhost` here; the browser runs on the user’s machine and must reach the backend at 172.28.92.57 (or the public API URL).  
+**Note:** With this setup, **admin login may not redirect** into the admin app (see **4.2.2 Admin login does not redirect**).
+
+**Option B – Proxy (recommended when frontend and API are on different hosts, so admin login works):**
+
+```bash
+# Browser calls same origin /api/v1; Next.js proxies to the backend. Admin cookie is then same-origin and redirect works.
+API_URL=/api/v1
+API_BACKEND_URL=http://172.28.92.57:3001
+
+# Optional: CMS URL
+# CMS_URL=
+```
+
+Use the **private IP** (172.28.92.57) or the backend’s **public IP** in `API_BACKEND_URL` so the frontend server can reach the API. Rebuild after changing: `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`.
 
 ### 2.2 Build and run frontend
 
@@ -267,8 +282,32 @@ If the request reaches the API but you get **401 Unauthorized** or "Invalid cred
      -H "Content-Type: application/json" \
      -d '{"email":"admin@energi-up.com","password":"Admin123!"}'
    ```
-   - **200 + JSON** with `admin` and `expiresIn`: login works; if the browser still fails, the issue is CORS or cookies (see 4.2).
+   - **200 + JSON** with `admin` and `expiresIn**: login works; if the browser still fails, the issue is CORS or cookies (see 4.2).
    - **401**: admin missing, wrong password, or admin not ACTIVE; run seed or fix password/status.
+
+### 4.2.2 Admin login does not redirect into the admin app
+
+**Symptom:** You log in at `http://172.28.92.56:3000/admin/login` with `admin@energi-up.com` / `Admin123!` and either stay on the login page or are sent back to login when opening `/admin`.
+
+**Cause:** The frontend and API are on **different hosts** (e.g. 172.28.92.56 vs 172.28.92.57). The API sets the admin cookie on the **API’s** host (172.28.92.57). The browser only sends that cookie to the API. The **middleware** that protects `/admin` runs on the **frontend** (172.28.92.56) and only sees cookies for 172.28.92.56, so it never sees the admin token and redirects to `/admin/login`.
+
+**Fix – use the API proxy:** So that the cookie is set on the frontend origin, proxy API requests through the frontend:
+
+1. On the **frontend** server, in `infra/.env`, set:
+   ```bash
+   API_URL=/api/v1
+   API_BACKEND_URL=http://172.28.92.57:3001
+   ```
+   (Use the backend’s **public IP** if the frontend server cannot reach 172.28.92.57.)
+
+2. Rebuild and restart the frontend:
+   ```bash
+   docker compose -f infra/docker-compose.prod.frontend.yml up -d --build
+   ```
+
+3. Ensure the **backend** allows requests from the frontend (CORS or same VPC). If the frontend server calls the API, CORS does not apply (server-to-server); if the browser still hits the API for some requests, keep `CORS_ORIGIN` or `CORS_ORIGINS` set as in 4.2.
+
+With this setup, the browser calls `http://172.28.92.56:3000/api/v1/admin-auth/login`; Next.js proxies to the backend; the response (and `Set-Cookie`) is sent from 172.28.92.56, so the cookie is stored for the frontend and the middleware sees it after redirect to `/admin`.
 
 ### 4.3 Migrations on backend
 
@@ -421,23 +460,31 @@ Plan backups for Postgres (e.g. `pg_dump` cron or Alibaba Cloud RDS backup). The
 
 To connect to Postgres from your PC (or another host), the backend compose exposes the Postgres port on the host. You still need the **security group** to allow that port.
 
-1. **Port:** Postgres is mapped to the host with `POSTGRES_PORT` (default **5432**). Set `POSTGRES_PORT=5432` in `infra/.env` on the backend server if you want to change it, then restart:  
+**Important:** The prod backend compose (`docker-compose.prod.backend.yml`) uses **`DB_USER`**, **`DB_PASSWORD`**, **`DB_NAME`** in `infra/.env` (not `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`). Postgres inside the container is configured from those. If you used `POSTGRES_*` in `.env`, add or rename to:
+
+- `DB_USER=slms`
+- `DB_PASSWORD=slms`
+- `DB_NAME=slms`
+
+Then restart: `docker compose -f infra/docker-compose.prod.backend.yml up -d`.
+
+1. **Port:** Postgres is mapped to the host with `POSTGRES_PORT` (default **5432**). Set `POSTGRES_PORT=5432` in `infra/.env` if you want it explicit, then restart postgres:  
    `docker compose -f infra/docker-compose.prod.backend.yml up -d postgres`
 
 2. **Alibaba Cloud security group (backend server 172.28.92.57):**  
    - Add an **inbound** rule: port **5432**, protocol **TCP**.  
    - **Source:** for dev you can use your IP or `0.0.0.0/0`; for production restrict to a specific IP or VPN range.
 
-3. **Connection from your PC:** Use the **public IP** of the backend ECS (not the private 172.28.92.57):
-   - **Host:** `<backend-server-public-ip>`
-   - **Port:** `5432` (or whatever you set in `POSTGRES_PORT`)
-   - **Database:** `slms` (or `DB_NAME` from `.env`)
-   - **User:** `slms` (or `DB_USER`)
-   - **Password:** value of `DB_PASSWORD` in `infra/.env`
+3. **pgAdmin / DBeaver connection (from your PC):**
+   - **Host:** backend server IP (e.g. `172.28.92.57` from same VPC, or the **public IP** of the backend ECS from the internet)
+   - **Port:** `5432` (or `POSTGRES_PORT` from `.env`)
+   - **Database:** `slms`
+   - **Username:** `slms`
+   - **Password:** value of `DB_PASSWORD` in `infra/.env` (e.g. `slms` if you set `DB_PASSWORD=slms`)
 
-   Example URL: `postgresql://slms:<DB_PASSWORD>@<public-ip>:5432/slms`
+   Example URL: `postgresql://slms:<DB_PASSWORD>@<host>:5432/slms`
 
-4. **If you get timeout:** The security group for the **backend** instance must allow inbound TCP 5432 from your IP (or 0.0.0.0/0). Check that the rule is saved and attached to the correct ECS.
+4. **If you get timeout or "could not connect":** (1) Ensure `DB_USER`, `DB_PASSWORD`, `DB_NAME` are set in `infra/.env` and the stack was restarted. (2) Security group for the backend must allow inbound TCP 5432 from your IP (or 0.0.0.0/0). (3) If pgAdmin is on the same server as Docker, use **Host:** `localhost` or `127.0.0.1`.
 
 ---
 

@@ -16,7 +16,10 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @slms/shared build
 
 # Build web (shared already built in deps)
+# API_BACKEND_URL: used by next.config rewrites to proxy /api/v1 to backend (for same-origin admin cookie when FE and API are on different hosts).
 FROM base AS builder
+ARG API_BACKEND_URL
+ENV API_BACKEND_URL=$API_BACKEND_URL
 COPY --from=deps /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
