@@ -31,11 +31,21 @@ export default async function ProcedureSectionSubPage({ params, searchParams }: 
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
 
-  const [{ data: category }, { data: subList }, docResponse] = await Promise.all([
-    getCategoryBySlug(sectionSlug),
-    getSubContents(sectionSlug),
-    getSubContentDocuments(sectionSlug, subSlug, { page, pageSize }),
-  ]);
+  let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
+  let subList: Awaited<ReturnType<typeof getSubContents>>['data'];
+  let docResponse: Awaited<ReturnType<typeof getSubContentDocuments>>;
+  try {
+    const [catRes, subRes, docRes] = await Promise.all([
+      getCategoryBySlug(sectionSlug),
+      getSubContents(sectionSlug),
+      getSubContentDocuments(sectionSlug, subSlug, { page, pageSize }),
+    ]);
+    category = catRes.data;
+    subList = subRes.data;
+    docResponse = docRes;
+  } catch {
+    notFound();
+  }
 
   if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) notFound();
   const sub = subList?.find((s) => s.attributes.slug === subSlug);

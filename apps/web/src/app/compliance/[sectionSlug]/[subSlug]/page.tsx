@@ -35,16 +35,28 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
   const pageSize = 12;
   const isLicenseSection = LICENSE_SLUGS.includes(sectionSlug.toLowerCase());
 
-  const [{ data: category }, { data: subList }, docResponse, licensesResponse] = await Promise.all([
-    getCategoryBySlug(sectionSlug),
-    getSubContents(sectionSlug),
-    isLicenseSection
-      ? Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } })
-      : getSubContentDocuments(sectionSlug, subSlug, { page, pageSize }),
-    isLicenseSection
-      ? getSubContentLicenses(sectionSlug, subSlug, { page, pageSize })
-      : Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } }),
-  ]);
+  let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
+  let subList: Awaited<ReturnType<typeof getSubContents>>['data'];
+  let docResponse: Awaited<ReturnType<typeof getSubContentDocuments>>;
+  let licensesResponse: Awaited<ReturnType<typeof getSubContentLicenses>>;
+  try {
+    const [catRes, subRes, docRes, licRes] = await Promise.all([
+      getCategoryBySlug(sectionSlug),
+      getSubContents(sectionSlug),
+      isLicenseSection
+        ? Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } })
+        : getSubContentDocuments(sectionSlug, subSlug, { page, pageSize }),
+      isLicenseSection
+        ? getSubContentLicenses(sectionSlug, subSlug, { page, pageSize })
+        : Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } }),
+    ]);
+    category = catRes.data;
+    subList = subRes.data;
+    docResponse = docRes;
+    licensesResponse = licRes;
+  } catch {
+    notFound();
+  }
 
   if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) notFound();
   const sub = subList?.find((s) => s.attributes.slug === subSlug);

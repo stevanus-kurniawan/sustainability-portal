@@ -1,9 +1,10 @@
 import type { NextRequest } from 'next/server';
 
 /**
- * Base URL for server-side API calls. Call with the route request so that when
- * INTERNAL_API_URL/API_BACKEND_URL are unset (e.g. env not in container), we can
- * fall back to same-origin and let the Next.js rewrite proxy to the backend.
+ * Base URL for server-side API calls. Call with the route request when in a
+ * Route Handler so that when INTERNAL_API_URL/API_BACKEND_URL are unset we can
+ * fall back to same-origin. In Server Components there is no request; we use
+ * next/headers to build the origin so fetch() gets an absolute URL.
  */
 export function getInternalApiBase(request?: NextRequest | null): string {
   const publicUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -14,15 +15,25 @@ export function getInternalApiBase(request?: NextRequest | null): string {
     if (process.env.SLMS_DOCKER_WEB === 'true') {
       return publicUrl.replace('http://localhost:3001', 'http://slms-api:3001');
     }
-    // Fallback: publicUrl may be relative (/api/v1). Node fetch needs absolute URL.
-    // Use request origin so we call same-origin; Next.js rewrite will proxy to backend.
-    if (request && (publicUrl.startsWith('/') || !/^https?:\/\//i.test(publicUrl))) {
+    const needAbsolute = publicUrl.startsWith('/') || !/^https?:\/\//i.test(publicUrl);
+    if (!needAbsolute) return publicUrl;
+    // Fallback: Node fetch needs absolute URL. Use request origin (Route Handler) or headers (Server Component).
+    if (request) {
       try {
         const origin = new URL(request.url).origin;
         return `${origin}${publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`}`;
       } catch {
         // ignore
       }
+    }
+    try {
+      const { headers } = require('next/headers');
+      const h = headers();
+      const host = h.get('host');
+      const proto = h.get('x-forwarded-proto') || 'http';
+      if (host) return `${proto}://${host}${publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`}`;
+    } catch {
+      // next/headers not available or headers() failed
     }
   }
 

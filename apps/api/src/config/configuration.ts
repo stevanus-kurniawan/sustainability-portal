@@ -65,10 +65,11 @@ export default () => {
       adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '8h',
     },
 
-    // CORS (include 3002 for Docker web; 127.0.0.1 variants are added in main.ts)
+    // CORS (CORS_ORIGIN is used by prod compose; CORS_ORIGINS for multiple origins)
     cors: {
       origins:
         process.env.CORS_ORIGINS ||
+        process.env.CORS_ORIGIN ||
         'http://localhost:3000,http://localhost:3002,http://localhost:1337',
     },
 

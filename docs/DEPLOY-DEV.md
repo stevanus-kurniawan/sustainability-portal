@@ -513,6 +513,14 @@ Then restart: `docker compose -f infra/docker-compose.prod.backend.yml up -d`.
 
 **Your current setup (from your screenshot):** PostgreSQL is allowed only from `172.30.0.0/16` and `172.28.92.57`—good. Port 3001 (backend API) and HTTP/80 open to `0.0.0.0/0` are typical for a web app. Tightening SSH to a specific IP or VPN range is the next step for better practice.
 
+### 4.11 Sub-content and section detail pages
+
+Procedure, Sustainability, Compliance, and Library **sub-content** (e.g. `/procedure/sop/xyz`, `/sustainability/certificate/abc`, `/compliance/license/def`) load data from the public API: category by slug, sub-contents list, and documents/licenses/certifications. They use the same API base URL as the rest of the app.
+
+- **Proxy setup:** With `API_URL=/api/v1` and `API_BACKEND_URL` set on the frontend, server-side fetches use an absolute URL (from `INTERNAL_API_URL`/`API_BACKEND_URL` or a same-origin fallback via `next/headers`), so these pages should load without "Something Went Wrong".
+- **Backend routes:** The API exposes `GET /api/v1/public/categories/:slug`, `.../sub-contents`, `.../sub-contents/:subSlug/documents`, `.../licenses`, `.../certifications`. No extra backend config is needed for sub-content.
+- **How to verify:** After logging in to the portal, open a section (e.g. Procedure → SOP), then open a sub-content link. You should see the document list (or certifications/licenses) and breadcrumbs. If the API is down or returns an error, the page shows a 404 (not the generic error boundary).
+
 ---
 
 ## 5. Frontend not opening (http://172.28.92.56:3000)

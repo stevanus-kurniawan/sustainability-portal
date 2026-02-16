@@ -37,11 +37,21 @@ export default async function SustainabilitySectionSubPage({ params, searchParam
     ? getSubContentCertifications(sectionSlug, subSlug, { page, pageSize })
     : getSubContentDocuments(sectionSlug, subSlug, { page, pageSize });
 
-  const [{ data: category }, { data: subList }, contentResponse] = await Promise.all([
-    getCategoryBySlug(sectionSlug),
-    getSubContents(sectionSlug),
-    contentFetch,
-  ]);
+  let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
+  let subList: Awaited<ReturnType<typeof getSubContents>>['data'];
+  let contentResponse: Awaited<ReturnType<typeof getSubContentDocuments>> | Awaited<ReturnType<typeof getSubContentCertifications>>;
+  try {
+    const [catRes, subRes, contentRes] = await Promise.all([
+      getCategoryBySlug(sectionSlug),
+      getSubContents(sectionSlug),
+      contentFetch,
+    ]);
+    category = catRes.data;
+    subList = subRes.data;
+    contentResponse = contentRes;
+  } catch {
+    notFound();
+  }
 
   if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) notFound();
   const sub = subList?.find((s) => s.attributes.slug === subSlug);
