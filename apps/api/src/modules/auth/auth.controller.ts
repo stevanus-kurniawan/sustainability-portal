@@ -61,10 +61,11 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() loginDto: LoginDto,
+    @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.login(loginDto.email, loginDto.password);
-    this.setUserCookie(res, result.accessToken, result.expiresIn);
+    this.setUserCookie(res, result.accessToken, result.expiresIn, req);
     return { user: result.user, expiresIn: result.expiresIn };
   }
 
@@ -77,10 +78,11 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(
     @Body() refreshDto: RefreshTokenDto,
+    @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.refreshTokens(refreshDto.refreshToken);
-    this.setUserCookie(res, result.accessToken, result.expiresIn);
+    this.setUserCookie(res, result.accessToken, result.expiresIn, req);
     return { user: result.user, expiresIn: result.expiresIn };
   }
 
@@ -157,11 +159,12 @@ export class AuthController {
     return this.authService.changeEmail(dto.currentEmail, dto.newEmail);
   }
 
-  private setUserCookie(res: Response, token: string, expiresInSeconds: number): void {
+  private setUserCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
     const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
     res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
-      secure: isProduction,
+      secure: isProduction && !!isSecureRequest,
       sameSite: 'lax',
       maxAge: expiresInSeconds * 1000,
       path: '/',
