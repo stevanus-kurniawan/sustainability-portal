@@ -4,6 +4,7 @@ import { FileText, Calendar, Tag as TagIcon, Download } from 'lucide-react';
 
 import { Card, CardContent, Badge } from '@/components/ui';
 import type { Document } from '@/lib/api';
+import { getDocumentDownloadUrl } from '@/lib/api';
 
 interface PoliciesClientProps {
   policies: Document[];
@@ -83,7 +84,7 @@ function PolicyCard({
           </div>
           {fileUrl && (
             <a
-              href={fileUrl}
+              href={getDocumentDownloadUrl(fileUrl, policy.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name)}
               download={policy.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
               className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal flex-shrink-0"
               title="Download"

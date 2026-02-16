@@ -6,7 +6,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useCallback, useTransition } from 'react';
 
 import { Card, CardContent, Badge, Button, EmptyState, Pagination } from '@/components/ui';
-import type { Document } from '@/lib/api';
+import { getDocumentDownloadUrl, type Document } from '@/lib/api';
 
 interface SubContentDocumentsClientProps {
   initialDocuments: Document[];
@@ -120,16 +120,20 @@ export function SubContentDocumentsClient({
                             {formatDate(doc.attributes.publishedAt)}
                           </span>
                           <div className="flex gap-2">
-                            {doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.url && (
-                              <a
-                                href={doc.attributes.currentVersion.data.attributes.file.data.attributes.url}
-                                download={doc.attributes.currentVersion.data.attributes.file.data.attributes.name}
-                                className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
-                                title="Download"
-                              >
-                                <Download className="h-4 w-4" />
-                              </a>
-                            )}
+                            {doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.url && (() => {
+                              const fileUrl = doc.attributes.currentVersion!.data!.attributes!.file!.data!.attributes!.url;
+                              const fileName = doc.attributes.currentVersion!.data!.attributes!.file!.data!.attributes!.name;
+                              return (
+                                <a
+                                  href={getDocumentDownloadUrl(fileUrl, fileName)}
+                                  download={fileName}
+                                  className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
+                                  title="Download"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </a>
+                              );
+                            })()}
                           </div>
                         </div>
                         {doc.attributes.externalLink && (

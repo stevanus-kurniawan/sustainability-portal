@@ -129,6 +129,8 @@ export class CategoriesService {
       return { label: c.name, href: base };
     };
 
+    const existingHrefs = (children: Array<{ label: string; href: string }>) => new Set(children.map((ch) => ch.href));
+
     let procedure = categories
       .filter((c) => c.menuGroup === 'procedure')
       .map(toChild);
@@ -139,23 +141,53 @@ export class CategoriesService {
       .filter((c) => c.menuGroup === 'compliance')
       .map(toChild);
 
+    // Use fallback when empty; otherwise merge in any fallback items not already in the DB list (e.g. License under Compliance)
+    const procedureHrefs = existingHrefs(procedure);
     if (procedure.length === 0) {
       procedure = CategoriesService.NAV_FALLBACK.procedure.map(({ slug, label }) => ({
         label,
         href: `/procedure/${slug}`,
       }));
+    } else {
+      for (const { slug, label } of CategoriesService.NAV_FALLBACK.procedure) {
+        const href = `/procedure/${slug}`;
+        if (!procedureHrefs.has(href)) {
+          procedure.push({ label, href });
+          procedureHrefs.add(href);
+        }
+      }
     }
+
+    const sustainabilityHrefs = existingHrefs(sustainability);
     if (sustainability.length === 0) {
       sustainability = CategoriesService.NAV_FALLBACK.sustainability.map(({ slug, label }) => ({
         label,
         href: `/sustainability/${slug}`,
       }));
+    } else {
+      for (const { slug, label } of CategoriesService.NAV_FALLBACK.sustainability) {
+        const href = `/sustainability/${slug}`;
+        if (!sustainabilityHrefs.has(href)) {
+          sustainability.push({ label, href });
+          sustainabilityHrefs.add(href);
+        }
+      }
     }
+
+    const complianceHrefs = existingHrefs(compliance);
     if (compliance.length === 0) {
       compliance = CategoriesService.NAV_FALLBACK.compliance.map(({ slug, label }) => ({
         label,
         href: `/compliance/${slug}`,
       }));
+    } else {
+      for (const { slug, label } of CategoriesService.NAV_FALLBACK.compliance) {
+        const href = `/compliance/${slug}`;
+        if (!complianceHrefs.has(href)) {
+          compliance.push({ label, href });
+          complianceHrefs.add(href);
+        }
+      }
     }
 
     const items: Array<

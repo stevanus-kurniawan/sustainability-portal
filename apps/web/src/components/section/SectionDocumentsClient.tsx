@@ -7,6 +7,7 @@ import { useCallback, useTransition } from 'react';
 
 import { Card, CardContent, Badge, EmptyState, Pagination } from '@/components/ui';
 import type { Document } from '@/lib/api';
+import { getDocumentDownloadUrl } from '@/lib/api';
 
 function getDocumentIcon(sectionPath: string): LucideIcon {
   if (sectionPath.endsWith('/sop')) return ClipboardList;
@@ -150,7 +151,7 @@ function SectionDocumentCard({
             <div className="flex gap-2">
               {fileUrl && (
                 <a
-                  href={fileUrl}
+                  href={getDocumentDownloadUrl(fileUrl, doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name)}
                   download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
                   className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
                   title="Download"

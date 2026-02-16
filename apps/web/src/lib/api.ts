@@ -125,6 +125,13 @@ export interface DocumentFile {
   };
 }
 
+/** Build href for download link so API returns Content-Disposition: attachment with filename. */
+export function getDocumentDownloadUrl(fileUrl: string, fileName?: string | null): string {
+  const sep = fileUrl.includes('?') ? '&' : '?';
+  const filenameParam = fileName ? `&filename=${encodeURIComponent(fileName)}` : '';
+  return `${fileUrl}${sep}download=1${filenameParam}`;
+}
+
 export interface DocumentVersion {
   id: number;
   attributes: {
@@ -404,6 +411,18 @@ export async function getDocument(id: number): Promise<Document | null> {
   } catch {
     return null;
   }
+}
+
+/** Public grievance documents (type=GRIEVANCE) for the grievance page. */
+export async function getGrievanceDocuments(params?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<ApiResponse<Document[]>> {
+  return getLibrary({
+    type: 'GRIEVANCE',
+    page: params?.page,
+    pageSize: params?.pageSize ?? 50,
+  });
 }
 
 export async function getGrievances(params?: {

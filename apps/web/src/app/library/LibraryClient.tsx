@@ -15,6 +15,7 @@ import { useState, useCallback, useTransition } from 'react';
 
 import { Card, CardContent, Badge, Button, EmptyState, Pagination } from '@/components/ui';
 import type { Document, Category, Tag } from '@/lib/api';
+import { getDocumentDownloadUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface LibraryClientProps {
@@ -330,7 +331,7 @@ function DocumentCard({
             <div className="flex gap-2">
               {fileUrl && (
                 <a
-                  href={fileUrl}
+                  href={getDocumentDownloadUrl(fileUrl, doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name)}
                   download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
                   className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal"
                   title="Download"
@@ -391,7 +392,7 @@ function DocumentRow({
           <div className="flex items-center gap-2 flex-shrink-0">
             {fileUrl && (
               <a
-                href={fileUrl}
+                href={getDocumentDownloadUrl(fileUrl, doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name)}
                 download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
                 className="btn-outline text-sm px-3 py-1.5 flex items-center gap-1"
               >

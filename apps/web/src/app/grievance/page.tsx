@@ -13,7 +13,13 @@ export const metadata = {
 export const dynamic = 'force-dynamic';
 
 async function GrievanceContent() {
-  const { data: documents } = await getGrievanceDocuments({ pageSize: 50 });
+  let documents: Awaited<ReturnType<typeof getGrievanceDocuments>>['data'];
+  try {
+    const res = await getGrievanceDocuments({ pageSize: 50 });
+    documents = res.data;
+  } catch {
+    documents = [];
+  }
 
   if (!documents || documents.length === 0) {
     return (

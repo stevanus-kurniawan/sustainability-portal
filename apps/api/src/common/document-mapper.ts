@@ -5,6 +5,22 @@ function fileUrl(fileKey: string | null, baseUrl: string): string {
   return baseUrl.endsWith('/') ? `${baseUrl}${fileKey}` : `${baseUrl}/${fileKey}`;
 }
 
+/** Base URL the browser uses to call the API (e.g. with proxy: http://frontend:3000/api/v1). When set, file URLs point to API preview so downloads work. */
+export function getApiPublicBaseUrl(): string {
+  return process.env.API_PUBLIC_BASE_URL || '';
+}
+
+/** URL for the browser to preview or download a file. Prefer API preview URL so downloads work behind proxy / same-origin. */
+function getFileUrlForResponse(fileKey: string | null, apiBaseOverride?: string): string {
+  if (!fileKey) return '';
+  const apiBase = apiBaseOverride ?? getApiPublicBaseUrl();
+  if (apiBase) {
+    const base = apiBase.replace(/\/$/, '');
+    return `${base}/public/files/preview?key=${encodeURIComponent(fileKey)}`;
+  }
+  return fileUrl(fileKey, getFileBaseUrl());
+}
+
 export function getFileBaseUrl(): string {
   return (
     process.env.MINIO_PUBLIC_URL ||
@@ -56,7 +72,6 @@ export function documentDataForResponse(
 }
 
 export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string) {
-  const base = baseUrl ?? getFileBaseUrl();
   return toStrapiLike(doc.id, {
     title: doc.title,
     type: doc.type,
@@ -103,7 +118,7 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
               data: doc.currentVersion.fileKey
                 ? toStrapiLike(0, {
                     name: doc.currentVersion.fileName || 'file',
-                    url: fileUrl(doc.currentVersion.fileKey, base),
+                    url: getFileUrlForResponse(doc.currentVersion.fileKey, baseUrl),
                     key: doc.currentVersion.fileKey,
                     mime: doc.currentVersion.mimeType || 'application/octet-stream',
                     size: doc.currentVersion.fileSize ?? 0,

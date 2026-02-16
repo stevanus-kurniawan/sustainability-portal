@@ -33,9 +33,14 @@ export class PublicController {
     return this.categoriesService.getNavigationForPublic();
   }
 
-  /** Stream file with Content-Disposition: inline for PDF/image preview in browser (iframe). */
+  /** Stream file: inline for preview, or attachment when ?download=1 (and optional ?filename=). */
   @Get('files/preview')
-  async getFilePreview(@Query('key') key: string | undefined, @Res() res: Response) {
+  async getFilePreview(
+    @Query('key') key: string | undefined,
+    @Query('download') download: string | undefined,
+    @Query('filename') filename: string | undefined,
+    @Res() res: Response,
+  ) {
     if (!key || typeof key !== 'string') {
       return res.status(400).json({ message: 'Missing or invalid key parameter' });
     }
@@ -53,7 +58,13 @@ export class PublicController {
       return res.status(502).json({ message: 'Failed to stream file' });
     }
     res.setHeader('Content-Type', result.contentType);
-    res.setHeader('Content-Disposition', 'inline');
+    const isDownload = download === '1' || download === 'true';
+    if (isDownload) {
+      const safeName = filename && /^[a-zA-Z0-9._\-\s]+$/.test(filename) ? filename : key.replace(/^.*\//, '') || 'download';
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    } else {
+      res.setHeader('Content-Disposition', 'inline');
+    }
     res.setHeader('Cache-Control', 'private, max-age=3600');
     result.stream.on('error', () => {
       if (!res.headersSent) res.status(500).json({ message: 'Stream error' });

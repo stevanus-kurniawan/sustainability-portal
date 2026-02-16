@@ -100,6 +100,8 @@ services:
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:-admin-secret-change-in-production}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Document download links: URL the browser uses to reach the API (e.g. with proxy: http://frontend:3000/api/v1). Set in .env so file URLs work.
+      API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}

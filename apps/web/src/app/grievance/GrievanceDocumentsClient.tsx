@@ -4,6 +4,7 @@ import { MessageSquareWarning, Calendar, Tag as TagIcon, Download } from 'lucide
 
 import { Card, CardContent, Badge } from '@/components/ui';
 import type { Document } from '@/lib/api';
+import { getDocumentDownloadUrl } from '@/lib/api';
 
 interface GrievanceDocumentsClientProps {
   documents: Document[];
@@ -83,7 +84,7 @@ function GrievanceDocumentCard({
           </div>
           {fileUrl && (
             <a
-              href={fileUrl}
+              href={getDocumentDownloadUrl(fileUrl, doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name)}
               download={doc.attributes.currentVersion?.data?.attributes?.file?.data?.attributes?.name}
               className="p-2 rounded-md hover:bg-light transition-colors text-steel hover:text-charcoal flex-shrink-0"
               title="Download"
