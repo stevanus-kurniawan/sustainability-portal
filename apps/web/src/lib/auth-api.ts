@@ -135,16 +135,22 @@ export interface AdminMeResponse {
 }
 
 export async function adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
-  const res = await fetch(`${API_BASE_URL}/admin-auth/login`, {
-    ...defaultOptions,
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || 'Admin login failed');
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/admin-auth/login`, {
+      ...defaultOptions,
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (err) {
+    throw new Error('Cannot reach the API. If using the proxy, ensure the frontend was built with API_BACKEND_URL and the backend is reachable from the frontend server.');
   }
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = Array.isArray(data.message) ? data.message[0] : data.message;
+    throw new Error(typeof message === 'string' ? message : 'Admin login failed');
+  }
+  return data as AdminAuthResponse;
 }
 
 export async function adminLogout(): Promise<void> {

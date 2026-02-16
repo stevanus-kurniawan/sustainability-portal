@@ -30,10 +30,11 @@ export class AdminAuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() dto: AdminLoginDto,
+    @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.adminAuthService.login(dto.email, dto.password);
-    this.setAdminCookie(res, result.accessToken, result.expiresIn);
+    this.setAdminCookie(res, result.accessToken, result.expiresIn, req);
     return { admin: result.admin, expiresIn: result.expiresIn };
   }
 
@@ -63,11 +64,12 @@ export class AdminAuthController {
     };
   }
 
-  private setAdminCookie(res: Response, token: string, expiresInSeconds: number): void {
+  private setAdminCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
     const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
     res.cookie(ADMIN_ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
-      secure: isProduction,
+      secure: isProduction && !!isSecureRequest,
       sameSite: 'lax',
       maxAge: expiresInSeconds * 1000,
       path: '/',

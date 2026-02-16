@@ -181,7 +181,7 @@ API_BACKEND_URL=http://172.28.92.57:3001
 # CMS_URL=
 ```
 
-Use the **private IP** (172.28.92.57) or the backend’s **public IP** in `API_BACKEND_URL` so the frontend server can reach the API. Rebuild after changing: `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`.
+Use the **private IP** (172.28.92.57) or the backend’s **public IP** in `API_BACKEND_URL` so the frontend server can reach the API. Use **origin only** (e.g. `http://172.28.92.57:3001`), **no** `/api/v1` path—the proxy adds it. Rebuild after changing: `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`.
 
 ### 2.2 Build and run frontend
 
@@ -308,6 +308,12 @@ If the request reaches the API but you get **401 Unauthorized** or "Invalid cred
 3. Ensure the **backend** allows requests from the frontend (CORS or same VPC). If the frontend server calls the API, CORS does not apply (server-to-server); if the browser still hits the API for some requests, keep `CORS_ORIGIN` or `CORS_ORIGINS` set as in 4.2.
 
 With this setup, the browser calls `http://172.28.92.56:3000/api/v1/admin-auth/login`; Next.js proxies to the backend; the response (and `Set-Cookie`) is sent from 172.28.92.56, so the cookie is stored for the frontend and the middleware sees it after redirect to `/admin`.
+
+**If you see a different error after enabling the proxy:**  
+- **"Cannot reach the API" / "Failed to fetch"** – The frontend server cannot reach the backend. Ensure you **rebuilt** with `API_BACKEND_URL=http://172.28.92.57:3001` (or the backend’s IP). From the frontend host, test: `curl -s -o /dev/null -w "%{http_code}" http://172.28.92.57:3001/api/v1/health`.  
+- **"Invalid credentials"** – Wrong password or admin not seeded; run seed and use `Admin123!` (or your `ADMIN_SEED_PASSWORD`).  
+- **502 / 503** – Proxy target may be wrong (e.g. `API_BACKEND_URL` was not set at build time, so the proxy points to `localhost:3001`). Rebuild with `API_BACKEND_URL` set.  
+- In the browser **DevTools → Network**, check the failing request: URL (should be `.../admin-auth/login`), status code, and response body to see the real error.
 
 ### 4.3 Migrations on backend
 
@@ -473,7 +479,10 @@ Then restart: `docker compose -f infra/docker-compose.prod.backend.yml up -d`.
 
 2. **Alibaba Cloud security group (backend server 172.28.92.57):**  
    - Add an **inbound** rule: port **5432**, protocol **TCP**.  
-   - **Source:** for dev you can use your IP or `0.0.0.0/0`; for production restrict to a specific IP or VPN range.
+   - **Source must be where pgAdmin runs (your PC), not the server.**  
+     - **Wrong:** Source = `172.28.92.57` (that is the backend server; it only allows the server to connect to itself).  
+     - **Right:** Source = your PC’s IP, or your VPC CIDR (e.g. `172.28.0.0/16`), or `0.0.0.0/0` for dev.  
+   - If pgAdmin is on your laptop/PC, use your machine’s IP (or `0.0.0.0/0` for dev).
 
 3. **pgAdmin / DBeaver connection (from your PC):**
    - **Host:** backend server IP (e.g. `172.28.92.57` from same VPC, or the **public IP** of the backend ECS from the internet)
@@ -484,7 +493,7 @@ Then restart: `docker compose -f infra/docker-compose.prod.backend.yml up -d`.
 
    Example URL: `postgresql://slms:<DB_PASSWORD>@<host>:5432/slms`
 
-4. **If you get timeout or "could not connect":** (1) Ensure `DB_USER`, `DB_PASSWORD`, `DB_NAME` are set in `infra/.env` and the stack was restarted. (2) Security group for the backend must allow inbound TCP 5432 from your IP (or 0.0.0.0/0). (3) If pgAdmin is on the same server as Docker, use **Host:** `localhost` or `127.0.0.1`.
+4. **If you get timeout or "could not connect":** (1) Ensure `DB_USER`, `DB_PASSWORD`, `DB_NAME` are set in `infra/.env` and the stack was restarted. (2) Security group **Source** must be the IP of the machine running pgAdmin (your PC), not 172.28.92.57—add a rule with Source = your IP or `0.0.0.0/0`. (3) If pgAdmin is on the same server as Docker, use **Host:** `localhost` or `127.0.0.1`. (4) If your PC is outside the VPC, 172.28.92.57 is unreachable; use the backend’s **public IP** and open 5432 from your IP.
 
 ---
 
