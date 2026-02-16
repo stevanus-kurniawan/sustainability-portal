@@ -30,6 +30,11 @@ export class UploadService {
     }
   }
 
+  /** Whether MinIO client was initialized (storage is configured). */
+  isStorageConfigured(): boolean {
+    return this.client !== null;
+  }
+
   /** Generate a unique key for uploads (uploads/${uuid}${ext}). */
   generateUploadKey(ext: string): string {
     return `uploads/${randomUUID()}${ext}`;

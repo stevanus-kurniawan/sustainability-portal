@@ -41,13 +41,18 @@ export class UploadController {
       ? file.originalname.slice(file.originalname.lastIndexOf('.'))
       : '';
     const key = this.uploadService.generateUploadKey(ext);
+    if (!this.uploadService.isStorageConfigured()) {
+      return { key: null, message: 'Storage (MinIO) is not configured. Set MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY and ensure MinIO is running.' };
+    }
     const result = await this.uploadService.uploadStream(
       key,
       Readable.from(file.buffer),
       file.size,
       file.mimetype,
     );
-    if (!result) return { key: null, message: 'Upload to storage failed' };
+    if (!result) {
+      return { key: null, message: 'Upload to storage failed. Check MINIO_* env and that MinIO is reachable from the API (e.g. docker compose up minio).' };
+    }
     return { key: result };
   }
 }

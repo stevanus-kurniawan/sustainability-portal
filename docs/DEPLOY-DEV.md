@@ -427,8 +427,8 @@ To set a new password for the `slms` DB user so it matches `infra/.env`:
 
 ### 4.5 Object storage (MinIO vs OSS)
 
-- **docker-compose.prod.backend.yml** does **not** include MinIO. The API env has `MINIO_*` placeholders.
-- **Option A**: Add a MinIO service to the backend compose and set `MINIO_*` (and optionally `STORAGE_*`) in `infra/.env`.
+- **docker-compose.prod.backend.yml** now includes **MinIO** and **minio-init** (creates bucket `slms-docs`). File upload in the admin (e.g. policies, licenses, certifications) will work after `docker compose -f infra/docker-compose.prod.backend.yml up -d`; the API uses `MINIO_ENDPOINT=minio` and the default bucket. If you see **"Upload to storage failed"**, ensure the MinIO and minio-init services are running (`docker compose ... ps`) and that the API started after them.
+- **Option A (default):** Use the included MinIO; no extra config needed. Optional: set `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` in `infra/.env` to override defaults.
 - **Option B**: Use **Alibaba Cloud OSS**. Set in API env (or infra `.env` if you pass it through):  
   `STORAGE_ENDPOINT`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_ACCESS_KEY_SECRET`, `STORAGE_REGION`, and optionally `STORAGE_BASE_URL`. See `infra/env.example` comments.
 
