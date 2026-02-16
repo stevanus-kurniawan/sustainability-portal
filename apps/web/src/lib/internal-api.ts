@@ -1,15 +1,16 @@
 export function getInternalApiBase(): string {
   const publicUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-  // When running inside the Dockerized web container, calls to http://localhost:3001
-  // from Next.js route handlers will fail because "localhost" points to the web
-  // container itself, not the API container. In that case, route handlers should
-  // talk to the API service by its Docker hostname instead.
-  if (typeof window === 'undefined' && process.env.SLMS_DOCKER_WEB === 'true') {
-    return publicUrl.replace('http://localhost:3001', 'http://slms-api:3001');
+  // Server-side only: Node fetch requires absolute URLs. Use INTERNAL_API_URL or
+  // API_BACKEND_URL when set (required when NEXT_PUBLIC_API_URL is relative, e.g. /api/v1).
+  if (typeof window === 'undefined') {
+    const internalBase = process.env.INTERNAL_API_URL ?? (process.env.API_BACKEND_URL ? `${process.env.API_BACKEND_URL.replace(/\/api\/v1\/?$/, '')}/api/v1` : null);
+    if (internalBase) return internalBase;
+    if (process.env.SLMS_DOCKER_WEB === 'true') {
+      return publicUrl.replace('http://localhost:3001', 'http://slms-api:3001');
+    }
   }
 
-  // Default: use the public URL (works for local non-Docker dev and in the browser)
   return publicUrl;
 }
 

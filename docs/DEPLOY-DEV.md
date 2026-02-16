@@ -181,7 +181,7 @@ API_BACKEND_URL=http://172.28.92.57:3001
 # CMS_URL=
 ```
 
-Use the **private IP** (172.28.92.57) or the backend’s **public IP** in `API_BACKEND_URL` so the frontend server can reach the API. Use **origin only** (e.g. `http://172.28.92.57:3001`), **no** `/api/v1` path—the proxy adds it. Rebuild after changing: `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`.
+Use the **private IP** (172.28.92.57) or the backend’s **public IP** in `API_BACKEND_URL` so the frontend server can reach the API. Use **origin only** (e.g. `http://172.28.92.57:3001`), **no** `/api/v1` path—the proxy adds it. `API_BACKEND_URL` is passed into the web container at runtime so server-side API routes (e.g. admin upload) can call the backend with an absolute URL. Rebuild after changing: `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`.
 
 ### 2.2 Build and run frontend
 
@@ -312,7 +312,8 @@ With this setup, the browser calls `http://172.28.92.56:3000/api/v1/admin-auth/l
 **If you see a different error after enabling the proxy:**  
 - **"Cannot reach the API" / "Failed to fetch"** – The frontend server cannot reach the backend. Ensure you **rebuilt** with `API_BACKEND_URL=http://172.28.92.57:3001` (or the backend’s IP). From the frontend host, test: `curl -s -o /dev/null -w "%{http_code}" http://172.28.92.57:3001/api/v1/health`.  
 - **"Invalid credentials"** – Wrong password or admin not seeded; run seed and use `Admin123!` (or your `ADMIN_SEED_PASSWORD`).  
-- **502 / 503** – Proxy target may be wrong (e.g. `API_BACKEND_URL` was not set at build time, so the proxy points to `localhost:3001`). Rebuild with `API_BACKEND_URL` set.  
+- **502 / 503** – Proxy target may be wrong (e.g. `API_BACKEND_URL` was not set at build time, so the proxy points to `localhost:3001`). Rebuild with `API_BACKEND_URL` set.
+- **"Failed to parse URL from /api/v1/..."** on admin upload – Server-side API routes need an absolute backend URL. Set `API_BACKEND_URL=http://172.28.92.57:3001` in frontend `infra/.env` and ensure the compose passes it into the web container at runtime; restart the web container (no rebuild needed for env-only change).  
 - In the browser **DevTools → Network**, check the failing request: URL (should be `.../admin-auth/login`), status code, and response body to see the real error.
 
 ### 4.3 Migrations on backend
