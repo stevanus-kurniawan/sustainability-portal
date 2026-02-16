@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getInternalApiBase } from '@/lib/internal-api';
 
-const API_BASE = getInternalApiBase();
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const res = await fetch(`${API_BASE}/public/navigation`, { cache: 'no-store' });
+    const base = getInternalApiBase(request);
+    const res = await fetch(`${base}/public/navigation`, { cache: 'no-store' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       return NextResponse.json(data || { message: 'Backend error' }, { status: res.status });

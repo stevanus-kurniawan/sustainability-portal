@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInternalApiBase } from '@/lib/internal-api';
 
-const API_BASE = getInternalApiBase();
 const COOKIE_NAME = 'admin_access_token';
 
 function getToken(request: NextRequest): string | undefined {
@@ -18,7 +17,7 @@ export async function GET(
   }
   const { id: categoryId, subId } = await params;
   try {
-    const res = await fetch(`${API_BASE}/admin/categories/${categoryId}/sub-contents/${subId}`, {
+    const res = await fetch(`${getInternalApiBase(request)}/admin/categories/${categoryId}/sub-contents/${subId}`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
@@ -51,7 +50,7 @@ export async function PUT(
     return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
   }
   try {
-    const res = await fetch(`${API_BASE}/admin/categories/${categoryId}/sub-contents/${subId}`, {
+    const res = await fetch(`${getInternalApiBase(request)}/admin/categories/${categoryId}/sub-contents/${subId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -82,7 +81,7 @@ export async function DELETE(
   }
   const { id: categoryId, subId } = await params;
   try {
-    const res = await fetch(`${API_BASE}/admin/categories/${categoryId}/sub-contents/${subId}`, {
+    const res = await fetch(`${getInternalApiBase(request)}/admin/categories/${categoryId}/sub-contents/${subId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

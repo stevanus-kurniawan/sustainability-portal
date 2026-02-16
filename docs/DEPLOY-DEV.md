@@ -496,6 +496,23 @@ Then restart: `docker compose -f infra/docker-compose.prod.backend.yml up -d`.
 
 4. **If you get timeout or "could not connect":** (1) Ensure `DB_USER`, `DB_PASSWORD`, `DB_NAME` are set in `infra/.env` and the stack was restarted. (2) Security group **Source** must be the IP of the machine running pgAdmin (your PC), not 172.28.92.57—add a rule with Source = your IP or `0.0.0.0/0`. (3) If pgAdmin is on the same server as Docker, use **Host:** `localhost` or `127.0.0.1`. (4) If your PC is outside the VPC, 172.28.92.57 is unreachable; use the backend’s **public IP** and open 5432 from your IP.
 
+### 4.10.1 Production: database access best practices (do not open DB to the public)
+
+**Do not open PostgreSQL (5432) to `0.0.0.0/0` in production.** Exposing the database to the entire internet is a major security risk (brute force, credential theft, data exfiltration). Your current setup—restricting 5432 to private IPs (e.g. `172.30.0.0/16`, `172.28.92.57`) or a VPC range—is the right idea for dev/internal access.
+
+**Common production approaches (choose one or combine):**
+
+| Approach | How it works | When to use |
+|----------|----------------|-------------|
+| **VPN** | DB stays in a private network; admins connect to the VPN, then use pgAdmin with the DB’s **private IP**. No need to expose 5432 to the internet. | Best when your organization already has a VPN; no DB port on the public security group. |
+| **SSH tunnel (bastion / jump host)** | From your PC: `ssh -L 5432:172.28.92.57:5432 user@<backend-public-ip>`. Then in pgAdmin connect to **Host:** `localhost`, **Port:** `5432`. Traffic to the DB goes through SSH; the security group only needs **SSH (22)** open to your IP (or VPN), and **5432** can stay restricted to the VPC (or localhost on the backend). | Very common; no need to open 5432 to the internet; restrict SSH to known IPs. |
+| **Restrict by IP** | If you must allow direct TCP to 5432, add an inbound rule with **Source = your office/VPN IP** (or a small CIDR), never `0.0.0.0/0`. | Only if you have a stable IP and accept direct DB exposure to that IP. |
+| **Managed DB + private endpoint** | Use Alibaba RDS (or similar) with a **private endpoint** in the VPC; access from your PC via VPN or a bastion in the VPC. | Good for production; DB never has a public IP. |
+
+**Recommendation:** For production, keep **5432** restricted to the VPC (or remove any rule that allows `0.0.0.0/0` to 5432). Use a **VPN** or **SSH tunnel** to reach the DB from your PC. Also **restrict SSH (22)** to your IP or VPN range instead of `0.0.0.0/0` where possible; the console warning on SSH from “All IP Addresses” is there because it significantly increases exposure.
+
+**Your current setup (from your screenshot):** PostgreSQL is allowed only from `172.30.0.0/16` and `172.28.92.57`—good. Port 3001 (backend API) and HTTP/80 open to `0.0.0.0/0` are typical for a web app. Tightening SSH to a specific IP or VPN range is the next step for better practice.
+
 ---
 
 ## 5. Frontend not opening (http://172.28.92.56:3000)

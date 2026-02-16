@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInternalApiBase } from '@/lib/internal-api';
 
-const API_BASE = getInternalApiBase();
 const COOKIE_NAME = 'admin_access_token';
 
 function getToken(request: NextRequest): string | undefined {
@@ -13,7 +12,8 @@ export async function GET(request: NextRequest) {
   if (!token) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
-  const url = `${API_BASE}/admin/categories`;
+  const base = getInternalApiBase(request);
+  const url = `${base}/admin/categories`;
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
   }
   try {
-    const res = await fetch(`${API_BASE}/admin/categories`, {
+    const res = await fetch(`${getInternalApiBase(request)}/admin/categories`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

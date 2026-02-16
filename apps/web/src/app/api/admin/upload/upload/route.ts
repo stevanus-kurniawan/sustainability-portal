@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInternalApiBase } from '@/lib/internal-api';
 
-const API_BASE = getInternalApiBase();
 const COOKIE_NAME = 'admin_access_token';
 
 function getToken(request: NextRequest): string | undefined {
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ message: 'No file provided' }, { status: 400 });
   }
-  const url = `${API_BASE}/admin/upload/upload`;
+  const url = `${getInternalApiBase(request)}/admin/upload/upload`;
   try {
     const body = new FormData();
     body.set('file', file, file instanceof File ? file.name : 'file');
