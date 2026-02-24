@@ -47,7 +47,7 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  CORS_ORIGINS: string = 'http://localhost:3000';
+  CORS_ORIGINS: string = 'http://localhost:3000,http://localhost:3002,http://localhost:3003';
 
   @IsString()
   @IsOptional()
@@ -94,12 +94,14 @@ class EnvironmentVariables {
   @IsString()
   JWT_ADMIN_SECRET: string;
 
-  // MinIO (document storage)
+  // MinIO (document storage) – optional with defaults for local dev
   @IsString()
-  MINIO_ACCESS_KEY: string;
+  @IsOptional()
+  MINIO_ACCESS_KEY: string = 'minioadmin';
 
   @IsString()
-  MINIO_SECRET_KEY: string;
+  @IsOptional()
+  MINIO_SECRET_KEY: string = 'minioadmin';
 
   // Throttling (rate limiting)
   @IsNumber()
@@ -121,7 +123,15 @@ export function validate(config: Record<string, unknown>) {
   });
 
   if (errors.length > 0) {
-    throw new Error(errors.toString());
+    const messages = errors.map((e) => {
+      const prop = e.property;
+      const constraints = e.constraints ? Object.values(e.constraints).join(', ') : 'invalid';
+      return `${prop}: ${constraints}`;
+    });
+    throw new Error(
+      `Environment validation failed:\n${messages.join('\n')}\n\n` +
+        'Check apps/api/.env (or .env.local). Required: DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, JWT_ADMIN_SECRET.',
+    );
   }
 
   return validatedConfig;

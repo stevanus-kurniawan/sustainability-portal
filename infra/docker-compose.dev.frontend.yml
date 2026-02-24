@@ -1,5 +1,5 @@
 # Frontend server only (e.g. 172.28.92.56): Next.js web only.
-# Usage: docker compose -f infra/docker-compose.prod.frontend.yml up -d
+# Usage: docker compose -f infra/docker-compose.dev.frontend.yml up -d
 # .env: API_URL (e.g. http://172.28.92.57:3001/api/v1), CMS_URL (optional).
 # For admin login when FE and API are on different hosts: set API_URL=/api/v1 and API_BACKEND_URL=http://172.28.92.57:3001 so /api/v1 is proxied and the admin cookie is same-origin.
 
@@ -30,4 +30,4 @@ services:
 
 networks:
   default:
-    name: slms-network-prod-frontend
+    name: slms-network-dev-frontend

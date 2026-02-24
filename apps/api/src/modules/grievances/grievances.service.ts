@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { toStrapiLike } from '../../common/response';
+import { clampPagination, DEFAULT_PAGE, DEFAULT_PAGE_SIZE, toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
 
 @Injectable()
 export class GrievancesService {
@@ -16,8 +13,7 @@ export class GrievancesService {
     status?: string;
     category?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
     if (params.category) where.category = params.category;
@@ -49,8 +45,7 @@ export class GrievancesService {
     status?: string;
     category?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED';
     if (params.category) where.category = params.category;

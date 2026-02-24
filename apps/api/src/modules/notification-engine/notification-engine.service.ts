@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { clampPagination } from '../../common/response';
 import { EmailService } from './email.service';
 // Use string literal types here instead of Prisma enums to avoid
 // depending on generated enum exports during Docker builds.
@@ -360,7 +361,10 @@ export class NotificationEngineService {
       pageSize?: number;
     },
   ) {
-    const { status, channel, page = 1, pageSize = 25 } = params;
+    const { page: p, pageSize: ps } = clampPagination(params.page, params.pageSize ?? 25);
+    const { status, channel } = params;
+    const page = p;
+    const pageSize = ps;
 
     const where = {
       userEmail,

@@ -21,7 +21,7 @@ async function bootstrap() {
     (configService.get('CORS_ORIGINS') && String(configService.get('CORS_ORIGINS')).trim()) ||
     configService.get('CORS_ORIGIN') ||
     configService.get('cors.origins') ||
-    'http://localhost:3000,http://localhost:3002,http://localhost:1337';
+    'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:1337';
   const corsOriginsList = (typeof corsOriginsRaw === 'string' ? corsOriginsRaw.split(',') : corsOriginsRaw as string[])
     .map((o) => (typeof o === 'string' ? o.trim() : ''))
     .filter(Boolean);
@@ -49,8 +49,9 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation at /docs
-  if (configService.get('SWAGGER_ENABLED', 'true') === 'true') {
+  // Swagger documentation at /docs (disabled by default in production)
+  const swaggerDefault = process.env.NODE_ENV === 'production' ? 'false' : 'true';
+  if (configService.get('SWAGGER_ENABLED', swaggerDefault) === 'true') {
     const config = new DocumentBuilder()
       .setTitle('SLMS API')
       .setDescription(

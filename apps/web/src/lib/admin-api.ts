@@ -278,3 +278,132 @@ export async function adminGrievancesList(params: {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
 }
+
+// ========== User Management (admin portal) ==========
+
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'PENDING_VERIFICATION' | 'SUSPENDED';
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  name: string;
+  status: UserStatus;
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+  roles: string[];
+}
+
+export interface AdminUserDetail extends AdminUserListItem {
+  emailVerifiedAt: string | null;
+}
+
+export async function adminUsersList(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: string;
+  status?: UserStatus;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<ListResponse<AdminUserListItem>> {
+  const sp = new URLSearchParams();
+  if (params.page != null) sp.set('page', String(params.page));
+  if (params.pageSize != null) sp.set('pageSize', String(params.pageSize));
+  if (params.search) sp.set('search', params.search);
+  if (params.role) sp.set('role', params.role);
+  if (params.status) sp.set('status', params.status);
+  if (params.sortBy) sp.set('sortBy', params.sortBy);
+  if (params.sortOrder) sp.set('sortOrder', params.sortOrder);
+  const res = await adminFetch(`/api/admin/users?${sp.toString()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminUserGet(id: string): Promise<AdminUserDetail | null> {
+  const res = await adminFetch(`/api/admin/users/${id}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminUserUpdate(
+  id: string,
+  body: { name?: string; status?: UserStatus; roles?: string[] }
+): Promise<AdminUserDetail> {
+  const res = await adminFetch(`/api/admin/users/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminUserUpdateRole(id: string, role: string): Promise<AdminUserDetail> {
+  const res = await adminFetch(`/api/admin/users/${id}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminUserUpdateStatus(id: string, status: UserStatus): Promise<AdminUserDetail> {
+  const res = await adminFetch(`/api/admin/users/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+// ========== Admin Management (SUPER_ADMIN only) ==========
+
+export interface AdminListItem {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function adminAdminsList(): Promise<{ data: AdminListItem[] }> {
+  const res = await adminFetch('/api/admin/admins', { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminAdminGet(id: string): Promise<AdminListItem | null> {
+  const res = await adminFetch(`/api/admin/admins/${id}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminAdminCreate(body: {
+  email: string;
+  name?: string;
+  temporaryPassword: string;
+  role?: string;
+}): Promise<AdminListItem> {
+  const res = await adminFetch('/api/admin/admins', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminAdminUpdate(
+  id: string,
+  body: { name?: string; role?: string; status?: string }
+): Promise<AdminListItem> {
+  const res = await adminFetch(`/api/admin/admins/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}

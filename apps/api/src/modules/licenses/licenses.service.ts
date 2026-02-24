@@ -1,11 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { documentDataForResponse, type DocumentWithRelations } from '../../common/document-mapper';
-import { toStrapiLike } from '../../common/response';
+import { clampPagination, DEFAULT_PAGE, DEFAULT_PAGE_SIZE, toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
 const documentInclude = {
   category: true,
   tags: { include: { tag: true } },
@@ -40,8 +37,7 @@ export class LicensesService {
     status?: string;
     search?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
     if (params.search) {
       and.push({
@@ -91,9 +87,10 @@ export class LicensesService {
   async findByCategorySlugAndSubSlugPublic(
     categorySlug: string,
     subSlug: string,
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    pageParam = DEFAULT_PAGE,
+    pageSizeParam = DEFAULT_PAGE_SIZE,
   ) {
+    const { page, pageSize } = clampPagination(pageParam, pageSizeParam);
     const slugLower = categorySlug.toLowerCase();
     const licenseSlugs = slugLower === 'license' || slugLower === 'licenses' ? ['license', 'licenses'] : [categorySlug];
     const category = await this.prisma.category.findFirst({
@@ -139,8 +136,7 @@ export class LicensesService {
     status?: string;
     subContentId?: number;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
     if (params.subContentId != null) {
       and.push({ subContentId: params.subContentId });

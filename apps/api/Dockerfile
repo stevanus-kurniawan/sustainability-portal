@@ -25,7 +25,7 @@ RUN npx prisma generate
 
 # Production runner (same Debian base = no musl/glibc mismatch)
 FROM node:20-slim AS runner
-RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -37,5 +37,11 @@ RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh && chmod +x /app/apps/ap
 # Generate Prisma client in final image so debian-openssl-3.0.x engine is present for this runtime
 WORKDIR /app/apps/api
 RUN npx prisma generate
+# Run as non-root (node image includes 'node' user)
+RUN chown -R node:node /app
+USER node
+WORKDIR /app/apps/api
 EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q -O- http://localhost:3001/api/v1/health/ready || exit 1
 ENTRYPOINT ["/app/apps/api/docker-entrypoint.sh"]

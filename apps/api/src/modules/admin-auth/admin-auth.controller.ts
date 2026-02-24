@@ -44,8 +44,8 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Admin logout' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async logout(@Res({ passthrough: true }) res: Response) {
-    this.clearAdminCookie(res);
+  async logout(@Request() req: any, @Res({ passthrough: true }) res: Response) {
+    this.clearAdminCookie(res, req);
     return { message: 'Logged out successfully' };
   }
 
@@ -76,9 +76,13 @@ export class AdminAuthController {
     });
   }
 
-  private clearAdminCookie(res: Response): void {
+  private clearAdminCookie(res: Response, req?: any): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
     res.clearCookie(ADMIN_ACCESS_TOKEN_COOKIE, {
       httpOnly: true,
+      secure: isProduction && !!isSecureRequest,
+      sameSite: 'lax',
       path: '/',
     });
   }

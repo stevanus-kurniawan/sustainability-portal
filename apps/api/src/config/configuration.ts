@@ -15,11 +15,14 @@ export default () => {
   const minioAccessKey = process.env.MINIO_ACCESS_KEY || DEFAULT_MINIO_ACCESS_KEY;
   const minioSecretKey = process.env.MINIO_SECRET_KEY || DEFAULT_MINIO_SECRET_KEY;
 
+  const weakRefreshSecrets = [DEFAULT_REFRESH_JWT_SECRET, 'refresh-secret-change-in-production'];
+  const weakAdminSecrets = [DEFAULT_ADMIN_JWT_SECRET, 'admin-secret-change-in-production'];
+
   if (
     isProdLike &&
     (jwtSecret === DEFAULT_USER_JWT_SECRET ||
-      jwtRefreshSecret === DEFAULT_REFRESH_JWT_SECRET ||
-      jwtAdminSecret === DEFAULT_ADMIN_JWT_SECRET ||
+      weakRefreshSecrets.includes(jwtRefreshSecret) ||
+      weakAdminSecrets.includes(jwtAdminSecret) ||
       minioAccessKey === DEFAULT_MINIO_ACCESS_KEY ||
       minioSecretKey === DEFAULT_MINIO_SECRET_KEY)
   ) {
@@ -70,7 +73,7 @@ export default () => {
       origins:
         process.env.CORS_ORIGINS ||
         process.env.CORS_ORIGIN ||
-        'http://localhost:3000,http://localhost:3002,http://localhost:1337',
+        'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:1337',
     },
 
     // MinIO (document storage)

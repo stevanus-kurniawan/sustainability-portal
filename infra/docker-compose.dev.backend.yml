@@ -1,5 +1,5 @@
 # Backend server only (e.g. 172.28.92.57): Postgres, Redis, MinIO, API.
-# Usage: docker compose -f infra/docker-compose.prod.backend.yml up -d
+# Usage: docker compose -f infra/docker-compose.dev.backend.yml up -d
 # .env: DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, CORS_ORIGIN, etc.
 # File upload requires MinIO (included below); set MINIO_* in .env to override.
 
@@ -130,4 +130,4 @@ volumes:
 
 networks:
   default:
-    name: slms-network-prod-backend
+    name: slms-network-dev-backend

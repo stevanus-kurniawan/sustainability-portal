@@ -2,11 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { documentDataForResponse, type DocumentWithRelations } from '../../common/document-mapper';
-import { toStrapiLike } from '../../common/response';
+import { clampPagination, DEFAULT_PAGE, DEFAULT_PAGE_SIZE, toStrapiLike } from '../../common/response';
 import { paginationMeta, wrapPaginated } from '../../common/response';
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
 const documentInclude = {
   category: true,
   tags: { include: { tag: true } },
@@ -25,8 +22,7 @@ export class TraceabilityService {
     entityType?: string;
     search?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = {};
     if (params.entityType) where.entityType = params.entityType as 'FACTORY' | 'SUPPLIER' | 'SITE';
     if (params.search) {
@@ -69,8 +65,7 @@ export class TraceabilityService {
     recordType?: string;
     search?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const entityAnd: Array<Record<string, unknown>> = [];
     if (params.entityType) {
       entityAnd.push({ entityType: params.entityType as 'FACTORY' | 'SUPPLIER' | 'SITE' });
@@ -131,8 +126,7 @@ export class TraceabilityService {
   }
 
   async findAllEntitiesAdmin(params: { page?: number; pageSize?: number }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const [items, total] = await Promise.all([
       this.prisma.traceabilityEntity.findMany({
         orderBy: { name: 'asc' },
@@ -216,8 +210,7 @@ export class TraceabilityService {
   }
 
   async findAllRecordsAdmin(params: { page?: number; pageSize?: number }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const [items, total] = await Promise.all([
       this.prisma.traceabilityRecord.findMany({
         include: { entity: true, evidenceDocument: { include: documentInclude } },

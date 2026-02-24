@@ -9,6 +9,19 @@ export const dynamic = 'force-dynamic';
 
 const MENU_GROUP = 'compliance';
 const SECTION_PATH = 'compliance';
+const LICENSE_SLUGS = ['license', 'licenses'];
+const LICENSE_SLUG_ALIASES = ['license', 'licenses'];
+
+async function resolveComplianceSectionSlug(sectionSlug: string): Promise<string> {
+  const { data: category } = await getCategoryBySlug(sectionSlug);
+  if (category && (category.attributes?.menuGroup as string) === MENU_GROUP) return (category.attributes?.slug as string) ?? sectionSlug;
+  if (LICENSE_SLUG_ALIASES.includes(sectionSlug.toLowerCase())) {
+    const otherSlug = sectionSlug.toLowerCase() === 'license' ? 'licenses' : 'license';
+    const { data: alt } = await getCategoryBySlug(otherSlug);
+    if (alt && (alt.attributes?.menuGroup as string) === MENU_GROUP) return (alt.attributes?.slug as string) ?? otherSlug;
+  }
+  return sectionSlug;
+}
 
 interface PageProps {
   params: Promise<{ sectionSlug: string; subSlug: string }>;
@@ -17,23 +30,23 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { sectionSlug, subSlug } = await params;
-  const { data: category } = await getCategoryBySlug(sectionSlug);
+  const resolvedSlug = await resolveComplianceSectionSlug(sectionSlug);
+  const { data: category } = await getCategoryBySlug(resolvedSlug);
   if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) return { title: 'Compliance' };
-  const categoryName = category.attributes?.name ?? sectionSlug;
-  const { data: subList } = await getSubContents(sectionSlug);
+  const categoryName = category.attributes?.name ?? resolvedSlug;
+  const { data: subList } = await getSubContents(resolvedSlug);
   const sub = subList?.find((s) => s.attributes.slug === subSlug);
   const subTitle = sub?.attributes?.title ?? subSlug;
   return { title: `${subTitle} | ${categoryName}`, description: `Documents for ${subTitle}` };
 }
 
-const LICENSE_SLUGS = ['license', 'licenses'];
-
 export default async function ComplianceSectionSubPage({ params, searchParams }: PageProps) {
   const { sectionSlug, subSlug } = await params;
+  const resolvedSlug = await resolveComplianceSectionSlug(sectionSlug);
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
-  const isLicenseSection = LICENSE_SLUGS.includes(sectionSlug.toLowerCase());
+  const isLicenseSection = LICENSE_SLUGS.includes(resolvedSlug.toLowerCase());
 
   let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
   let subList: Awaited<ReturnType<typeof getSubContents>>['data'];
@@ -41,13 +54,13 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
   let licensesResponse: Awaited<ReturnType<typeof getSubContentLicenses>>;
   try {
     const [catRes, subRes, docRes, licRes] = await Promise.all([
-      getCategoryBySlug(sectionSlug),
-      getSubContents(sectionSlug),
+      getCategoryBySlug(resolvedSlug),
+      getSubContents(resolvedSlug),
       isLicenseSection
         ? Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } })
-        : getSubContentDocuments(sectionSlug, subSlug, { page, pageSize }),
+        : getSubContentDocuments(resolvedSlug, subSlug, { page, pageSize }),
       isLicenseSection
-        ? getSubContentLicenses(sectionSlug, subSlug, { page, pageSize })
+        ? getSubContentLicenses(resolvedSlug, subSlug, { page, pageSize })
         : Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } }),
     ]);
     category = catRes.data;
@@ -62,7 +75,7 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
   const sub = subList?.find((s) => s.attributes.slug === subSlug);
   if (!sub) notFound();
 
-  const categoryName = category.attributes?.name ?? sectionSlug;
+  const categoryName = category.attributes?.name ?? resolvedSlug;
   const subTitle = sub.attributes?.title ?? subSlug;
 
   if (isLicenseSection) {
@@ -77,7 +90,7 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
               initialLicenses={licenses}
               totalPages={totalPages}
               currentPage={page}
-              categorySlug={sectionSlug}
+              categorySlug={resolvedSlug}
               subSlug={subSlug}
               categoryName={categoryName}
               subTitle={subTitle}
@@ -100,7 +113,7 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
             initialDocuments={documents}
             totalPages={totalPages}
             currentPage={page}
-            categorySlug={sectionSlug}
+            categorySlug={resolvedSlug}
             subSlug={subSlug}
             categoryName={categoryName}
             subTitle={subTitle}

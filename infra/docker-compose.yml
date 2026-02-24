@@ -98,7 +98,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-slms}:${POSTGRES_PASSWORD:-slms}@postgres:5432/${POSTGRES_DB:-slms}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3002,http://localhost:3001
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3001
       JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-replace-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-refresh-secret-replace-in-production}

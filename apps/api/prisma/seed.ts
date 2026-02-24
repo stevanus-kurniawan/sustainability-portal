@@ -30,6 +30,10 @@ const ROLES = [
     name: 'PublicReader',
     description: 'Read-only access to public documents and information',
   },
+  // RBAC for User Management (admin portal) and portal user roles
+  { name: 'USER', description: 'Standard portal user' },
+  { name: 'ADMIN', description: 'Admin portal user (manage users)' },
+  { name: 'SUPER_ADMIN', description: 'Super admin (manage users and admins)' },
 ];
 
 // Default categories for public content
@@ -451,18 +455,32 @@ async function seedDefaultAdmins() {
   const defaultPassword = process.env.ADMIN_SEED_PASSWORD || 'Admin123!';
   const passwordHash = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
 
+  const superAdmin = await prisma.admin.upsert({
+    where: { email: 'superadmin@energi-up.com' },
+    update: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
+    create: {
+      email: 'superadmin@energi-up.com',
+      name: 'Super Administrator',
+      passwordHash,
+      role: 'SUPER_ADMIN',
+      status: 'ACTIVE',
+    },
+  });
+  console.log(`  ✅ Super Admin: ${superAdmin.email} (SUPER_ADMIN)`);
+
   const admin = await prisma.admin.upsert({
     where: { email: 'admin@energi-up.com' },
     update: {},
     create: {
       email: 'admin@energi-up.com',
+      name: 'Administrator',
       passwordHash,
       role: 'ADMIN',
       status: 'ACTIVE',
     },
   });
 
-  console.log(`  ✅ Admin: ${admin.email} (use ADMIN_SEED_PASSWORD env to set password, default: Admin123!)`);
+  console.log(`  ✅ Admin: ${admin.email} (ADMIN). Use ADMIN_SEED_PASSWORD env to set password (default: Admin123!)`);
 }
 
 // ==========================================
@@ -500,6 +518,7 @@ async function main() {
   console.log('   - admin@slms.local (SustainabilityAdmin)');
   console.log('   - auditor@slms.local (Auditor)');
   console.log('👤 Default Admins:');
+  console.log('   - superadmin@energi-up.com (SUPER_ADMIN, password: Admin123! or ADMIN_SEED_PASSWORD)');
   console.log('   - admin@energi-up.com (ADMIN, password: Admin123! or ADMIN_SEED_PASSWORD)');
   console.log('');
 }

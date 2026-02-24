@@ -84,10 +84,23 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>Login</Button>
+              <Button type="submit" className="w-full" isLoading={loading} disabled={loading}>
+                Login
+              </Button>
             </form>
+            <p className="mt-3 text-sm text-steel text-center">
+              <Link
+                href="/forgot-password"
+                className="text-primary hover:underline font-medium"
+              >
+                Forgot password?
+              </Link>
+            </p>
             <p className="mt-4 text-sm text-steel text-center">
-              Don&apos;t have an account? <Link href="/register" className="text-primary hover:underline font-medium">Create account</Link>
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-primary hover:underline font-medium">
+                Create account
+              </Link>
             </p>
           </CardContent>
         </Card>

@@ -25,6 +25,8 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
 
@@ -98,7 +100,7 @@ export class AuthController {
     @Body() body: { refreshToken?: string },
   ) {
     await this.authService.logout(req.user.id, body?.refreshToken);
-    this.clearUserCookie(res);
+    this.clearUserCookie(res, req);
     return { message: 'Logged out successfully' };
   }
 
@@ -131,11 +133,19 @@ export class AuthController {
 
   @Get('verify-email')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email address (15-minute link)' })
-  @ApiResponse({ status: 200, description: 'Email verified' })
+  @ApiOperation({ summary: 'Verify email address (15-minute link); on success sets session cookie for auto-login' })
+  @ApiResponse({ status: 200, description: 'Email verified; session cookie set for auto-login' })
   @ApiResponse({ status: 400, description: 'Invalid or expired link' })
-  async verifyEmail(@Query('token') token: string) {
-    return this.authService.verifyEmail(token);
+  async verifyEmail(
+    @Query('token') token: string,
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.verifyEmail(token);
+    if (result && 'accessToken' in result && result.accessToken) {
+      this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+    }
+    return result;
   }
 
   @Post('resend-verification')
@@ -159,6 +169,28 @@ export class AuthController {
     return this.authService.changeEmail(dto.currentEmail, dto.newEmail);
   }
 
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset (single-use link sent by email)' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Generic success (never reveals if email exists)',
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token from forgot-password email' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+
   private setUserCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
     const isProduction = process.env.NODE_ENV === 'production';
     const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
@@ -171,9 +203,13 @@ export class AuthController {
     });
   }
 
-  private clearUserCookie(res: Response): void {
+  private clearUserCookie(res: Response, req?: any): void {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
     res.clearCookie(USER_ACCESS_TOKEN_COOKIE, {
       httpOnly: true,
+      secure: isProduction && !!isSecureRequest,
+      sameSite: 'lax',
       path: '/',
     });
   }

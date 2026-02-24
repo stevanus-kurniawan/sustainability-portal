@@ -7,3 +7,4 @@ export * from './Input';
 export * from './Pagination';
 export * from './Select';
 export * from './Skeleton';
+export * from './ViewModeToggle';

@@ -44,6 +44,9 @@ export class PublicController {
     if (!key || typeof key !== 'string') {
       return res.status(400).json({ message: 'Missing or invalid key parameter' });
     }
+    if (key.includes('..')) {
+      return res.status(400).json({ message: 'Invalid file key format' });
+    }
 
     // Enforce that only document uploads can be accessed via this public endpoint.
     // Keys must be under the "uploads/" prefix and contain only safe characters.

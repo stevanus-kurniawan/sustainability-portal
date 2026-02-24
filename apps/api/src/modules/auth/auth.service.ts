@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REGISTRATION_ALLOWED_DOMAIN } from './dto/register.dto';
@@ -17,6 +18,11 @@ import {
   buildVerifyEmailSubject,
   buildVerifyEmailText,
 } from './templates/verify-email.template';
+import {
+  buildResetPasswordHtml,
+  buildResetPasswordSubject,
+  buildResetPasswordText,
+} from './templates/reset-password.template';
 
 export interface JwtPayload {
   sub: string;
@@ -41,6 +47,7 @@ export interface TokenResponse {
 
 const SALT_ROUNDS = 10;
 const EMAIL_VERIFICATION_EXPIRES_IN = '15m';
+const PASSWORD_RESET_EXPIRY_HOURS = 1;
 
 type EmailVerificationPayload = {
   user_id: string;
@@ -192,7 +199,10 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  /**
+   * Verify email with token. On success, marks user ACTIVE and returns tokens so the user can be auto-logged in.
+   */
+  async verifyEmail(token: string): Promise<{ message: string } | (TokenResponse & { message: string })> {
     try {
       const payload = this.jwtService.verify<EmailVerificationPayload>(token, {
         secret: this.configService.get('JWT_SECRET'),
@@ -210,9 +220,11 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      // Idempotent: if already verified and active, do not error
+      // Idempotent: if already verified and active, sign in and return tokens
       if (user.emailVerified && user.status === ('ACTIVE' as any)) {
-        return { message: 'Email already verified.' };
+        const fullUser = await this.usersService.findById(user.id);
+        const tokens = await this.generateTokens(fullUser);
+        return { message: 'Email already verified.', ...tokens };
       }
 
       await this.prisma.user.update({
@@ -227,7 +239,10 @@ export class AuthService {
       });
 
       await this.logAudit(user.email, 'VERIFY_EMAIL', 'User', user.id);
-      return { message: 'Email verified successfully.' };
+
+      const fullUser = await this.usersService.findById(user.id);
+      const tokens = await this.generateTokens(fullUser);
+      return { message: 'Email verified successfully.', ...tokens };
     } catch (e) {
       this.logger.warn(
         `Email verification failed: ${(e as Error).message || e} `,
@@ -320,6 +335,121 @@ export class AuthService {
     return genericResponse;
   }
 
+  /**
+   * Forgot password: send single-use reset link. Always returns generic success.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const genericResponse = {
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    };
+
+    const user = (await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    })) as any;
+
+    if (!user || user.status !== ('ACTIVE' as any)) {
+      return genericResponse;
+    }
+
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + PASSWORD_RESET_EXPIRY_HOURS);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        tokenHash,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    const appBaseUrl =
+      this.configService.get('APP_BASE_URL') ||
+      this.configService.get('WEB_URL', 'http://localhost:3000');
+    const resetUrl = `${String(appBaseUrl).replace(/\/$/, '')}/auth/reset-password?token=${encodeURIComponent(token)}`;
+
+    const ok = await this.emailService.sendEmail({
+      to: normalizedEmail,
+      subject: buildResetPasswordSubject(),
+      text: buildResetPasswordText({ resetUrl }),
+      html: buildResetPasswordHtml({ resetUrl, webUrl: appBaseUrl }),
+    });
+
+    if (!ok) {
+      this.logger.error(
+        `Failed to send password reset email. Check SMTP configuration.`,
+      );
+    }
+
+    await this.logAudit(normalizedEmail, 'FORGOT_PASSWORD', 'User', user.id);
+    return genericResponse;
+  }
+
+  /**
+   * Reset password: verify single-use token, update password, invalidate token.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    if (!token || typeof token !== 'string' || token.length < 32) {
+      throw new BadRequestException(
+        'Reset link expired or invalid. Please request a new password reset.',
+      );
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    const resetRecord = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!resetRecord || resetRecord.expiresAt < new Date()) {
+      throw new BadRequestException(
+        'Reset link expired or invalid. Please request a new password reset.',
+      );
+    }
+
+    const weakPasswords = [
+      'password',
+      'password123',
+      '12345678',
+      '123456789',
+      'qwerty123',
+      'admin123',
+    ];
+    if (weakPasswords.includes(newPassword.toLowerCase())) {
+      throw new BadRequestException(
+        'Password is too common. Please choose a stronger password.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetRecord.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.delete({
+        where: { id: resetRecord.id },
+      }),
+    ]);
+
+    await this.logAudit(
+      resetRecord.user.email,
+      'RESET_PASSWORD',
+      'User',
+      resetRecord.userId,
+    );
+
+    return { message: 'Password has been reset. You can now log in.' };
+  }
+
   private createEmailVerificationToken(params: {
     userId: string;
     email: string;
@@ -356,6 +486,9 @@ export class AuthService {
     if (!ok) {
       this.logger.error(
         `Failed to send verification email to ${email}. Check SMTP configuration and logs from EmailService.`,
+      );
+      throw new BadRequestException(
+        'Failed to send verification email. Please try again later or contact support.',
       );
     }
   }
@@ -446,13 +579,14 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
+    const refreshExpiresInStr = this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d');
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
+      expiresIn: refreshExpiresInStr,
     });
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const refreshExpiresInSeconds = parseExpiryToSeconds(refreshExpiresInStr);
+    const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
     await this.prisma.refreshToken.create({
       data: {

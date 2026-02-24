@@ -59,10 +59,10 @@ export class EmailService {
         html: options.html,
       });
 
-      this.logger.log(`Email sent: ${result.messageId} to ${options.to}`);
+      this.logger.log(`Email sent successfully (messageId: ${result.messageId})`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      this.logger.error('Failed to send email', error);
       return false;
     }
   }

@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
+import { AdminRolesGuard } from './guards/admin-roles.guard';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
     }),
   ],
   controllers: [AdminAuthController],
-  providers: [AdminAuthService, AdminJwtStrategy],
-  exports: [AdminAuthService],
+  providers: [AdminAuthService, AdminJwtStrategy, AdminRolesGuard],
+  exports: [AdminAuthService, AdminRolesGuard],
 })
 export class AdminAuthModule {}

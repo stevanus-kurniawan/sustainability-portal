@@ -384,6 +384,8 @@ Visit http://localhost:3001/docs for interactive Swagger documentation.
 - `GET /api/v1/admin/audit-logs`
 - `GET /api/v1/admin/notifications`
 
+**User Management & Admin Management:** See [docs/ADMIN-USER-MANAGEMENT.md](docs/ADMIN-USER-MANAGEMENT.md) for `/admin/users` and `/admin/admins` endpoints, RBAC, and how to seed the initial SUPER_ADMIN.
+
 ## 🤝 Contributing
 
 1. Create a feature branch from `main`

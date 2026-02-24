@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { mapDocumentToStrapi, type DocumentWithRelations } from '../../common/document-mapper';
-import { paginationMeta, wrapPaginated } from '../../common/response';
+import {
+  clampPagination,
+  paginationMeta,
+  wrapPaginated,
+} from '../../common/response';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -20,35 +24,37 @@ export class DocumentsService {
   private notDeleted = { isDeleted: false } as const;
 
   async findPoliciesPublic(page = DEFAULT_PAGE, pageSize = DEFAULT_PAGE_SIZE) {
+    const { page: p, pageSize: ps } = clampPagination(page, pageSize);
     const where = { type: 'POLICY' as const, isPublic: true, isPublished: true, ...this.notDeleted };
     const [items, total] = await Promise.all([
       this.prisma.document.findMany({
         where,
         include: this.includeForPublic,
         orderBy: { publishedAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (p - 1) * ps,
+        take: ps,
       }),
       this.prisma.document.count({ where }),
     ]);
     const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
-    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+    return wrapPaginated(data, paginationMeta(total, p, ps));
   }
 
   async findGrievanceDocumentsPublic(page = DEFAULT_PAGE, pageSize = DEFAULT_PAGE_SIZE) {
+    const { page: p, pageSize: ps } = clampPagination(page, pageSize);
     const where = { type: 'GRIEVANCE' as const, isPublic: true, isPublished: true, ...this.notDeleted };
     const [items, total] = await Promise.all([
       this.prisma.document.findMany({
         where,
         include: this.includeForPublic,
         orderBy: { publishedAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (p - 1) * ps,
+        take: ps,
       }),
       this.prisma.document.count({ where }),
     ]);
     const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
-    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+    return wrapPaginated(data, paginationMeta(total, p, ps));
   }
 
   async findLibraryPublic(params: {
@@ -61,8 +67,7 @@ export class DocumentsService {
     sortBy?: string;
     sortOrder?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = {
       isPublic: true,
       isPublished: true,
@@ -111,14 +116,15 @@ export class DocumentsService {
     page = DEFAULT_PAGE,
     pageSize = DEFAULT_PAGE_SIZE,
   ) {
+    const { page: p, pageSize: ps } = clampPagination(page, pageSize);
     const category = await this.prisma.category.findFirst({
       where: { slug: categorySlug, isPublic: true, mode: 'WITH_SUBCONTENT' },
     });
-    if (!category) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    if (!category) return wrapPaginated([], paginationMeta(0, p, ps));
     const subContent = await this.prisma.subContent.findUnique({
       where: { parentCategoryId_slug: { parentCategoryId: category.id, slug: subSlug } },
     });
-    if (!subContent) return wrapPaginated([], paginationMeta(0, page, pageSize));
+    if (!subContent) return wrapPaginated([], paginationMeta(0, p, ps));
     const where: Record<string, unknown> = {
       isPublic: true,
       isPublished: true,
@@ -131,13 +137,13 @@ export class DocumentsService {
         where,
         include: this.includeForPublic,
         orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (p - 1) * ps,
+        take: ps,
       }),
       this.prisma.document.count({ where }),
     ]);
     const data = items.map((d) => mapDocumentToStrapi(d as DocumentWithRelations));
-    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+    return wrapPaginated(data, paginationMeta(total, p, ps));
   }
 
   async findOnePublic(id: number) {
@@ -158,8 +164,7 @@ export class DocumentsService {
     categoryId?: number;
     subContentId?: number;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = { ...this.notDeleted };
     if (params.type) where.type = params.type;
     if (params.isPublished !== undefined) where.isPublished = params.isPublished;
@@ -200,8 +205,7 @@ export class DocumentsService {
     type?: string;
     search?: string;
   }) {
-    const page = params.page ?? DEFAULT_PAGE;
-    const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const where: Record<string, unknown> = { isDeleted: true };
     if (params.type) where.type = params.type;
     if (params.search) {

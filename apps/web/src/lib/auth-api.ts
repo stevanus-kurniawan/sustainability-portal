@@ -10,6 +10,17 @@ const defaultOptions: RequestInit = {
   headers: { 'Content-Type': 'application/json' },
 };
 
+/** Turn network/fetch errors into a clear message for the user. */
+function messageForFetchError(err: unknown, fallback: string): string {
+  if (err instanceof TypeError && (err.message === 'Failed to fetch' || err.message?.includes('fetch'))) {
+    return 'Cannot reach the server. Make sure the API is running (e.g. run `pnpm dev` from the project root). If the API does not start, ensure Redis and the database are available (e.g. run `pnpm dev:infra` first).';
+  }
+  if (err instanceof Error && (err.message === 'Load failed' || err.message?.toLowerCase().includes('network'))) {
+    return 'Network error. Check that the API is running on the correct port and that nothing is blocking the connection.';
+  }
+  return fallback;
+}
+
 export interface UserAuthResponse {
   user: {
     id: string;
@@ -36,11 +47,16 @@ export interface UserMeResponse {
 }
 
 export async function userLogin(email: string, password: string): Promise<UserAuthResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/login`, {
-    ...defaultOptions,
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/auth/login`, {
+      ...defaultOptions,
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (err) {
+    throw new Error(messageForFetchError(err, 'Login failed'));
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.message || 'Login failed');
@@ -65,6 +81,22 @@ export async function userRegister(params: {
   return res.json();
 }
 
+export interface VerifyEmailResponse {
+  message: string;
+}
+
+export async function userVerifyEmail(token: string): Promise<VerifyEmailResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/auth/verify-email?token=${encodeURIComponent(token)}`,
+    { ...defaultOptions, method: 'GET' },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Verification failed');
+  }
+  return res.json();
+}
+
 export interface ResendVerificationResponse {
   message: string;
 }
@@ -84,6 +116,43 @@ export async function resendUserVerification(email: string): Promise<ResendVerif
 
 export interface ChangeEmailResponse {
   message: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export async function userForgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    ...defaultOptions,
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to send reset link');
+  }
+  return res.json();
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export async function userResetPassword(params: {
+  token: string;
+  newPassword: string;
+}): Promise<ResetPasswordResponse> {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    ...defaultOptions,
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to reset password');
+  }
+  return res.json();
 }
 
 export async function changeUserEmail(params: {

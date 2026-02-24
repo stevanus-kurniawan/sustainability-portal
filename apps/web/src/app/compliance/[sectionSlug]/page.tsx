@@ -5,8 +5,7 @@ import { getSectionConfigOrDefault } from '@/config/sections';
 import { PageHeader } from '@/components/PageHeader';
 import { SectionSubContentList } from '@/components/section/SectionSubContentList';
 import { SectionDocumentsClient } from '@/components/section/SectionDocumentsClient';
-import { LicenseCard, formatLicenseDate } from '@/components/section/LicenseCard';
-import { EmptyState } from '@/components/ui';
+import { ComplianceLicensesSectionClient } from '@/components/section/ComplianceLicensesSectionClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +13,8 @@ const MENU_GROUP = 'compliance';
 const SECTION_PATH = 'compliance';
 /** When this section is Licenses and mode is DIRECT, show licenses (from License table) instead of library documents. */
 const LICENSE_SLUGS = ['license', 'licenses'];
+/** Try license slug variant when the requested slug has no category (e.g. /compliance/license vs DB slug "licenses"). */
+const LICENSE_SLUG_ALIASES = ['license', 'licenses'];
 
 interface PageProps {
   params: Promise<{ sectionSlug: string }>;
@@ -22,60 +23,88 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { sectionSlug } = await params;
-  const { data: category } = await getCategoryBySlug(sectionSlug);
-  if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) return { title: 'Compliance' };
-  const config = getSectionConfigOrDefault(MENU_GROUP, sectionSlug, category.attributes?.name ?? sectionSlug, `Compliance: ${sectionSlug}`);
+  const slugLower = sectionSlug.toLowerCase();
+  if (LICENSE_SLUG_ALIASES.includes(slugLower)) {
+    const config = getSectionConfigOrDefault(MENU_GROUP, slugLower, 'Licenses', 'Compliance: Licenses');
+    return { title: config.title, description: config.description };
+  }
+  let category = (await getCategoryBySlug(sectionSlug)).data;
+  if (!category && LICENSE_SLUG_ALIASES.includes(slugLower)) {
+    const otherSlug = slugLower === 'license' ? 'licenses' : 'license';
+    category = (await getCategoryBySlug(otherSlug)).data;
+  }
+  if (!category) return { title: 'Compliance' };
+  const slug = (category.attributes?.slug as string) ?? sectionSlug;
+  const isLicenseSlug = LICENSE_SLUG_ALIASES.includes(slug.toLowerCase());
+  const menuGroup = (category.attributes?.menuGroup as string) ?? '';
+  if (menuGroup.toLowerCase() !== MENU_GROUP.toLowerCase() && !isLicenseSlug) return { title: 'Compliance' };
+  const config = getSectionConfigOrDefault(MENU_GROUP, slug, category.attributes?.name ?? slug, `Compliance: ${slug}`);
   return { title: config.title, description: config.description };
 }
 
+async function fetchCategorySafe(slug: string): Promise<{ data: Category | null }['data']> {
+  try {
+    const result = await getCategoryBySlug(slug);
+    return result.data;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchLicensesSafe(pageSize: number): Promise<Awaited<ReturnType<typeof getLicenses>>['data']> {
+  try {
+    const res = await getLicenses({ pageSize });
+    return res.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ComplianceSectionPage({ params, searchParams }: PageProps) {
-  const { sectionSlug } = await params;
+  const { sectionSlug: rawSlug } = await params;
+  const sectionSlug = typeof rawSlug === 'string' ? rawSlug : '';
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const slugLower = sectionSlug.toLowerCase().trim();
+  const isLicenseUrl = slugLower === 'license' || slugLower === 'licenses';
 
-  const { data: category } = await getCategoryBySlug(sectionSlug);
+  // For /compliance/license or /compliance/licenses: always show license page (never 404)
+  if (isLicenseUrl) {
+    try {
+      let category = await fetchCategorySafe(sectionSlug);
+      if (!category) {
+        const otherSlug = slugLower === 'license' ? 'licenses' : 'license';
+        category = await fetchCategorySafe(otherSlug);
+      }
+      const config = category
+        ? getSectionConfigOrDefault(MENU_GROUP, (category.attributes?.slug as string)?.trim().toLowerCase() ?? slugLower, category.attributes?.name ?? 'Licenses', 'Compliance: Licenses')
+        : getSectionConfigOrDefault(MENU_GROUP, slugLower, 'Licenses', 'Compliance: Licenses');
+      const licenses = await fetchLicensesSafe(100);
+      return <ComplianceLicensesSectionClient config={config} licenses={licenses ?? []} />;
+    } catch {
+      const config = getSectionConfigOrDefault(MENU_GROUP, slugLower || 'license', 'Licenses', 'Compliance: Licenses');
+      return <ComplianceLicensesSectionClient config={config} licenses={[]} />;
+    }
+  }
 
-  if (!category || (category.attributes?.menuGroup as string) !== MENU_GROUP) notFound();
+  let category = await fetchCategorySafe(sectionSlug);
+  if (!category) notFound();
+
+  const resolvedSlug = ((category.attributes?.slug as string) ?? sectionSlug).trim().toLowerCase();
+  const menuGroup = ((category.attributes?.menuGroup as string) ?? '').trim().toLowerCase();
+  const isCompliance = menuGroup === MENU_GROUP.toLowerCase();
+  if (!isCompliance) notFound();
 
   const mode = category.attributes?.mode ?? 'DIRECT';
-  const name = category.attributes?.name ?? sectionSlug;
-  const config = getSectionConfigOrDefault(MENU_GROUP, sectionSlug, name, `Compliance: ${name}`);
+  const name = category.attributes?.name ?? resolvedSlug;
+  const config = getSectionConfigOrDefault(MENU_GROUP, resolvedSlug, name, `Compliance: ${name}`);
 
   if (mode === 'DIRECT') {
-    const isLicenseSection = LICENSE_SLUGS.includes(sectionSlug.toLowerCase());
+    const isLicenseSection = LICENSE_SLUGS.includes(resolvedSlug);
     if (isLicenseSection) {
       const { data: licenses } = await getLicenses({ pageSize: 100 });
-      return (
-        <div>
-          <PageHeader
-            title={config.title}
-            description={config.description}
-            bannerImage={config.bannerImage}
-          />
-          <section className="py-8">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              {!licenses || licenses.length === 0 ? (
-                <EmptyState
-                  type="no-data"
-                  title="No licenses available"
-                  description="Licenses will be displayed here once they are published."
-                />
-              ) : (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {licenses.map((license) => (
-                    <LicenseCard
-                      key={license.id}
-                      license={license}
-                      formatDate={formatLicenseDate}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-      );
+      return <ComplianceLicensesSectionClient config={config} licenses={licenses ?? []} />;
     }
     const { data: documents, meta } = await getLibrary({
       category: sectionSlug,

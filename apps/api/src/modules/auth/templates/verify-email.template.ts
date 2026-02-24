@@ -25,8 +25,6 @@ export function buildVerifyEmailHtml(params: VerifyEmailHtmlParams): string {
   const { verifyUrl, webUrl } = params;
 
   const contentHtml = `
-<p style="margin: 0 0 16px 0; color: #6B6B6B; font-size: 14px;">If the button doesn&apos;t work, copy and paste this link into your browser:</p>
-<p style="margin: 0 0 16px 0; word-break: break-all;"><a href="${verifyUrl}" style="color: #C43A31; text-decoration: underline;">${verifyUrl}</a></p>
 <p style="margin: 0; color: #6B6B6B; font-size: 14px;"><strong>This link expires in 15 minutes.</strong></p>
 `.trim();
 

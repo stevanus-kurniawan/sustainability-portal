@@ -27,8 +27,9 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  userRoles     UserRole[]
-  refreshTokens RefreshToken[]
+  userRoles            UserRole[]
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@index([email])
   @@index([status])
@@ -38,6 +39,7 @@ model User {
 model Admin {
   id           String   @id @default(uuid())
   email        String   @unique
+  name         String?
   passwordHash String   @map("password_hash")
   role         String   @default("ADMIN")
   status       String   @default("ACTIVE")
@@ -46,6 +48,7 @@ model Admin {
 
   @@index([email])
   @@index([status])
+  @@index([role])
   @@map("admins")
 }
 
@@ -61,6 +64,20 @@ model RefreshToken {
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
 }
 
 // ==========================================
@@ -125,15 +142,23 @@ model RolePermission {
 // ==========================================
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  userEmail  String   @map("user_email")
-  action     String
-  entityType String   @map("entity_type")
-  entityId   String?  @map("entity_id")
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  userEmail   String   @map("user_email")
+  actorUserId String?  @map("actor_user_id")
+  actorAdminId String? @map("actor_admin_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  beforeJson  Json?    @map("before_json")
+  afterJson   Json?    @map("after_json")
+  metadata    Json?
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([userEmail])
+  @@index([actorUserId])
+  @@index([actorAdminId])
   @@index([entityType])
   @@index([entityId])
   @@index([createdAt])

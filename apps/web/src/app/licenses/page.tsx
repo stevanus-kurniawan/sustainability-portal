@@ -1,10 +1,10 @@
-import { ScrollText } from 'lucide-react';
 import { Suspense } from 'react';
 
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, CardSkeleton } from '@/components/ui';
-import { LicenseCard, formatLicenseDate } from '@/components/section/LicenseCard';
+import { CardSkeleton } from '@/components/ui';
 import { getLicenses, type License } from '@/lib/api';
+
+import { LicensesViewClient } from './LicensesViewClient';
 
 export const metadata = {
   title: 'Licenses',
@@ -12,63 +12,27 @@ export const metadata = {
 };
 export const dynamic = 'force-dynamic';
 
+function groupByStatus(lics: License[]) {
+  const active = lics.filter((l) => l.attributes.status === 'ACTIVE');
+  const expiring = lics.filter((l) => l.attributes.status === 'EXPIRING');
+  const expired = lics.filter((l) => l.attributes.status === 'EXPIRED');
+  return { active, expiring, expired };
+}
+
 async function LicensesList() {
   const { data: licenses } = await getLicenses({ pageSize: 50 });
 
   if (!licenses || licenses.length === 0) {
     return (
-      <EmptyState
-        type="no-data"
-        title="No licenses available"
-        description="Licenses will be displayed here once they are published."
-      />
+      <LicensesViewClient activeLicenses={[]} expiredLicenses={[]} />
     );
   }
-
-  const groupByStatus = (lics: License[]) => {
-    const active = lics.filter((l) => l.attributes.status === 'ACTIVE');
-    const expiring = lics.filter((l) => l.attributes.status === 'EXPIRING');
-    const expired = lics.filter((l) => l.attributes.status === 'EXPIRED');
-    return { active, expiring, expired };
-  };
 
   const { active, expiring, expired } = groupByStatus(licenses);
   const activeLics = [...expiring, ...active];
 
   return (
-    <div className="space-y-12">
-      <div>
-        <h2 className="font-heading text-h3 text-charcoal mb-6 flex items-center gap-2">
-          <ScrollText className="h-6 w-6 text-warning" />
-          Active Licenses
-          <span className="text-sm font-normal text-steel">({activeLics.length})</span>
-        </h2>
-        {activeLics.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {activeLics.map((license: License) => (
-              <LicenseCard key={license.id} license={license} formatDate={formatLicenseDate} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-steel">No active licenses at this time.</p>
-        )}
-      </div>
-
-      {expired.length > 0 && (
-        <div>
-          <h2 className="font-heading text-h3 text-charcoal mb-6 flex items-center gap-2">
-            <ScrollText className="h-6 w-6 text-steel" />
-            Expired Licenses
-            <span className="text-sm font-normal text-steel">({expired.length})</span>
-          </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 opacity-70">
-            {expired.map((license: License) => (
-              <LicenseCard key={license.id} license={license} formatDate={formatLicenseDate} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <LicensesViewClient activeLicenses={activeLics} expiredLicenses={expired} />
   );
 }
 

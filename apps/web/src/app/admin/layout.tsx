@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight, FileText, FolderOpen, Leaf, LogOut, Scale, Award, AlertCircle, FolderTree } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, FolderOpen, Leaf, LogOut, Scale, Award, AlertCircle, FolderTree, Users, Shield } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { adminLogout } from '@/lib/auth-api';
@@ -41,6 +41,8 @@ const adminNav: { name: string; href: string; icon?: React.ReactNode; children?:
   },
   { name: 'Grievance', href: '/admin/grievance', icon: <AlertCircle className="h-4 w-4" /> },
   { name: 'Categories', href: '/admin/categories', icon: <FolderTree className="h-4 w-4" /> },
+  { name: 'Users', href: '/admin/users', icon: <Users className="h-4 w-4" /> },
+  { name: 'Admins', href: '/admin/admins', icon: <Shield className="h-4 w-4" /> },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -1,12 +1,25 @@
 'use client';
 
-import { Award, Building2, FileCheck } from 'lucide-react';
+import { Award, Building2, FileCheck, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useCallback, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 
-import { Card, CardContent, EmptyState, Pagination } from '@/components/ui';
+import { Card, CardContent, EmptyState, Input, Pagination, ViewModeToggle, getStoredViewMode, type ViewMode } from '@/components/ui';
 import type { Certification } from '@/lib/api';
+
+function filterCertifications(list: Certification[], query: string): Certification[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return list;
+  return list.filter((c) => {
+    const name = (c.attributes.name ?? '').toLowerCase();
+    const issuer = (c.attributes.issuer ?? '').toLowerCase();
+    const certNo = (c.attributes.certificateNo ?? '').toLowerCase();
+    return name.includes(q) || issuer.includes(q) || certNo.includes(q);
+  });
+}
+
+const VIEW_STORAGE_KEY = 'certifications-sub';
 
 interface SubContentCertificationsClientProps {
   initialCertifications: Certification[];
@@ -133,6 +146,17 @@ export function SubContentCertificationsClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setViewMode(getStoredViewMode(VIEW_STORAGE_KEY));
+  }, []);
+
+  const filteredCertifications = useMemo(
+    () => filterCertifications(initialCertifications, searchQuery),
+    [initialCertifications, searchQuery],
+  );
 
   const onPageChange = useCallback(
     (page: number) => {
@@ -167,15 +191,97 @@ export function SubContentCertificationsClient({
           />
         ) : (
           <>
-            <p className="text-sm text-steel mb-6">
-              Showing {initialCertifications.length} certification{initialCertifications.length !== 1 && 's'}
-            </p>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {initialCertifications.map((cert) => (
-                <CertificationCard key={cert.id} certification={cert} />
-              ))}
+            <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-steel pointer-events-none" />
+                  <Input
+                    type="search"
+                    placeholder="Search by name, issuer, certificate no..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 w-full"
+                    aria-label="Search certifications"
+                  />
+                </div>
+                <ViewModeToggle
+                  value={viewMode}
+                  onChange={setViewMode}
+                  storageKey={VIEW_STORAGE_KEY}
+                  ariaLabel="Certifications view"
+                />
+              </div>
+              <p className="text-sm text-steel">
+                {searchQuery.trim()
+                  ? `Showing ${filteredCertifications.length} of ${initialCertifications.length} certification${initialCertifications.length !== 1 ? 's' : ''}`
+                  : `Showing ${initialCertifications.length} certification${initialCertifications.length !== 1 && 's'}`}
+              </p>
             </div>
-            {totalPages > 1 && (
+            {filteredCertifications.length === 0 ? (
+              <EmptyState
+                type="no-data"
+                title="No matching certifications"
+                description={searchQuery.trim() ? 'Try a different search term.' : undefined}
+              />
+            ) : viewMode === 'grid' ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredCertifications.map((cert) => (
+                  <CertificationCard key={cert.id} certification={cert} />
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border-light">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border-light bg-lighter">
+                      <th className="py-3 px-4 font-semibold text-charcoal">Name</th>
+                      <th className="py-3 px-4 font-semibold text-charcoal">Issuer</th>
+                      <th className="py-3 px-4 font-semibold text-charcoal">Certificate No.</th>
+                      <th className="py-3 px-4 font-semibold text-charcoal">Issued</th>
+                      <th className="py-3 px-4 font-semibold text-charcoal">Expires</th>
+                      <th className="py-3 px-4 font-semibold text-charcoal text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCertifications.map((cert) => {
+                      const fileUrl =
+                        cert.attributes.document?.data?.attributes?.currentVersion?.data?.attributes
+                          ?.file?.data?.attributes?.url;
+                      const externalLink = (cert.attributes as { externalLink?: string | null }).externalLink;
+                      return (
+                        <tr key={cert.id} className="border-b border-border-light last:border-0 hover:bg-lighter/50">
+                          <td className="py-3 px-4 font-medium text-charcoal">{cert.attributes.name}</td>
+                          <td className="py-3 px-4 text-steel">{cert.attributes.issuer || '—'}</td>
+                          <td className="py-3 px-4 text-steel">
+                            {cert.attributes.certificateNo ? `#${cert.attributes.certificateNo}` : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-steel">
+                            {cert.attributes.issuedDate ? formatDate(cert.attributes.issuedDate) : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-steel">
+                            {cert.attributes.expiryDate ? formatDate(cert.attributes.expiryDate) : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {fileUrl && (
+                              <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                View
+                              </a>
+                            )}
+                            {!fileUrl && externalLink && (
+                              <a href={externalLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                Learn more
+                              </a>
+                            )}
+                            {!fileUrl && !externalLink && '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {filteredCertifications.length > 0 && totalPages > 1 && (
               <div className="mt-8">
                 <Pagination
                   currentPage={currentPage}

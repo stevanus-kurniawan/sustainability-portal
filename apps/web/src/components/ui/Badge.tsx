@@ -34,6 +34,10 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
 export function StatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { variant: BadgeVariant; label: string }> = {
     ACTIVE: { variant: 'success', label: 'Active' },
+    INACTIVE: { variant: 'default', label: 'Inactive' },
+    PENDING: { variant: 'warning', label: 'Pending' },
+    PENDING_VERIFICATION: { variant: 'warning', label: 'Pending Verification' },
+    SUSPENDED: { variant: 'danger', label: 'Suspended' },
     EXPIRING: { variant: 'warning', label: 'Expiring Soon' },
     EXPIRED: { variant: 'danger', label: 'Expired' },
     OPEN: { variant: 'info', label: 'Open' },
