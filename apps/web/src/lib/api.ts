@@ -286,11 +286,12 @@ export async function getSubContentDocuments(
 export async function getSubContentLicenses(
   categorySlug: string,
   subSlug: string,
-  params?: { page?: number; pageSize?: number }
+  params?: { page?: number; pageSize?: number; search?: string }
 ): Promise<ApiResponse<License[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
   const query = searchParams.toString();
   return fetchApi<License[]>(
     `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents/${encodeURIComponent(subSlug)}/licenses${query ? `?${query}` : ''}`,
@@ -301,11 +302,12 @@ export async function getSubContentLicenses(
 export async function getSubContentCertifications(
   categorySlug: string,
   subSlug: string,
-  params?: { page?: number; pageSize?: number }
+  params?: { page?: number; pageSize?: number; search?: string }
 ): Promise<ApiResponse<Certification[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
   const query = searchParams.toString();
   return fetchApi<Certification[]>(
     `/public/categories/${encodeURIComponent(categorySlug)}/sub-contents/${encodeURIComponent(subSlug)}/certifications${query ? `?${query}` : ''}`,
@@ -324,10 +326,12 @@ export async function getTags(): Promise<Tag[]> {
 export async function getPolicies(params?: {
   page?: number;
   pageSize?: number;
+  search?: string;
 }): Promise<ApiResponse<Document[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
 
   const query = searchParams.toString();
   return fetchApi<Document[]>(`/public/policies${query ? `?${query}` : ''}`, {

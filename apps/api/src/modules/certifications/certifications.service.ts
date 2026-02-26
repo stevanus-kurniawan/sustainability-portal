@@ -100,12 +100,13 @@ export class CertificationsService {
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
   }
 
-  /** Public: certifications for a sub-content (by category slug + sub slug). Used for portal Certificate section. */
+  /** Public: certifications for a sub-content (by category slug + sub slug). Used for portal Certificate section. Scoped to this category+sub only. */
   async findByCategorySlugAndSubSlugPublic(
     categorySlug: string,
     subSlug: string,
     pageParam = DEFAULT_PAGE,
     pageSizeParam = DEFAULT_PAGE_SIZE,
+    search?: string,
   ) {
     const { page, pageSize } = clampPagination(pageParam, pageSizeParam);
     const category = await this.prisma.category.findFirst({
@@ -116,7 +117,14 @@ export class CertificationsService {
       where: { parentCategoryId_slug: { parentCategoryId: category.id, slug: subSlug } },
     });
     if (!subContent) return wrapPaginated([], paginationMeta(0, page, pageSize));
-    const where = { subContentId: subContent.id } as any;
+    const where: Record<string, unknown> = { subContentId: subContent.id };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { issuer: { contains: search, mode: 'insensitive' } },
+        { certificateNo: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     const [items, total] = await Promise.all([
       this.prisma.certification.findMany({
         where,

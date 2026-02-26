@@ -16,10 +16,12 @@
     "dev:web": "pnpm --filter @slms/web dev",
     "dev:web:alt": "pnpm --filter @slms/web dev:alt",
     "dev:api": "pnpm --filter @slms/api start:dev",
-    "dev:infra": "cd infra && docker-compose up -d",
+    "dev:infra": "cd infra && docker-compose up -d postgres redis minio minio-init mailhog",
+    "dev:infra:full": "cd infra && docker-compose up -d",
     "dev:infra:logs": "cd infra && docker-compose logs -f",
     "dev:infra:down": "cd infra && docker-compose down",
     "dev:infra:reset": "cd infra && docker-compose down -v",
+    "setup:env": "node -e \"const fs=require('fs');const cp=(s,d)=>{if(!fs.existsSync(d)){fs.copyFileSync(s,d);console.log('Created '+d);}};cp('apps/api/env.example','apps/api/.env');cp('apps/web/env.example','apps/web/.env.local');\"",
     "build": "pnpm run --parallel build",
     "build:shared": "pnpm --filter @slms/shared build",
     "build:web": "pnpm --filter @slms/web build",
@@ -27,6 +29,8 @@
     "build:docker": "docker compose -f infra/docker-compose.yml build",
     "docker:up": "docker compose -f infra/docker-compose.yml up -d --build",
     "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:restart": "docker compose -f infra/docker-compose.yml restart api web",
+    "docker:rebuild": "docker compose -f infra/docker-compose.yml up -d --build api web",
     "lint": "pnpm run --parallel lint",
     "lint:fix": "pnpm run --parallel lint:fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,scss}\"",
@@ -40,7 +44,7 @@
     "db:seed": "pnpm --filter @slms/api prisma:seed",
     "db:studio": "pnpm --filter @slms/api prisma:studio",
     "db:reset": "pnpm --filter @slms/api prisma:reset",
-    "setup": "pnpm install && pnpm build:shared && pnpm dev:infra && echo 'Waiting for services...' && timeout 10 && pnpm db:migrate && pnpm db:seed"
+    "setup": "pnpm install && pnpm build:shared && pnpm setup:env && pnpm dev:infra && node -e \"console.log('Waiting 25s for Postgres/MinIO...');setTimeout(()=>{},25000)\" && pnpm db:migrate && pnpm db:seed"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

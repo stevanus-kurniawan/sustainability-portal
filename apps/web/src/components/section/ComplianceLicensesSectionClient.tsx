@@ -58,8 +58,8 @@ export function ComplianceLicensesSectionClient({ config, licenses }: Compliance
           ) : (
             <>
               <div className="flex flex-col gap-4 mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="relative flex-1 max-w-xs">
+                <div className="flex w-full flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="relative w-full max-w-xs sm:w-auto">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-steel pointer-events-none" />
                     <Input
                       type="search"

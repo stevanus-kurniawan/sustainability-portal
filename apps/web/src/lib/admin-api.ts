@@ -103,6 +103,10 @@ export async function adminDocumentCreate(body: {
   categoryId?: number;
   subContentId?: number | null;
   tagIds?: number[];
+  code?: string;
+  documentType?: string;
+  versionLabel?: string;
+  effectiveDate?: string;
   attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
 }): Promise<DocumentItem> {
   const res = await adminFetch('/api/admin/documents', {
@@ -125,6 +129,10 @@ export async function adminDocumentUpdate(
     categoryId: number | null;
     subContentId: number | null;
     tagIds: number[];
+    code: string;
+    documentType: string;
+    versionLabel: string;
+    effectiveDate: string | null;
     attachment: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
   }>
 ): Promise<DocumentItem> {

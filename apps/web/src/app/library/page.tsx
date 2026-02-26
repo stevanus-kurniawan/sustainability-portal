@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 
 import { PageHeader } from '@/components/PageHeader';
 import { CardSkeleton } from '@/components/ui';
-import { getLibrary, getCategories, getTags } from '@/lib/api';
+import { getLibrary, getCategories } from '@/lib/api';
 
 import { LibraryClient } from './LibraryClient';
 
@@ -17,8 +17,6 @@ interface LibraryPageProps {
     page?: string;
     search?: string;
     category?: string;
-    tags?: string;
-    type?: string;
     sortBy?: string;
     sortOrder?: string;
   }>;
@@ -29,19 +27,16 @@ async function LibraryContent({ searchParams }: LibraryPageProps) {
   const page = Number(params.page) || 1;
   const pageSize = 12;
 
-  const [libraryResponse, categories, tags] = await Promise.all([
+  const [libraryResponse, categories] = await Promise.all([
     getLibrary({
       page,
       pageSize,
       search: params.search,
       category: params.category,
-      tags: params.tags,
-      type: params.type,
       sortBy: params.sortBy || 'publishedAt',
       sortOrder: params.sortOrder || 'desc',
     }),
     getCategories(),
-    getTags(),
   ]);
 
   const documents = libraryResponse.data || [];
@@ -51,7 +46,6 @@ async function LibraryContent({ searchParams }: LibraryPageProps) {
     <LibraryClient
       initialDocuments={documents}
       categories={categories}
-      tags={tags}
       totalPages={totalPages}
       currentPage={page}
     />

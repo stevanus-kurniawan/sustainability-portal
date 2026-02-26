@@ -141,11 +141,13 @@ services:
     container_name: slms-web
     restart: unless-stopped
     ports:
-      # Use WEB_PORT (default 3002) so local dev on 3000 doesn't conflict
-      - "${WEB_PORT:-3002}:3000"
+      # Web UI on host port WEB_PORT (default 3000)
+      - "${WEB_PORT:-3000}:3000"
     environment:
       NODE_ENV: development
       PORT: 3000
+      # Server-side proxy target: /api/v1/* is rewritten to this host (required so 3000 → 3001).
+      API_BACKEND_URL: http://slms-api:3001
       # Ensure server-side Next.js routes call the API by its Docker hostname.
       NEXT_PUBLIC_API_URL: http://slms-api:3001/api/v1
       # Hint to any code that wants to detect Dockerized web runtime.

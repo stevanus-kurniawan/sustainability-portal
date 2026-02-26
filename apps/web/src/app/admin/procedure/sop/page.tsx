@@ -21,6 +21,7 @@ export default function AdminProcedureSOPPage() {
       subContentId={subContentId}
       createHref={createHref}
       editHref={(id) => `/admin/procedure/sop/${id}`}
+      viewModeStorageKey="procedure-sop"
     />
   );
 }

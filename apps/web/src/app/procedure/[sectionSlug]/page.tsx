@@ -13,7 +13,7 @@ const SECTION_PATH = 'procedure';
 
 interface PageProps {
   params: Promise<{ sectionSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -26,9 +26,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ProcedureSectionPage({ params, searchParams }: PageProps) {
   const { sectionSlug } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, search: searchQuery } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const search = searchQuery?.trim() || undefined;
 
   const { data: category } = await getCategoryBySlug(sectionSlug);
 
@@ -43,6 +44,7 @@ export default async function ProcedureSectionPage({ params, searchParams }: Pag
       category: sectionSlug,
       page,
       pageSize,
+      search,
       sortBy: 'publishedAt',
       sortOrder: 'desc',
     });
@@ -62,6 +64,16 @@ export default async function ProcedureSectionPage({ params, searchParams }: Pag
               currentPage={page}
               sectionPath={`${SECTION_PATH}/${sectionSlug}`}
               categoryName={name}
+              viewModeStorageKey={
+                sectionSlug?.toLowerCase() === 'sop'
+                  ? 'procedure-sop-public'
+                  : sectionSlug?.toLowerCase() === 'form' || sectionSlug?.toLowerCase() === 'forms'
+                    ? 'procedure-form-public'
+                    : undefined
+              }
+              defaultViewMode="table"
+              preferDefaultViewMode={sectionSlug?.toLowerCase() === 'form' || sectionSlug?.toLowerCase() === 'forms'}
+              tableColumns={sectionSlug?.toLowerCase() === 'sop' ? 'full' : 'simple'}
             />
           </div>
         </section>

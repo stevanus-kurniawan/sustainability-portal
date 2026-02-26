@@ -3,12 +3,8 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   },
-  // Proxy /api/v1 to backend so admin cookie is set on same origin (required when frontend and API are on different hosts).
-  async rewrites() {
-    let backend = process.env.API_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, '') || 'http://localhost:3001';
-    backend = backend.replace(/\/api\/v1\/?$/, ''); // ensure base only (no double /api/v1 in destination)
-    return [{ source: '/api/v1/:path*', destination: `${backend}/api/v1/:path*` }];
-  },
+  // /api/v1/* is proxied by app/api/v1/[...path]/route.ts so backend URL is read at runtime (fixes Docker where rewrites were baked at build time).
+  // No rewrites here so the Route Handler is used and getInternalApiBase() sees API_BACKEND_URL / NEXT_PUBLIC_API_URL at request time.
   // Relax build-time checks for local Docker usage; runtime still enforces types at compile step.
   typescript: {
     ignoreBuildErrors: true,

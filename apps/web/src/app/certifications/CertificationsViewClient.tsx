@@ -1,11 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Award, Building2, FileCheck } from 'lucide-react';
 
-import { Card, CardContent, EmptyState } from '@/components/ui';
+import { Card, CardContent, EmptyState, ViewModeToggle, getStoredViewMode, type ViewMode } from '@/components/ui';
 import type { Certification } from '@/lib/api';
 
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null): string {
   if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -110,7 +111,15 @@ interface CertificationsViewClientProps {
   certifications: Certification[];
 }
 
+const VIEW_STORAGE_KEY = 'certifications-page';
+
 export function CertificationsViewClient({ certifications }: CertificationsViewClientProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+
+  useEffect(() => {
+    setViewMode(getStoredViewMode(VIEW_STORAGE_KEY));
+  }, []);
+
   if (certifications.length === 0) {
     return (
       <EmptyState
@@ -123,16 +132,101 @@ export function CertificationsViewClient({ certifications }: CertificationsViewC
 
   return (
     <div className="space-y-8">
-      <h2 className="font-heading text-h3 text-charcoal flex items-center gap-2">
-        <Award className="h-6 w-6 text-success" />
-        Active Certifications
-        <span className="text-sm font-normal text-steel">({certifications.length})</span>
-      </h2>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {certifications.map((cert) => (
-          <CertificationCard key={cert.id} certification={cert} />
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="font-heading text-h3 text-charcoal flex items-center gap-2">
+          <Award className="h-6 w-6 text-success" />
+          Active Certifications
+          <span className="text-sm font-normal text-steel">({certifications.length})</span>
+        </h2>
+        <ViewModeToggle
+          value={viewMode}
+          onChange={setViewMode}
+          storageKey={VIEW_STORAGE_KEY}
+          ariaLabel="Certifications view"
+        />
       </div>
+
+      {viewMode === 'grid' ? (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {certifications.map((cert) => (
+            <CertificationCard key={cert.id} certification={cert} />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border-light">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border-light bg-lighter">
+                <th className="py-3 px-4 font-semibold text-charcoal">Name</th>
+                <th className="py-3 px-4 font-semibold text-charcoal">Issuer</th>
+                <th className="py-3 px-4 font-semibold text-charcoal">Certificate No.</th>
+                <th className="py-3 px-4 font-semibold text-charcoal">Issued</th>
+                <th className="py-3 px-4 font-semibold text-charcoal">Expires</th>
+                <th className="py-3 px-4 font-semibold text-charcoal text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {certifications.map((cert) => {
+                const fileUrl =
+                  cert.attributes.document?.data?.attributes?.currentVersion?.data?.attributes?.file
+                    ?.data?.attributes?.url;
+                const externalLink = (cert.attributes as { externalLink?: string | null }).externalLink;
+
+                const hasIssued =
+                  cert.attributes.issuedDate &&
+                  !Number.isNaN(new Date(cert.attributes.issuedDate).getTime());
+                const hasExpiry =
+                  cert.attributes.expiryDate &&
+                  !Number.isNaN(new Date(cert.attributes.expiryDate).getTime());
+
+                return (
+                  <tr
+                    key={cert.id}
+                    className="border-b border-border-light last:border-0 hover:bg-lighter/50"
+                  >
+                    <td className="py-3 px-4 font-medium text-charcoal">{cert.attributes.name}</td>
+                    <td className="py-3 px-4 text-steel">
+                      {cert.attributes.issuer ? cert.attributes.issuer : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-steel">
+                      {cert.attributes.certificateNo ? `#${cert.attributes.certificateNo}` : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-steel">
+                      {hasIssued ? formatDate(cert.attributes.issuedDate) : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-steel">
+                      {hasExpiry ? formatDate(cert.attributes.expiryDate) : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {fileUrl && (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          View
+                        </a>
+                      )}
+                      {!fileUrl && externalLink && (
+                        <a
+                          href={externalLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Learn more
+                        </a>
+                      )}
+                      {!fileUrl && !externalLink && '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

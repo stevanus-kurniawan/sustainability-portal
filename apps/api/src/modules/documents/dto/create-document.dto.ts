@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AttachmentDto {
@@ -53,6 +53,25 @@ export class CreateDocumentDto {
   @IsOptional()
   @IsInt()
   subContentId?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  documentType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  versionLabel?: string;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveDate?: string;
 
   @IsOptional()
   @IsInt({ each: true })

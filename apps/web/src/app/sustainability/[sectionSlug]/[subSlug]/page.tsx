@@ -12,7 +12,7 @@ const SECTION_PATH = 'sustainability';
 
 interface PageProps {
   params: Promise<{ sectionSlug: string; subSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -29,12 +29,13 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function SustainabilitySectionSubPage({ params, searchParams }: PageProps) {
   const { sectionSlug, subSlug } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, search: searchParam } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const search = typeof searchParam === 'string' ? searchParam.trim() : undefined;
   const isCertificateSection = sectionSlug === 'certificate';
   const contentFetch = isCertificateSection
-    ? getSubContentCertifications(sectionSlug, subSlug, { page, pageSize })
+    ? getSubContentCertifications(sectionSlug, subSlug, { page, pageSize, search })
     : getSubContentDocuments(sectionSlug, subSlug, { page, pageSize });
 
   let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
@@ -77,6 +78,7 @@ export default async function SustainabilitySectionSubPage({ params, searchParam
               categoryName={categoryName}
               subTitle={subTitle}
               sectionListHref={`/${SECTION_PATH}/${sectionSlug}`}
+              currentSearch={search ?? ''}
             />
           </div>
         </section>

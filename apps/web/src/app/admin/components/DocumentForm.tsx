@@ -34,6 +34,10 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     title: '',
     description: '',
     externalLink: '',
+    code: '',
+    documentType: '',
+    versionLabel: '',
+    effectiveDate: '',
     isPublished: false,
     categoryId: categoryIdProp ?? ('' as number | ''),
     subContentId: '' as number | '',
@@ -42,6 +46,8 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
     currentFileUrl: null as string | null,
     clearAttachment: false,
   });
+
+  const showPolicySopFields = type === 'POLICY' || (type === 'GENERAL' && categorySlug?.toLowerCase() === 'sop');
 
   useEffect(() => {
     adminCategoriesList()
@@ -122,15 +128,24 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         if (!doc) return;
         const attrs = doc.attributes as {
           externalLink?: string | null;
+          code?: string | null;
+          documentType?: string | null;
+          versionLabel?: string | null;
+          effectiveDate?: string | null;
           currentVersion?: { data?: { attributes?: { file?: { data?: { attributes?: { url?: string; name?: string } } } } } | null };
           subContentId?: number | null;
           subContent?: { data?: { id: number } } | null;
         };
         const fileUrl = attrs.currentVersion?.data?.attributes?.file?.data?.attributes?.url ?? null;
+        const effectiveDateStr = attrs.effectiveDate ?? null;
         setForm({
           title: doc.attributes.title,
           description: doc.attributes.description ?? '',
           externalLink: (doc.attributes as { externalLink?: string | null }).externalLink ?? '',
+          code: attrs.code ?? '',
+          documentType: attrs.documentType ?? '',
+          versionLabel: attrs.versionLabel ?? '',
+          effectiveDate: effectiveDateStr ? effectiveDateStr.slice(0, 10) : '',
           isPublished: doc.attributes.isPublished,
           categoryId: doc.attributes.category?.data?.id ?? categoryIdProp ?? ('' as number | ''),
           subContentId: attrs.subContentId ?? attrs.subContent?.data?.id ?? ('' as number | ''),
@@ -209,6 +224,12 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
         categoryId: categoryId ?? (categoryIdProp ?? undefined),
         subContentId: needsSubContent ? subContentId : null,
         tagIds: form.tagIds,
+        ...(showPolicySopFields && {
+          code: form.code.trim() || undefined,
+          documentType: form.documentType.trim() || undefined,
+          versionLabel: form.versionLabel.trim() || undefined,
+          effectiveDate: form.effectiveDate ? form.effectiveDate : undefined,
+        }),
         ...(form.attachment && { attachment: form.attachment }),
       };
       if (id) {
@@ -216,6 +237,9 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
           ...body,
           externalLink: form.externalLink.trim() || null,
           subContentId: body.subContentId ?? null,
+          ...(showPolicySopFields && {
+            effectiveDate: form.effectiveDate ? form.effectiveDate : null,
+          }),
           attachment: form.clearAttachment ? null : (form.attachment ?? undefined),
         });
       } else {
@@ -276,6 +300,50 @@ export function DocumentForm({ id, type, categorySlug, categoryId: categoryIdPro
           />
           <p className="mt-1 text-xs text-steel">Optional. Link to external document or resource.</p>
         </div>
+        {showPolicySopFields && (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">Code</label>
+              <Input
+                value={form.code}
+                onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
+                placeholder="e.g. POL-001, SOP-02"
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-steel">Optional. Document code for reference.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">Type</label>
+              <Input
+                value={form.documentType}
+                onChange={(e) => setForm((prev) => ({ ...prev, documentType: e.target.value }))}
+                placeholder="e.g. Policy, SOP"
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-steel">Optional. Display type shown in the table.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">Version</label>
+              <Input
+                value={form.versionLabel}
+                onChange={(e) => setForm((prev) => ({ ...prev, versionLabel: e.target.value }))}
+                placeholder="e.g. v1.0, 2"
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-steel">Optional. Version label shown in the table.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">Effective date</label>
+              <Input
+                type="date"
+                value={form.effectiveDate}
+                onChange={(e) => setForm((prev) => ({ ...prev, effectiveDate: e.target.value }))}
+                className="w-full"
+              />
+              <p className="mt-1 text-xs text-steel">Optional. Date from which this document is effective.</p>
+            </div>
+          </>
+        )}
         <div>
           <label className="mb-1 block text-sm font-medium text-charcoal flex items-center gap-2">
             <Paperclip className="h-4 w-4" />

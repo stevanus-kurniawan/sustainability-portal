@@ -3,21 +3,10 @@
 import { Award, Building2, FileCheck, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 
 import { Card, CardContent, EmptyState, Input, Pagination, ViewModeToggle, getStoredViewMode, type ViewMode } from '@/components/ui';
 import type { Certification } from '@/lib/api';
-
-function filterCertifications(list: Certification[], query: string): Certification[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return list;
-  return list.filter((c) => {
-    const name = (c.attributes.name ?? '').toLowerCase();
-    const issuer = (c.attributes.issuer ?? '').toLowerCase();
-    const certNo = (c.attributes.certificateNo ?? '').toLowerCase();
-    return name.includes(q) || issuer.includes(q) || certNo.includes(q);
-  });
-}
 
 const VIEW_STORAGE_KEY = 'certifications-sub';
 
@@ -30,6 +19,8 @@ interface SubContentCertificationsClientProps {
   categoryName: string;
   subTitle: string;
   sectionListHref: string;
+  /** Current search query from URL (server-side search). */
+  currentSearch?: string;
 }
 
 function formatDate(dateString: string | null) {
@@ -141,21 +132,34 @@ export function SubContentCertificationsClient({
   categoryName,
   subTitle,
   sectionListHref,
+  currentSearch = '',
 }: SubContentCertificationsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(currentSearch);
 
   useEffect(() => {
     setViewMode(getStoredViewMode(VIEW_STORAGE_KEY));
   }, []);
 
-  const filteredCertifications = useMemo(
-    () => filterCertifications(initialCertifications, searchQuery),
-    [initialCertifications, searchQuery],
+  useEffect(() => {
+    setSearchInput(currentSearch);
+  }, [currentSearch]);
+
+  const onSearchSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const q = (e.currentTarget.querySelector('input[name="search"]') as HTMLInputElement)?.value?.trim() ?? '';
+      const params = new URLSearchParams(searchParams.toString());
+      if (q) params.set('search', q);
+      else params.delete('search');
+      params.delete('page');
+      startTransition(() => router.push(`${pathname}${params.toString() ? `?${params.toString()}` : ''}`));
+    },
+    [pathname, router, searchParams]
   );
 
   const onPageChange = useCallback(
@@ -183,7 +187,7 @@ export function SubContentCertificationsClient({
       </nav>
 
       <section className={isPending ? 'opacity-50' : ''}>
-        {initialCertifications.length === 0 ? (
+        {initialCertifications.length === 0 && !currentSearch ? (
           <EmptyState
             type="no-data"
             title="No certifications yet"
@@ -192,18 +196,19 @@ export function SubContentCertificationsClient({
         ) : (
           <>
             <div className="flex flex-col gap-4 mb-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex w-full flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <form onSubmit={onSearchSubmit} className="relative w-full max-w-xs sm:w-auto">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-steel pointer-events-none" />
                   <Input
                     type="search"
+                    name="search"
                     placeholder="Search by name, issuer, certificate no..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
                     className="pl-9 w-full"
                     aria-label="Search certifications"
                   />
-                </div>
+                </form>
                 <ViewModeToggle
                   value={viewMode}
                   onChange={setViewMode}
@@ -212,20 +217,20 @@ export function SubContentCertificationsClient({
                 />
               </div>
               <p className="text-sm text-steel">
-                {searchQuery.trim()
-                  ? `Showing ${filteredCertifications.length} of ${initialCertifications.length} certification${initialCertifications.length !== 1 ? 's' : ''}`
-                  : `Showing ${initialCertifications.length} certification${initialCertifications.length !== 1 && 's'}`}
+                {currentSearch
+                  ? `Showing ${initialCertifications.length} certification${initialCertifications.length !== 1 ? 's' : ''} (search: "${currentSearch}")`
+                  : `Showing ${initialCertifications.length} certification${initialCertifications.length !== 1 ? 's' : ''}`}
               </p>
             </div>
-            {filteredCertifications.length === 0 ? (
+            {initialCertifications.length === 0 && currentSearch ? (
               <EmptyState
                 type="no-data"
                 title="No matching certifications"
-                description={searchQuery.trim() ? 'Try a different search term.' : undefined}
+                description="Try a different search term or clear search."
               />
             ) : viewMode === 'grid' ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredCertifications.map((cert) => (
+                {initialCertifications.map((cert) => (
                   <CertificationCard key={cert.id} certification={cert} />
                 ))}
               </div>
@@ -243,7 +248,7 @@ export function SubContentCertificationsClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCertifications.map((cert) => {
+                    {initialCertifications.map((cert) => {
                       const fileUrl =
                         cert.attributes.document?.data?.attributes?.currentVersion?.data?.attributes
                           ?.file?.data?.attributes?.url;
@@ -281,7 +286,7 @@ export function SubContentCertificationsClient({
                 </table>
               </div>
             )}
-            {filteredCertifications.length > 0 && totalPages > 1 && (
+            {initialCertifications.length > 0 && totalPages > 1 && (
               <div className="mt-8">
                 <Pagination
                   currentPage={currentPage}

@@ -1,9 +1,13 @@
 /**
  * Auth API client – user and admin auth with cookie-based sessions.
  * All requests use credentials: 'include' so cookies are sent/received.
+ * In the browser we use same-origin /api/v1 so Next.js rewrites to the backend and cookies work.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') return '/api/v1';
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+}
 
 const defaultOptions: RequestInit = {
   credentials: 'include',
@@ -46,16 +50,22 @@ export interface UserMeResponse {
   createdAt: string;
 }
 
+const backendUnreachableMessage =
+  'Cannot reach the API. Start the backend with `pnpm dev` from the project root (and ensure Docker infra is running: `pnpm dev:infra`).';
+
 export async function userLogin(email: string, password: string): Promise<UserAuthResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/auth/login`, {
+    res = await fetch(`${getApiBaseUrl()}/auth/login`, {
       ...defaultOptions,
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
   } catch (err) {
     throw new Error(messageForFetchError(err, 'Login failed'));
+  }
+  if (res.status === 502) {
+    throw new Error(backendUnreachableMessage);
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -69,7 +79,7 @@ export async function userRegister(params: {
   email: string;
   password: string;
 }): Promise<UserRegisterResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/register`, {
     ...defaultOptions,
     method: 'POST',
     body: JSON.stringify(params),
@@ -87,7 +97,7 @@ export interface VerifyEmailResponse {
 
 export async function userVerifyEmail(token: string): Promise<VerifyEmailResponse> {
   const res = await fetch(
-    `${API_BASE_URL}/auth/verify-email?token=${encodeURIComponent(token)}`,
+    `${getApiBaseUrl()}/auth/verify-email?token=${encodeURIComponent(token)}`,
     { ...defaultOptions, method: 'GET' },
   );
   if (!res.ok) {
@@ -102,7 +112,7 @@ export interface ResendVerificationResponse {
 }
 
 export async function resendUserVerification(email: string): Promise<ResendVerificationResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/resend-verification`, {
     ...defaultOptions,
     method: 'POST',
     body: JSON.stringify({ email }),
@@ -123,7 +133,7 @@ export interface ForgotPasswordResponse {
 }
 
 export async function userForgotPassword(email: string): Promise<ForgotPasswordResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/forgot-password`, {
     ...defaultOptions,
     method: 'POST',
     body: JSON.stringify({ email }),
@@ -143,7 +153,7 @@ export async function userResetPassword(params: {
   token: string;
   newPassword: string;
 }): Promise<ResetPasswordResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/reset-password`, {
     ...defaultOptions,
     method: 'POST',
     body: JSON.stringify(params),
@@ -159,7 +169,7 @@ export async function changeUserEmail(params: {
   currentEmail: string;
   newEmail: string;
 }): Promise<ChangeEmailResponse> {
-  const res = await fetch(`${API_BASE_URL}/auth/change-email`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/change-email`, {
     ...defaultOptions,
     method: 'POST',
     body: JSON.stringify(params),
@@ -172,7 +182,7 @@ export async function changeUserEmail(params: {
 }
 
 export async function userLogout(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/auth/logout`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/logout`, {
     ...defaultOptions,
     method: 'POST',
   });
@@ -183,7 +193,7 @@ export async function userLogout(): Promise<void> {
 }
 
 export async function userMe(): Promise<UserMeResponse | null> {
-  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+  const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
     ...defaultOptions,
     method: 'GET',
   });
@@ -206,7 +216,7 @@ export interface AdminMeResponse {
 export async function adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/admin-auth/login`, {
+    res = await fetch(`${getApiBaseUrl()}/admin-auth/login`, {
       ...defaultOptions,
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -223,7 +233,7 @@ export async function adminLogin(email: string, password: string): Promise<Admin
 }
 
 export async function adminLogout(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/admin-auth/logout`, {
+  const res = await fetch(`${getApiBaseUrl()}/admin-auth/logout`, {
     ...defaultOptions,
     method: 'POST',
   });
@@ -234,7 +244,7 @@ export async function adminLogout(): Promise<void> {
 }
 
 export async function adminMe(): Promise<AdminMeResponse | null> {
-  const res = await fetch(`${API_BASE_URL}/admin-auth/me`, {
+  const res = await fetch(`${getApiBaseUrl()}/admin-auth/me`, {
     ...defaultOptions,
     method: 'GET',
   });

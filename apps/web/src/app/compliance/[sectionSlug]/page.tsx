@@ -18,7 +18,7 @@ const LICENSE_SLUG_ALIASES = ['license', 'licenses'];
 
 interface PageProps {
   params: Promise<{ sectionSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -63,9 +63,10 @@ async function fetchLicensesSafe(pageSize: number): Promise<Awaited<ReturnType<t
 export default async function ComplianceSectionPage({ params, searchParams }: PageProps) {
   const { sectionSlug: rawSlug } = await params;
   const sectionSlug = typeof rawSlug === 'string' ? rawSlug : '';
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, search: searchQuery } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const search = searchQuery?.trim() || undefined;
   const slugLower = sectionSlug.toLowerCase().trim();
   const isLicenseUrl = slugLower === 'license' || slugLower === 'licenses';
 
@@ -110,6 +111,7 @@ export default async function ComplianceSectionPage({ params, searchParams }: Pa
       category: sectionSlug,
       page,
       pageSize,
+      search,
       sortBy: 'publishedAt',
       sortOrder: 'desc',
     });
@@ -129,6 +131,14 @@ export default async function ComplianceSectionPage({ params, searchParams }: Pa
               currentPage={page}
               sectionPath={`${SECTION_PATH}/${sectionSlug}`}
               categoryName={name}
+              viewModeStorageKey={
+                ['national', 'international', 'standard'].includes(resolvedSlug)
+                  ? `compliance-${resolvedSlug}-public`
+                  : undefined
+              }
+              defaultViewMode="table"
+              preferDefaultViewMode={resolvedSlug === 'international'}
+              tableColumns="simple"
             />
           </div>
         </section>

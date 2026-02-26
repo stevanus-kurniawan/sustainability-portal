@@ -32,10 +32,11 @@ slms/
 
 ## 🚀 Quick Start
 
+From the **repository root** (e.g. `sustainability-portal/`).
+
 ### 1. Install Dependencies
 
 ```bash
-cd Frontend/slms
 pnpm install
 ```
 
@@ -45,30 +46,13 @@ pnpm install
 pnpm build:shared
 ```
 
-### 3. Start Infrastructure
+### 3. Configure Environment Files (first time only)
 
 ```bash
-pnpm dev:infra
+pnpm setup:env
 ```
 
-Wait ~30 seconds for all services to start. Verify with:
-```bash
-docker ps
-```
-
-### 4. Setup Database
-
-```bash
-# Run migrations
-pnpm db:migrate
-
-# Seed initial data (roles, permissions, notification rules)
-pnpm db:seed
-```
-
-### 5. Configure Environment Files
-
-For local development:
+This copies `apps/api/env.example` → `apps/api/.env` and `apps/web/env.example` → `apps/web/.env.local` if they don't exist. Or manually:
 
 ```bash
 # API (local)
@@ -76,6 +60,28 @@ cp apps/api/env.example apps/api/.env
 
 # Web (local)
 cp apps/web/env.example apps/web/.env.local
+```
+
+### 4. Start Infrastructure (Docker)
+
+```bash
+pnpm dev:infra
+```
+
+This starts **only** Postgres, Redis, MinIO, and Mailhog (API and Web run locally in the next step). Wait ~30 seconds, then verify:
+
+```bash
+docker ps
+```
+
+### 5. Setup Database
+
+```bash
+# Run migrations
+pnpm db:migrate
+
+# Seed initial data (roles, permissions, notification rules)
+pnpm db:seed
 ```
 
 For other environments, use dedicated files (for example):
@@ -91,13 +97,15 @@ Each environment **must** have:
 ### 6. Start Development
 
 ```bash
-# Start all services concurrently
+# Start API + Web concurrently (infra must already be running)
 pnpm dev
 ```
 
 This starts:
 - **API** on http://localhost:3001
 - **Web** on http://localhost:3000
+
+**One-command setup:** `pnpm setup` does install, build:shared, setup:env, dev:infra, wait, db:migrate, and db:seed. Then run `pnpm dev`. See [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) for detailed local run steps (including Windows).
 
 ## 📜 Available Commands
 
@@ -114,10 +122,12 @@ This starts:
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev:infra` | Start Docker services (postgres, redis, minio, mailhog) |
+| `pnpm dev:infra` | Start infra only (postgres, redis, minio, mailhog) for local dev |
+| `pnpm dev:infra:full` | Start infra + API + Web in Docker |
 | `pnpm dev:infra:logs` | View infrastructure logs |
 | `pnpm dev:infra:down` | Stop infrastructure |
 | `pnpm dev:infra:reset` | Stop and remove all data (volumes) |
+| `pnpm setup:env` | Copy env examples to `.env` / `.env.local` if missing |
 
 ### Database
 

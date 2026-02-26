@@ -115,12 +115,14 @@ export class PublicController {
     @Param('subSlug') subSlug: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
   ) {
     return this.licensesService.findByCategorySlugAndSubSlugPublic(
       slug,
       subSlug,
       page ? parseInt(page, 10) : undefined,
       pageSize ? parseInt(pageSize, 10) : undefined,
+      search?.trim() || undefined,
     );
   }
 
@@ -130,12 +132,14 @@ export class PublicController {
     @Param('subSlug') subSlug: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
   ) {
     return this.certificationsService.findByCategorySlugAndSubSlugPublic(
       slug,
       subSlug,
       page ? parseInt(page, 10) : undefined,
       pageSize ? parseInt(pageSize, 10) : undefined,
+      search?.trim() || undefined,
     );
   }
 
@@ -148,10 +152,12 @@ export class PublicController {
   getPolicies(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
   ) {
     return this.documentsService.findPoliciesPublic(
       page ? parseInt(page, 10) : undefined,
       pageSize ? parseInt(pageSize, 10) : undefined,
+      search?.trim() || undefined,
     );
   }
 

@@ -37,6 +37,10 @@ export type DocumentWithRelations = {
   type: 'POLICY' | 'CERTIFICATION' | 'LICENSE' | 'GRIEVANCE' | 'TRACEABILITY' | 'GENERAL';
   description: string | null;
   externalLink: string | null;
+  code?: string | null;
+  documentType?: string | null;
+  versionLabel?: string | null;
+  effectiveDate?: Date | null;
   isPublic: boolean;
   isPublished: boolean;
   publishedAt: Date | null;
@@ -77,6 +81,10 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
     type: doc.type,
     description: doc.description,
     externalLink: (doc as { externalLink?: string | null }).externalLink ?? null,
+    code: (doc as DocumentWithRelations).code ?? null,
+    documentType: (doc as DocumentWithRelations).documentType ?? null,
+    versionLabel: (doc as DocumentWithRelations).versionLabel ?? null,
+    effectiveDate: (doc as DocumentWithRelations).effectiveDate?.toISOString() ?? null,
     isPublic: doc.isPublic,
     isPublished: doc.isPublished,
     publishedAt: doc.publishedAt?.toISOString() ?? null,

@@ -12,20 +12,34 @@ export const metadata = {
 };
 export const dynamic = 'force-dynamic';
 
-async function PoliciesContent() {
-  const { data: policies } = await getPolicies({ pageSize: 50 });
+interface PoliciesPageProps {
+  searchParams?: Promise<{ search?: string }>;
+}
+
+async function PoliciesContent({ searchParams }: { searchParams?: Promise<{ search?: string }> }) {
+  const params = searchParams ? await searchParams : {};
+  const search = params.search?.trim() ?? '';
+  const { data: policies } = await getPolicies({ pageSize: 50, search: search || undefined });
 
   if (!policies || policies.length === 0) {
     return (
-      <EmptyState
-        type="no-data"
-        title="No policies available"
-        description="Policies will be published here once they are available."
+      <PoliciesClient
+        policies={[]}
+        currentSearch={search}
+        emptyTitle={search ? 'No policies match your search' : 'No policies available'}
+        emptyDescription={search ? 'Try a different search term.' : 'Policies will be published here once they are available.'}
       />
     );
   }
 
-  return <PoliciesClient policies={policies} />;
+  return (
+    <PoliciesClient
+      policies={policies}
+      currentSearch={search}
+      emptyTitle={undefined}
+      emptyDescription={undefined}
+    />
+  );
 }
 
 function PoliciesLoading() {
@@ -38,7 +52,7 @@ function PoliciesLoading() {
   );
 }
 
-export default function PoliciesPage() {
+export default function PoliciesPage({ searchParams }: PoliciesPageProps) {
   return (
     <div>
       <PageHeader
@@ -48,7 +62,7 @@ export default function PoliciesPage() {
       <section className="py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Suspense fallback={<PoliciesLoading />}>
-            <PoliciesContent />
+            <PoliciesContent searchParams={searchParams} />
           </Suspense>
         </div>
       </section>

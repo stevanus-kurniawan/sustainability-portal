@@ -3,22 +3,10 @@
 import { ScrollText, Building2, FileCheck, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 
 import { Card, CardContent, EmptyState, Input, Pagination, ViewModeToggle, getStoredViewMode, type ViewMode } from '@/components/ui';
 import type { License } from '@/lib/api';
-
-function filterLicenses(list: License[], query: string): License[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return list;
-  return list.filter((l) => {
-    const name = (l.attributes.name ?? '').toLowerCase();
-    const authority = (l.attributes.authority ?? '').toLowerCase();
-    const licenseNo = (l.attributes.licenseNo ?? '').toLowerCase();
-    const status = (l.attributes.status ?? '').toLowerCase();
-    return name.includes(q) || authority.includes(q) || licenseNo.includes(q) || status.includes(q);
-  });
-}
 
 const VIEW_STORAGE_KEY = 'licenses-sub';
 
@@ -32,6 +20,8 @@ interface SubContentLicensesClientProps {
   subTitle: string;
   /** When set, breadcrumb uses this for the section link */
   sectionListHref?: string;
+  /** Current search query from URL (server-side search). */
+  currentSearch?: string;
 }
 
 export function SubContentLicensesClient({
@@ -43,21 +33,34 @@ export function SubContentLicensesClient({
   categoryName,
   subTitle,
   sectionListHref,
+  currentSearch = '',
 }: SubContentLicensesClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(currentSearch);
 
   useEffect(() => {
     setViewMode(getStoredViewMode(VIEW_STORAGE_KEY));
   }, []);
 
-  const filteredLicenses = useMemo(
-    () => filterLicenses(initialLicenses, searchQuery),
-    [initialLicenses, searchQuery],
+  useEffect(() => {
+    setSearchInput(currentSearch);
+  }, [currentSearch]);
+
+  const onSearchSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const q = (e.currentTarget.querySelector('input[name="search"]') as HTMLInputElement)?.value?.trim() ?? '';
+      const params = new URLSearchParams(searchParams.toString());
+      if (q) params.set('search', q);
+      else params.delete('search');
+      params.delete('page');
+      startTransition(() => router.push(`${pathname}${params.toString() ? `?${params.toString()}` : ''}`));
+    },
+    [pathname, router, searchParams]
   );
 
   const formatDate = (dateString: string | null) => {
@@ -99,7 +102,7 @@ export function SubContentLicensesClient({
 
       <section className={isPending ? 'opacity-50' : ''}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {initialLicenses.length === 0 ? (
+          {initialLicenses.length === 0 && !currentSearch ? (
             <EmptyState
               type="no-data"
               title="No licenses yet"
@@ -108,18 +111,19 @@ export function SubContentLicensesClient({
           ) : (
             <>
               <div className="flex flex-col gap-4 mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="relative flex-1 max-w-xs">
+                <div className="flex w-full flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <form onSubmit={onSearchSubmit} className="relative w-full max-w-xs sm:w-auto">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-steel pointer-events-none" />
                     <Input
                       type="search"
+                      name="search"
                       placeholder="Search by name, authority, license no..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
                       className="pl-9 w-full"
                       aria-label="Search licenses"
                     />
-                  </div>
+                  </form>
                   <ViewModeToggle
                     value={viewMode}
                     onChange={setViewMode}
@@ -128,20 +132,20 @@ export function SubContentLicensesClient({
                   />
                 </div>
                 <p className="text-sm text-steel">
-                  {searchQuery.trim()
-                    ? `Showing ${filteredLicenses.length} of ${initialLicenses.length} license${initialLicenses.length !== 1 ? 's' : ''}`
+                  {currentSearch
+                    ? `Showing ${initialLicenses.length} license${initialLicenses.length !== 1 ? 's' : ''} (search: "${currentSearch}")`
                     : `Showing ${initialLicenses.length} license${initialLicenses.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
-              {filteredLicenses.length === 0 ? (
+              {initialLicenses.length === 0 && currentSearch ? (
                 <EmptyState
                   type="no-data"
                   title="No matching licenses"
-                  description={searchQuery.trim() ? 'Try a different search term.' : undefined}
+                  description="Try a different search term or clear search."
                 />
               ) : viewMode === 'grid' ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredLicenses.map((license) => (
+                  {initialLicenses.map((license) => (
                     <Card key={license.id} hover className="h-full">
                       <CardContent className="p-6 flex flex-col h-full">
                         <div className="flex items-start justify-between mb-4">
@@ -248,7 +252,7 @@ export function SubContentLicensesClient({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredLicenses.map((license) => {
+                      {initialLicenses.map((license) => {
                         const fileUrl =
                           license.attributes.document?.data?.attributes?.currentVersion?.data
                             ?.attributes?.file?.data?.attributes?.url;
@@ -305,7 +309,7 @@ export function SubContentLicensesClient({
                   </table>
                 </div>
               )}
-              {filteredLicenses.length > 0 && totalPages > 1 && (
+              {initialLicenses.length > 0 && totalPages > 1 && (
                 <div className="mt-8">
                   <Pagination
                     currentPage={currentPage}

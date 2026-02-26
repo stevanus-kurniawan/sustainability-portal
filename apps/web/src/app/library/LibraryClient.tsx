@@ -14,32 +14,20 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useState, useCallback, useTransition } from 'react';
 
 import { Card, CardContent, Badge, Button, EmptyState, Pagination } from '@/components/ui';
-import type { Document, Category, Tag } from '@/lib/api';
+import type { Document, Category } from '@/lib/api';
 import { getDocumentDownloadUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface LibraryClientProps {
   initialDocuments: Document[];
   categories: Category[];
-  tags: Tag[];
   totalPages: number;
   currentPage: number;
 }
 
-const DOCUMENT_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'POLICY', label: 'Policy' },
-  { value: 'CERTIFICATION', label: 'Certification' },
-  { value: 'LICENSE', label: 'License' },
-  { value: 'GRIEVANCE', label: 'Grievance' },
-  { value: 'TRACEABILITY', label: 'Traceability' },
-  { value: 'GENERAL', label: 'General' },
-];
-
 export function LibraryClient({
   initialDocuments,
   categories,
-  tags,
   totalPages,
   currentPage,
 }: LibraryClientProps) {
@@ -52,8 +40,6 @@ export function LibraryClient({
 
   const searchQuery = searchParams.get('search') || '';
   const categoryFilter = searchParams.get('category') || '';
-  const tagFilter = searchParams.get('tags') || '';
-  const typeFilter = searchParams.get('type') || '';
 
   const updateFilters = useCallback(
     (updates: Record<string, string>) => {
@@ -87,14 +73,14 @@ export function LibraryClient({
     });
   };
 
-  const hasActiveFilters = !!(searchQuery || categoryFilter || tagFilter || typeFilter);
+  const hasActiveFilters = !!(searchQuery || categoryFilter);
 
   return (
     <>
       <div className="sticky top-16 z-40 bg-lighter border-b border-border-light py-4">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <form onSubmit={handleSearch} className="flex-1">
+          <div className="flex w-full flex-col sm:flex-row sm:justify-between gap-4">
+            <form onSubmit={handleSearch} className="w-full max-w-sm sm:w-auto">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-steel" />
                 <input
@@ -102,7 +88,7 @@ export function LibraryClient({
                   name="search"
                   defaultValue={searchQuery}
                   placeholder="Search documents..."
-                  className="input pl-10 pr-4"
+                  className="input pl-10 pr-4 w-full"
                 />
               </div>
             </form>
@@ -140,51 +126,20 @@ export function LibraryClient({
 
           {filtersOpen && (
             <div className="mt-4 p-4 bg-surface rounded-lg border border-border-light">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="label mb-2 block">Category</label>
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => updateFilters({ category: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.attributes.slug}>
-                        {cat.attributes.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label mb-2 block">Document Type</label>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => updateFilters({ type: e.target.value })}
-                    className="input"
-                  >
-                    {DOCUMENT_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label mb-2 block">Tag</label>
-                  <select
-                    value={tagFilter}
-                    onChange={(e) => updateFilters({ tags: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">All Tags</option>
-                    {tags.map((tag) => (
-                      <option key={tag.id} value={tag.attributes.slug}>
-                        {tag.attributes.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="label mb-2 block">Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => updateFilters({ category: e.target.value })}
+                  className="input max-w-xs"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.attributes.slug}>
+                      {cat.attributes.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               {hasActiveFilters && (
                 <div className="mt-4 flex items-center justify-between">
@@ -201,22 +156,6 @@ export function LibraryClient({
                       <Badge variant="outline">
                         Category: {categories.find((c) => c.attributes.slug === categoryFilter)?.attributes.name}
                         <button onClick={() => updateFilters({ category: '' })} className="ml-1">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    )}
-                    {typeFilter && (
-                      <Badge variant="outline">
-                        Type: {DOCUMENT_TYPES.find((t) => t.value === typeFilter)?.label}
-                        <button onClick={() => updateFilters({ type: '' })} className="ml-1">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    )}
-                    {tagFilter && (
-                      <Badge variant="default">
-                        Tag: {tags.find((t) => t.attributes.slug === tagFilter)?.attributes.name}
-                        <button onClick={() => updateFilters({ tags: '' })} className="ml-1">
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>

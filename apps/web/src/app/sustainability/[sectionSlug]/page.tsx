@@ -13,7 +13,7 @@ const SECTION_PATH = 'sustainability';
 
 interface PageProps {
   params: Promise<{ sectionSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -26,9 +26,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function SustainabilitySectionPage({ params, searchParams }: PageProps) {
   const { sectionSlug } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, search: searchQuery } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const search = searchQuery?.trim() || undefined;
 
   const { data: category } = await getCategoryBySlug(sectionSlug);
 
@@ -43,6 +44,7 @@ export default async function SustainabilitySectionPage({ params, searchParams }
       category: sectionSlug,
       page,
       pageSize,
+      search,
       sortBy: 'publishedAt',
       sortOrder: 'desc',
     });
@@ -62,6 +64,11 @@ export default async function SustainabilitySectionPage({ params, searchParams }
               currentPage={page}
               sectionPath={`${SECTION_PATH}/${sectionSlug}`}
               categoryName={name}
+              viewModeStorageKey={
+                sectionSlug?.toLowerCase() === 'sustainability-report' ? 'sustainability-report-public' : undefined
+              }
+              defaultViewMode="table"
+              tableColumns="simple"
             />
           </div>
         </section>

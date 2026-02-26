@@ -276,6 +276,10 @@ model Document {
   type             DocumentType
   description      String?   @db.Text
   externalLink     String?   @map("external_link")
+  code             String?   @map("code")
+  documentType     String?   @map("document_type")
+  versionLabel     String?   @map("version_label")
+  effectiveDate    DateTime? @map("effective_date")
   isPublic         Boolean   @default(false) @map("is_public")
   isPublished     Boolean   @default(false) @map("is_published")
   publishedAt     DateTime? @map("published_at")

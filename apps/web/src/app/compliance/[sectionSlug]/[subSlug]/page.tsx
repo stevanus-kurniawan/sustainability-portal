@@ -25,7 +25,7 @@ async function resolveComplianceSectionSlug(sectionSlug: string): Promise<string
 
 interface PageProps {
   params: Promise<{ sectionSlug: string; subSlug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -43,9 +43,10 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ComplianceSectionSubPage({ params, searchParams }: PageProps) {
   const { sectionSlug, subSlug } = await params;
   const resolvedSlug = await resolveComplianceSectionSlug(sectionSlug);
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, search: searchParam } = await searchParams;
   const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
   const pageSize = 12;
+  const search = typeof searchParam === 'string' ? searchParam.trim() : undefined;
   const isLicenseSection = LICENSE_SLUGS.includes(resolvedSlug.toLowerCase());
 
   let category: Awaited<ReturnType<typeof getCategoryBySlug>>['data'];
@@ -60,7 +61,7 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
         ? Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } })
         : getSubContentDocuments(resolvedSlug, subSlug, { page, pageSize }),
       isLicenseSection
-        ? getSubContentLicenses(resolvedSlug, subSlug, { page, pageSize })
+        ? getSubContentLicenses(resolvedSlug, subSlug, { page, pageSize, search })
         : Promise.resolve({ data: [], meta: { pagination: { pageCount: 1 } } }),
     ]);
     category = catRes.data;
@@ -95,6 +96,7 @@ export default async function ComplianceSectionSubPage({ params, searchParams }:
               categoryName={categoryName}
               subTitle={subTitle}
               sectionListHref={`/${SECTION_PATH}/${sectionSlug}`}
+              currentSearch={search ?? ''}
             />
           </div>
         </section>

@@ -10,6 +10,16 @@ import {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 
+/** Allowed document types for public library filter (must match Prisma DocumentType enum). */
+const ALLOWED_DOCUMENT_TYPES = new Set([
+  'POLICY',
+  'CERTIFICATION',
+  'LICENSE',
+  'GRIEVANCE',
+  'TRACEABILITY',
+  'GENERAL',
+]);
+
 @Injectable()
 export class DocumentsService {
   constructor(private prisma: PrismaService) {}
@@ -23,9 +33,24 @@ export class DocumentsService {
 
   private notDeleted = { isDeleted: false } as const;
 
-  async findPoliciesPublic(page = DEFAULT_PAGE, pageSize = DEFAULT_PAGE_SIZE) {
+  async findPoliciesPublic(
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+    search?: string,
+  ) {
     const { page: p, pageSize: ps } = clampPagination(page, pageSize);
-    const where = { type: 'POLICY' as const, isPublic: true, isPublished: true, ...this.notDeleted };
+    const where: Record<string, unknown> = {
+      type: 'POLICY' as const,
+      isPublic: true,
+      isPublished: true,
+      ...this.notDeleted,
+    };
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     const [items, total] = await Promise.all([
       this.prisma.document.findMany({
         where,
@@ -77,7 +102,7 @@ export class DocumentsService {
       where.category = { slug: params.category };
       where.subContentId = null; // DIRECT mode: only documents not under a sub-content
     }
-    if (params.type) {
+    if (params.type && ALLOWED_DOCUMENT_TYPES.has(params.type)) {
       where.type = params.type;
     }
     if (params.search) {
@@ -239,6 +264,10 @@ export class DocumentsService {
       categoryId?: number;
       subContentId?: number | null;
       tagIds?: number[];
+      code?: string;
+      documentType?: string;
+      versionLabel?: string;
+      effectiveDate?: string;
       attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number };
     },
     createdById?: string,
@@ -252,13 +281,18 @@ export class DocumentsService {
         throw new BadRequestException('This section does not use sub-content; sub_content_id must be empty.');
       }
     }
-    const { tagIds, attachment, ...rest } = data;
+    const { tagIds, attachment, effectiveDate: effectiveDateStr, ...rest } = data;
+    const effectiveDate = effectiveDateStr ? new Date(effectiveDateStr) : undefined;
     // When published, always set isPublic so the document appears on the public site (policies, library, etc.)
     const isPublished = rest.isPublished === true;
     const isPublic = isPublished ? true : (rest.isPublic ?? false);
     const doc = await this.prisma.document.create({
       data: {
         ...rest,
+        code: rest.code ?? undefined,
+        documentType: rest.documentType ?? undefined,
+        versionLabel: rest.versionLabel ?? undefined,
+        effectiveDate: effectiveDate ?? undefined,
         isPublic,
         isPublished,
         publishedAt: isPublished ? new Date() : null,
@@ -281,6 +315,7 @@ export class DocumentsService {
           fileName: attachment.fileName,
           mimeType: attachment.mimeType ?? null,
           fileSize: attachment.fileSize ?? null,
+          validFrom: effectiveDate ?? undefined,
           createdById: createdById ?? undefined,
         },
       });
@@ -310,6 +345,10 @@ export class DocumentsService {
       categoryId?: number | null;
       subContentId?: number | null;
       tagIds?: number[];
+      code?: string;
+      documentType?: string;
+      versionLabel?: string;
+      effectiveDate?: string | null;
       attachment?: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
     },
     updatedById?: string,
@@ -329,7 +368,8 @@ export class DocumentsService {
         throw new BadRequestException('This section does not use sub-content; sub_content_id must be empty.');
       }
     }
-    const { tagIds, attachment, ...rest } = data;
+    const { tagIds, attachment, effectiveDate: effectiveDateStr, ...rest } = data;
+    const effectiveDate = effectiveDateStr != null && effectiveDateStr !== '' ? new Date(effectiveDateStr) : undefined;
     // When published, always set isPublic so the document appears on the public site (policies, library, etc.)
     const isPublished = rest.isPublished === true;
     const isPublic = rest.isPublic !== undefined
@@ -356,6 +396,7 @@ export class DocumentsService {
             fileName: attachment.fileName,
             mimeType: attachment.mimeType ?? null,
             fileSize: attachment.fileSize ?? null,
+            validFrom: effectiveDate ?? undefined,
             createdById: updatedById ?? undefined,
           },
         });
@@ -364,16 +405,21 @@ export class DocumentsService {
         currentVersionId = null;
       }
     }
+    const updateData: Record<string, unknown> = {
+      ...rest,
+      ...(rest.code !== undefined && { code: rest.code || null }),
+      ...(rest.documentType !== undefined && { documentType: rest.documentType || null }),
+      ...(rest.versionLabel !== undefined && { versionLabel: rest.versionLabel || null }),
+      ...(effectiveDateStr !== undefined && { effectiveDate: effectiveDate ?? null }),
+      ...(isPublic !== undefined && { isPublic }),
+      ...(rest.isPublished !== undefined && { isPublished }),
+      publishedAt: isPublished ? new Date() : (rest.isPublished === false ? null : undefined),
+      ...(currentVersionId !== undefined && { currentVersionId }),
+      updatedById: updatedById ?? undefined,
+    };
     const doc = await this.prisma.document.update({
       where: { id },
-      data: {
-        ...rest,
-        ...(isPublic !== undefined && { isPublic }),
-        ...(rest.isPublished !== undefined && { isPublished }),
-        publishedAt: isPublished ? new Date() : (rest.isPublished === false ? null : undefined),
-        ...(currentVersionId !== undefined && { currentVersionId }),
-        updatedById: updatedById ?? undefined,
-      } as any,
+      data: updateData as any,
       include: this.includeForPublic,
     });
     return mapDocumentToStrapi(doc as unknown as DocumentWithRelations);
