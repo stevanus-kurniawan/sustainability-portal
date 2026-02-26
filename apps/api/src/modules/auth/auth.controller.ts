@@ -9,8 +9,6 @@ import {
   Res,
   HttpCode,
   HttpStatus,
-  Logger,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
@@ -35,8 +33,6 @@ const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
   constructor(private authService: AuthService) {}
 
   @Post('register')
@@ -70,19 +66,9 @@ export class AuthController {
     @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    try {
-      const result = await this.authService.login(loginDto.email, loginDto.password);
-      this.setUserCookie(res, result.accessToken, result.expiresIn, req);
-      return { user: result.user, expiresIn: result.expiresIn };
-    } catch (err: any) {
-      if (err?.status && err.status >= 400 && err.status < 500) {
-        throw err;
-      }
-      this.logger.error(`Login failed: ${err?.message ?? err}`, err?.stack);
-      throw new InternalServerErrorException(
-        'Login temporarily unavailable. Please try again or check API logs.',
-      );
-    }
+    const result = await this.authService.login(loginDto.email, loginDto.password);
+    this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+    return { user: result.user, expiresIn: result.expiresIn };
   }
 
   @Post('refresh')
@@ -125,13 +111,12 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@Request() req: any) {
     const user = req.user;
-    const roles = (user.userRoles?.map((ur: any) => ur.role?.name).filter(Boolean) || []) as string[];
+    const roles = user.userRoles?.map((ur: any) => ur.role.name) || [];
     const permissions = new Set<string>();
 
     for (const userRole of user.userRoles || []) {
       for (const rp of userRole.role?.rolePermissions || []) {
-        const code = rp?.permission?.code;
-        if (code) permissions.add(code);
+        permissions.add(rp.permission.code);
       }
     }
 

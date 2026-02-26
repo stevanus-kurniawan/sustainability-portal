@@ -561,12 +561,11 @@ export class AuthService {
    * Generate access and refresh tokens for user
    */
   private async generateTokens(user: any): Promise<TokenResponse> {
-    const roles = (user.userRoles?.map((ur: any) => ur.role?.name).filter(Boolean) || []) as string[];
+    const roles = user.userRoles?.map((ur: any) => ur.role.name) || [];
     const permissions = new Set<string>();
     for (const userRole of user.userRoles || []) {
       for (const rp of userRole.role?.rolePermissions || []) {
-        const code = rp?.permission?.code;
-        if (code) permissions.add(code);
+        permissions.add(rp.permission.code);
       }
     }
     const permissionsList = Array.from(permissions);
@@ -581,16 +580,8 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload);
     const refreshExpiresInStr = this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d');
-    const refreshSecret =
-      this.configService.get('JWT_REFRESH_SECRET') ?? this.configService.get('jwt.refreshSecret');
-    if (!refreshSecret) {
-      this.logger.error('JWT_REFRESH_SECRET (or jwt.refreshSecret) is not set; login will fail.');
-      throw new BadRequestException(
-        'Server auth configuration error. Please set JWT_REFRESH_SECRET in the API environment.',
-      );
-    }
     const refreshToken = this.jwtService.sign(payload, {
-      secret: refreshSecret,
+      secret: this.configService.get('JWT_REFRESH_SECRET'),
       expiresIn: refreshExpiresInStr,
     });
 
