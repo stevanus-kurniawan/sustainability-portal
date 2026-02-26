@@ -107,7 +107,8 @@ export class CategoriesService {
       { slug: 'national', label: 'National' },
       { slug: 'international', label: 'International' },
       { slug: 'standard', label: 'Standard' },
-      { slug: 'license', label: 'License' },
+      // Use plural slug to align with DB "Licenses" category and avoid a duplicate when it exists.
+      { slug: 'licenses', label: 'Licenses' },
     ],
   };
 
