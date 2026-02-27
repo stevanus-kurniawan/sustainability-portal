@@ -27,10 +27,6 @@ const nextConfig = {
         port: '9000',
         pathname: '/slms-docs/**',
       },
-      {
-        protocol: 'https',
-        hostname: '*.aliyuncs.com',
-      },
     ],
   },
   transpilePackages: ['@slms/shared'],
