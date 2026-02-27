@@ -20,7 +20,7 @@ export class UsersService {
 
     // Create user
     const user = await this.prisma.user.create({
-      data: userData,
+      data: userData as any,
     });
 
     // Assign roles if provided
@@ -105,7 +105,7 @@ export class UsersService {
     // Update user data
     await this.prisma.user.update({
       where: { id },
-      data: userData,
+      data: userData as any,
     });
 
     // Update roles if provided
@@ -138,13 +138,13 @@ export class UsersService {
     });
 
     if (roles.length !== roleNames.length) {
-      const foundNames = roles.map((r) => r.name);
+      const foundNames = roles.map((r: { name: string }) => r.name);
       const missing = roleNames.filter((n) => !foundNames.includes(n));
       throw new NotFoundException(`Roles not found: ${missing.join(', ')}`);
     }
 
     await this.prisma.userRole.createMany({
-      data: roles.map((role) => ({
+      data: roles.map((role: { id: string }) => ({
         userId,
         roleId: role.id,
       })),
@@ -167,6 +167,6 @@ export class UsersService {
 
   async getUserRoles(userId: string): Promise<string[]> {
     const user = await this.findById(userId);
-    return user.userRoles.map((ur) => ur.role.name);
+    return user.userRoles.map((ur: { role: { name: string } }) => ur.role.name);
   }
 }

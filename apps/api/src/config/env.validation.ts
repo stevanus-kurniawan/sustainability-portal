@@ -14,7 +14,7 @@ class EnvironmentVariables {
 
   @IsNumber()
   @IsOptional()
-  PORT: number = 4000;
+  PORT: number = 3001;
 
   @IsString()
   DATABASE_URL: string;
@@ -36,11 +36,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  JWT_EXPIRES_IN: string = '15m';
+  JWT_EXPIRES_IN: string = '8h';
 
   @IsString()
-  @IsOptional()
-  JWT_REFRESH_SECRET?: string;
+  JWT_REFRESH_SECRET: string;
 
   @IsString()
   @IsOptional()
@@ -48,7 +47,7 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  CORS_ORIGINS: string = 'http://localhost:3000';
+  CORS_ORIGINS: string = 'http://localhost:3000,http://localhost:3002,http://localhost:3003';
 
   @IsString()
   @IsOptional()
@@ -57,6 +56,61 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SWAGGER_ENABLED: string = 'true';
+
+  // Email / App URLs (used for verification links and notifications)
+  @IsString()
+  @IsOptional()
+  APP_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @IsNumber()
+  @IsOptional()
+  SMTP_PORT?: number;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_SECURE?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  MAIL_FROM_ADDRESS?: string;
+
+  // Admin JWT
+  @IsString()
+  JWT_ADMIN_SECRET: string;
+
+  // MinIO (document storage) – optional with defaults for local dev
+  @IsString()
+  @IsOptional()
+  MINIO_ACCESS_KEY: string = 'minioadmin';
+
+  @IsString()
+  @IsOptional()
+  MINIO_SECRET_KEY: string = 'minioadmin';
+
+  // Throttling (rate limiting)
+  @IsNumber()
+  @IsOptional()
+  THROTTLE_TTL?: number;
+
+  @IsNumber()
+  @IsOptional()
+  THROTTLE_LIMIT?: number;
 }
 
 export function validate(config: Record<string, unknown>) {
@@ -69,7 +123,15 @@ export function validate(config: Record<string, unknown>) {
   });
 
   if (errors.length > 0) {
-    throw new Error(errors.toString());
+    const messages = errors.map((e) => {
+      const prop = e.property;
+      const constraints = e.constraints ? Object.values(e.constraints).join(', ') : 'invalid';
+      return `${prop}: ${constraints}`;
+    });
+    throw new Error(
+      `Environment validation failed:\n${messages.join('\n')}\n\n` +
+        'Check apps/api/.env (or .env.local). Required: DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, JWT_ADMIN_SECRET.',
+    );
   }
 
   return validatedConfig;

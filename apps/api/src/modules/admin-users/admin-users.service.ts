@@ -1,0 +1,247 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  clampPagination,
+  paginationMeta,
+  wrapPaginated,
+} from '../../common/response';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UserStatus } from '@prisma/client';
+import { UpdateUserDto } from '../users/dto/update-user.dto';
+
+const ALLOWED_USER_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN'];
+
+export interface AdminListUsersParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: string;
+  status?: UserStatus;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface AuditActor {
+  adminId: string;
+  adminEmail: string;
+  adminRole: string;
+}
+
+@Injectable()
+export class AdminUsersService {
+  constructor(
+    private prisma: PrismaService,
+    private usersService: UsersService,
+    private auditLogs: AuditLogsService,
+  ) {}
+
+  async list(params: AdminListUsersParams) {
+    const { page, pageSize } = clampPagination(params.page, params.pageSize);
+    const search = params.search?.trim();
+    const roleName = params.role?.trim();
+    const status = params.status;
+    const sortBy = params.sortBy || 'createdAt';
+    const sortOrder = params.sortOrder || 'desc';
+
+    const where: Record<string, unknown> = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (roleName) {
+      where.userRoles = {
+        some: {
+          role: { name: roleName },
+        },
+      };
+    }
+
+    const orderBy: Record<string, string> = {};
+    const allowedSort = ['createdAt', 'updatedAt', 'email', 'name', 'status'];
+    if (allowedSort.includes(sortBy)) {
+      orderBy[sortBy] = sortOrder;
+    } else {
+      orderBy.createdAt = 'desc';
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy,
+        include: {
+          userRoles: {
+            include: { role: { select: { id: true, name: true } } },
+          },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const data = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      status: u.status,
+      emailVerified: u.emailVerified,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+      roles: u.userRoles.map((ur) => ur.role.name),
+    }));
+
+    return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async getById(id: string) {
+    const user = await this.usersService.findById(id);
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      status: user.status,
+      emailVerified: user.emailVerified,
+      emailVerifiedAt: user.emailVerifiedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      roles: user.userRoles.map((ur) => ur.role.name),
+    };
+  }
+
+  async update(
+    id: string,
+    dto: AdminUpdateUserDto,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const existing = await this.usersService.findById(id);
+    const before = this.snapshotUser(existing);
+
+    if (dto.roles !== undefined && dto.roles.includes('SUPER_ADMIN') && actor.adminRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN can assign SUPER_ADMIN role to users',
+      );
+    }
+
+    await this.usersService.update(id, dto as UpdateUserDto);
+    const updated = await this.usersService.findById(id);
+    const after = this.snapshotUser(updated);
+
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'UPDATE',
+      entityType: 'user',
+      entityId: id,
+      beforeJson: before,
+      afterJson: after,
+      ip,
+      userAgent,
+    });
+
+    return this.getById(id);
+  }
+
+  async updateRole(
+    id: string,
+    role: string,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    if (!ALLOWED_USER_ROLES.includes(role)) {
+      throw new BadRequestException(
+        `Role must be one of: ${ALLOWED_USER_ROLES.join(', ')}`,
+      );
+    }
+    if (role === 'SUPER_ADMIN' && actor.adminRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only SUPER_ADMIN can assign SUPER_ADMIN role to users',
+      );
+    }
+
+    const existing = await this.usersService.findById(id);
+    const before = this.snapshotUser(existing);
+
+    await this.usersService.update(id, { roles: [role] });
+    const updated = await this.usersService.findById(id);
+    const after = this.snapshotUser(updated);
+
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'UPDATE_ROLE',
+      entityType: 'user',
+      entityId: id,
+      beforeJson: before,
+      afterJson: after,
+      metadata: { role },
+      ip,
+      userAgent,
+    });
+
+    return this.getById(id);
+  }
+
+  async updateStatus(
+    id: string,
+    status: UserStatus,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const existing = await this.usersService.findById(id);
+    const before = this.snapshotUser(existing);
+
+    await this.usersService.update(id, { status } as UpdateUserDto);
+    const updated = await this.usersService.findById(id);
+    const after = this.snapshotUser(updated);
+
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'UPDATE_STATUS',
+      entityType: 'user',
+      entityId: id,
+      beforeJson: before,
+      afterJson: after,
+      metadata: { status },
+      ip,
+      userAgent,
+    });
+
+    return this.getById(id);
+  }
+
+  private snapshotUser(user: {
+    id: string;
+    email: string;
+    name: string;
+    status: string;
+    userRoles: { role: { name: string } }[];
+  }): Record<string, unknown> {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      status: user.status,
+      roles: user.userRoles.map((ur) => ur.role.name),
+    };
+  }
+}

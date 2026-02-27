@@ -10,7 +10,7 @@
   - Redis (port 6379)
   - MinIO (ports 9000, 9001)
   - Mailhog (ports 8025, 1025)
-- ✅ Environment files exist (api, cms, web-public)
+- ✅ Environment files exist (api, web)
 - ✅ Database connection verified
 
 ### ⚠️ Action Required:
@@ -44,26 +44,7 @@ This creates:
 - Notification rules
 - Default users (admin@slms.local, auditor@slms.local)
 
-#### 3. Setup Strapi (if not already done)
-
-**First-time Strapi setup:**
-1. Start Strapi CMS:
-   ```powershell
-   cd "d:\Project\Sustainability Certification and Licensing Management System\Frontend\slms"
-   pnpm dev:cms
-   ```
-2. Visit http://localhost:1337/admin
-3. Create an admin user (first-time only)
-4. Generate API Token:
-   - Go to Settings → API Tokens
-   - Create new token with "Full access"
-   - Copy the token
-5. Update `apps/api/.env`:
-   ```env
-   STRAPI_API_TOKEN=your-copied-token-here
-   ```
-
-#### 4. Configure JWT Secrets (Optional but Recommended)
+#### 3. Configure JWT Secrets (Optional but Recommended)
 
 For production-like setup, generate secure secrets:
 
@@ -74,19 +55,7 @@ openssl rand -base64 64
 ```
 Update `JWT_SECRET` and `JWT_REFRESH_SECRET` in `apps/api/.env`
 
-**For CMS (`apps/cms/.env`):**
-```powershell
-# Generate secrets (run 5 times)
-openssl rand -base64 32
-```
-Update these in `apps/cms/.env`:
-- `APP_KEYS` (4 comma-separated keys)
-- `ADMIN_JWT_SECRET`
-- `API_TOKEN_SALT`
-- `TRANSFER_TOKEN_SALT`
-- `JWT_SECRET`
-
-#### 5. Start All Services
+#### 4. Start All Services
 
 Once migrations and seeding are complete:
 
@@ -97,7 +66,6 @@ pnpm dev
 
 This starts:
 - **API** on http://localhost:3001
-- **CMS** on http://localhost:1337
 - **Web Portal** on http://localhost:3000
 
 ## 🌐 Service URLs
@@ -116,7 +84,6 @@ This starts:
 ### Start individual services:
 ```powershell
 pnpm dev:api    # Start only API
-pnpm dev:cms    # Start only CMS
 pnpm dev:web    # Start only Web Portal
 ```
 
@@ -143,7 +110,6 @@ Check if ports are in use:
 ```powershell
 netstat -ano | findstr :3000
 netstat -ano | findstr :3001
-netstat -ano | findstr :1337
 ```
 
 Kill a process:
@@ -183,7 +149,6 @@ pnpm dev
 
 ## 📝 Notes
 
-- The database is shared between Prisma (API) and Strapi (CMS) - this is intentional
 - Default credentials for local development are in the README
 - MinIO bucket `slms-docs` is created automatically on startup
 - Email testing uses Mailhog - all emails are captured in the UI

@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { getEmailThemeFromTokens } from '../../config/email-theme';
+import { renderBaseEmailTemplate } from './templates/base-email.template';
 
 export interface EmailOptions {
   to: string | string[];
@@ -38,10 +40,15 @@ export class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    const from = this.configService.get(
-      'SMTP_FROM',
-      'SLMS Notifications <noreply@slms.local>',
-    );
+    const mailFromName = this.configService.get<string>('MAIL_FROM_NAME');
+    const mailFromAddress = this.configService.get<string>('MAIL_FROM_ADDRESS');
+    const from =
+      mailFromName && mailFromAddress
+        ? `${mailFromName} <${mailFromAddress}>`
+        : this.configService.get(
+            'SMTP_FROM',
+            'SLMS Notifications <noreply@slms.local>',
+          );
 
     try {
       const result = await this.transporter.sendMail({
@@ -52,10 +59,10 @@ export class EmailService {
         html: options.html,
       });
 
-      this.logger.log(`Email sent: ${result.messageId} to ${options.to}`);
+      this.logger.log(`Email sent successfully (messageId: ${result.messageId})`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      this.logger.error('Failed to send email', error);
       return false;
     }
   }
@@ -72,71 +79,41 @@ export class EmailService {
 
     const subject = `[${urgencyLevel}] ${itemType} Expiring in ${daysRemaining} Days: ${itemName}`;
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: ${daysRemaining <= 30 ? '#dc3545' : daysRemaining <= 60 ? '#ffc107' : '#17a2b8'}; 
-              color: ${daysRemaining <= 60 && daysRemaining > 30 ? '#333' : '#fff'}; 
-              padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-    .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; }
-    .footer { background: #f1f1f1; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-    .highlight { font-size: 24px; font-weight: bold; }
-    .details { background: #fff; padding: 15px; margin: 15px 0; border-radius: 5px; }
-    .details table { width: 100%; }
-    .details td { padding: 8px 0; }
-    .details td:first-child { font-weight: bold; width: 40%; }
-    .action-btn { display: inline-block; background: #007bff; color: #fff; 
-                  padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 15px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="highlight">${urgencyLevel}</div>
-      <div>${itemType} Expiration Notice</div>
-    </div>
-    <div class="content">
-      <p>Dear User,</p>
-      <p>This is a reminder that the following ${itemType.toLowerCase()} will expire soon:</p>
-      
-      <div class="details">
-        <table>
-          <tr>
-            <td>${itemType} Name:</td>
-            <td><strong>${itemName}</strong></td>
-          </tr>
-          <tr>
-            <td>Expiry Date:</td>
-            <td><strong>${expiryDate}</strong></td>
-          </tr>
-          <tr>
-            <td>Days Remaining:</td>
-            <td><strong style="color: ${daysRemaining <= 30 ? '#dc3545' : '#333'}">${daysRemaining} days</strong></td>
-          </tr>
-        </table>
-      </div>
-      
-      <p><strong>Action Required:</strong> Please review and renew this ${itemType.toLowerCase()} before it expires to ensure compliance.</p>
-      
-      <p style="text-align: center;">
-        <a href="${this.configService.get('WEB_URL', 'http://localhost:3000')}" class="action-btn">
-          View in SLMS Portal
-        </a>
-      </p>
-    </div>
-    <div class="footer">
-      <p>This is an automated notification from the Sustainability Licensing Management System (SLMS).</p>
-      <p>If you have questions, please contact your system administrator.</p>
-    </div>
-  </div>
-</body>
-</html>
-    `;
+    const theme = getEmailThemeFromTokens();
+    const webUrl = this.configService.get('WEB_URL', 'http://localhost:3000');
+    const daysColor = daysRemaining <= 30 ? theme.primary : theme.text;
+
+    const contentHtml = `
+<p style="margin: 0 0 16px 0;">Dear User,</p>
+<p style="margin: 0 0 16px 0;">This is a reminder that the following ${itemType.toLowerCase()} will expire soon:</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width: 100%; margin: 16px 0; background: #F4F4F4; border-radius: ${theme.radius}; border: 1px solid ${theme.border};">
+  <tr>
+    <td style="padding: 12px 16px; font-weight: bold; width: 40%; color: ${theme.text};">${itemType} Name:</td>
+    <td style="padding: 12px 16px; color: ${theme.text};"><strong>${itemName}</strong></td>
+  </tr>
+  <tr>
+    <td style="padding: 12px 16px; font-weight: bold; color: ${theme.text};">Expiry Date:</td>
+    <td style="padding: 12px 16px; color: ${theme.text};"><strong>${expiryDate}</strong></td>
+  </tr>
+  <tr>
+    <td style="padding: 12px 16px; font-weight: bold; color: ${theme.text};">Days Remaining:</td>
+    <td style="padding: 12px 16px;"><strong style="color: ${daysColor};">${daysRemaining} days</strong></td>
+  </tr>
+</table>
+<p style="margin: 0 0 16px 0;"><strong>Action Required:</strong> Please review and renew this ${itemType.toLowerCase()} before it expires to ensure compliance.</p>
+`.trim();
+
+    const html = renderBaseEmailTemplate({
+      headerTitle: `[${urgencyLevel}] ${itemType} Expiration Notice`,
+      logoUrl: `${String(webUrl).replace(/\/$/, '')}/logo.png`,
+      greeting: 'Dear User,',
+      subtitle: `This is a reminder that the following ${itemType.toLowerCase()} will expire soon.`,
+      contentHtml,
+      cta: { text: 'View in SLMS Portal', url: webUrl },
+      footerText:
+        'This is an automated notification from the Sustainability Licensing Management System (SLMS). If you have questions, please contact your system administrator. Please do not reply to this email.',
+      previewText: `${urgencyLevel}: ${itemType} expiring in ${daysRemaining} days - ${itemName}`,
+    });
 
     const text = `
 ${urgencyLevel}: ${itemType} Expiring in ${daysRemaining} Days

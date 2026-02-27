@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -9,13 +10,28 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  app.use(cookieParser());
+
   // Global prefix
   const apiPrefix = configService.get('API_PREFIX', 'api/v1');
   app.setGlobalPrefix(apiPrefix);
 
-  // CORS
+  // CORS: allow configured origins (CORS_ORIGIN or CORS_ORIGINS) plus 127.0.0.1 variants for localhost
+  const corsOriginsRaw =
+    (configService.get('CORS_ORIGINS') && String(configService.get('CORS_ORIGINS')).trim()) ||
+    configService.get('CORS_ORIGIN') ||
+    configService.get('cors.origins') ||
+    'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:1337';
+  const corsOriginsList = (typeof corsOriginsRaw === 'string' ? corsOriginsRaw.split(',') : corsOriginsRaw as string[])
+    .map((o) => (typeof o === 'string' ? o.trim() : ''))
+    .filter(Boolean);
+  const expandedOrigins = new Set<string>(corsOriginsList);
+  corsOriginsList.forEach((origin) => {
+    const match = /^(https?):\/\/localhost:(\d+)$/.exec(origin);
+    if (match) expandedOrigins.add(`${match[1]}://127.0.0.1:${match[2]}`);
+  });
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:1337').split(','),
+    origin: Array.from(expandedOrigins),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -33,8 +49,9 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation at /docs
-  if (configService.get('SWAGGER_ENABLED', 'true') === 'true') {
+  // Swagger documentation at /docs (disabled by default in production)
+  const swaggerDefault = process.env.NODE_ENV === 'production' ? 'false' : 'true';
+  if (configService.get('SWAGGER_ENABLED', swaggerDefault) === 'true') {
     const config = new DocumentBuilder()
       .setTitle('SLMS API')
       .setDescription(

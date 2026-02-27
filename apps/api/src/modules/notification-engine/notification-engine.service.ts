@@ -1,12 +1,11 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StrapiClientService } from '../strapi/strapi-client.service';
+import { clampPagination } from '../../common/response';
 import { EmailService } from './email.service';
-import {
-  NotificationObjectType,
-  NotificationChannel,
-  NotificationStatus,
-} from '@prisma/client';
+// Use string literal types here instead of Prisma enums to avoid
+// depending on generated enum exports during Docker builds.
+type NotificationObjectType = 'CERTIFICATION' | 'LICENSE' | 'DOC_VERSION';
+type NotificationChannel = 'EMAIL' | 'INAPP';
 
 interface ExpiringItem {
   id: number;
@@ -34,8 +33,6 @@ export class NotificationEngineService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(forwardRef(() => StrapiClientService))
-    private readonly strapiClient: StrapiClientService,
     private readonly emailService: EmailService,
   ) {}
 
@@ -67,8 +64,12 @@ export class NotificationEngineService {
     ]);
 
     // Group rules by object type
-    const certRules = rules.filter((r) => r.objectType === 'CERTIFICATION');
-    const licenseRules = rules.filter((r) => r.objectType === 'LICENSE');
+    const certRules = rules.filter(
+      (r: { objectType: string }) => r.objectType === 'CERTIFICATION',
+    );
+    const licenseRules = rules.filter(
+      (r: { objectType: string }) => r.objectType === 'LICENSE',
+    );
 
     // Process certifications
     for (const cert of certifications) {
@@ -219,13 +220,13 @@ export class NotificationEngineService {
             objectId: String(item.id),
             daysBeforeExp: daysBeforeExpiry,
             idempotencyKey: recipientIdempotencyKey,
-            status: NotificationStatus.SENT,
+            status: 'SENT',
             sentAt: new Date(),
           },
         });
 
         // Send email if channel is EMAIL
-        if (channel === NotificationChannel.EMAIL) {
+        if (channel === 'EMAIL') {
           const sent = await this.emailService.sendExpiryNotification(
             recipient,
             itemTypeLabel,
@@ -301,55 +302,49 @@ export class NotificationEngineService {
       select: { email: true },
     });
 
-    return users.map((u) => u.email);
+    return users.map((u: { email: string }) => u.email);
   }
 
   /**
-   * Fetch certifications from Strapi
+   * Fetch certifications from Prisma
    */
   private async fetchCertifications(): Promise<ExpiringItem[]> {
     try {
-      const response = await this.strapiClient.get<any[]>('certifications', {
-        pagination: { pageSize: 1000 },
-        fields: ['id', 'name', 'expiryDate', 'status', 'issuer'],
+      const items = await this.prisma.certification.findMany({
+        where: { expiryDate: { not: null } },
+        select: { id: true, name: true, expiryDate: true, issuer: true },
       });
-
-      if (!response.data) return [];
-
-      return response.data.map((item: any) => ({
-        id: item.id,
-        name: item.attributes?.name || item.name || `Certification #${item.id}`,
-        expiryDate: item.attributes?.expiryDate || item.expiryDate,
-        status: item.attributes?.status || item.status,
-        issuer: item.attributes?.issuer || item.issuer,
+      return items.map((c: { id: number; name: string; expiryDate: Date | null; issuer: string | null }) => ({
+        id: c.id,
+        name: c.name,
+        expiryDate: c.expiryDate?.toISOString() ?? '',
+        status: undefined,
+        issuer: c.issuer ?? undefined,
       }));
     } catch (error) {
-      this.logger.error('Failed to fetch certifications from Strapi:', error);
+      this.logger.error('Failed to fetch certifications:', error);
       return [];
     }
   }
 
   /**
-   * Fetch licenses from Strapi
+   * Fetch licenses from Prisma
    */
   private async fetchLicenses(): Promise<ExpiringItem[]> {
     try {
-      const response = await this.strapiClient.get<any[]>('licenses', {
-        pagination: { pageSize: 1000 },
-        fields: ['id', 'name', 'expiryDate', 'status', 'authority'],
+      const items = await this.prisma.license.findMany({
+        where: { expiryDate: { not: null } },
+        select: { id: true, name: true, expiryDate: true, authority: true },
       });
-
-      if (!response.data) return [];
-
-      return response.data.map((item: any) => ({
-        id: item.id,
-        name: item.attributes?.name || item.name || `License #${item.id}`,
-        expiryDate: item.attributes?.expiryDate || item.expiryDate,
-        status: item.attributes?.status || item.status,
-        authority: item.attributes?.authority || item.authority,
+      return items.map((c: { id: number; name: string; expiryDate: Date | null; authority: string | null }) => ({
+        id: c.id,
+        name: c.name,
+        expiryDate: c.expiryDate?.toISOString() ?? '',
+        status: undefined,
+        authority: c.authority ?? undefined,
       }));
     } catch (error) {
-      this.logger.error('Failed to fetch licenses from Strapi:', error);
+      this.logger.error('Failed to fetch licenses:', error);
       return [];
     }
   }
@@ -360,13 +355,16 @@ export class NotificationEngineService {
   async getNotificationsForUser(
     userEmail: string,
     params: {
-      status?: NotificationStatus;
+      status?: 'SENT' | 'READ' | 'FAILED';
       channel?: NotificationChannel;
       page?: number;
       pageSize?: number;
     },
   ) {
-    const { status, channel, page = 1, pageSize = 25 } = params;
+    const { page: p, pageSize: ps } = clampPagination(params.page, params.pageSize ?? 25);
+    const { status, channel } = params;
+    const page = p;
+    const pageSize = ps;
 
     const where = {
       userEmail,
@@ -412,7 +410,7 @@ export class NotificationEngineService {
     return this.prisma.notification.update({
       where: { id },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ',
         readAt: new Date(),
       },
     });
@@ -425,7 +423,7 @@ export class NotificationEngineService {
     return this.prisma.notification.count({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
     });
   }
@@ -437,10 +435,10 @@ export class NotificationEngineService {
     const result = await this.prisma.notification.updateMany({
       where: {
         userEmail,
-        status: NotificationStatus.SENT,
+        status: 'SENT',
       },
       data: {
-        status: NotificationStatus.READ,
+        status: 'READ',
         readAt: new Date(),
       },
     });

@@ -5,13 +5,15 @@
 export const VALIDATION = {
   // Password requirements
   PASSWORD: {
-    MIN_LENGTH: 8,
+    MIN_LENGTH: 10,
     MAX_LENGTH: 128,
     REQUIRE_UPPERCASE: true,
     REQUIRE_LOWERCASE: true,
     REQUIRE_NUMBER: true,
     REQUIRE_SPECIAL: true,
-    PATTERN: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+    // At least 10 characters, incl. upper, lower, number, special
+    PATTERN:
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/,
   },
 
   // Email
@@ -81,7 +83,7 @@ export const VALIDATION_MESSAGES = {
   REQUIRED: 'This field is required',
   EMAIL_INVALID: 'Please enter a valid email address',
   PASSWORD_WEAK:
-    'Password must be at least 8 characters with uppercase, lowercase, number, and special character',
+    'Password must be at least 10 characters and include uppercase, lowercase, number, and special character',
   PASSWORD_MISMATCH: 'Passwords do not match',
   PHONE_INVALID: 'Please enter a valid phone number',
   MIN_LENGTH: (min: number) => `Must be at least ${min} characters`,

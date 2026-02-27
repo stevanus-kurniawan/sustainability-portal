@@ -1,27 +1,72 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { LicensesService } from './licenses.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateLicenseDto } from './dto/create-license.dto';
+import { UpdateLicenseDto } from './dto/update-license.dto';
 
-/**
- * LicensesController - API endpoints for license operations
- *
- * Note: Licenses CRUD is managed in Strapi CMS.
- * This controller handles notification rules and other API-specific features.
- */
 @ApiTags('licenses')
 @Controller('licenses')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @ApiBearerAuth('bearer')
 export class LicensesController {
   constructor(private readonly service: LicensesService) {}
 
   @Get('notification-rules')
-  @ApiOperation({
-    summary: 'Get license notification rules',
-    description: 'Returns active notification rules for license expiry',
-  })
   getNotificationRules() {
     return this.service.getNotificationRules();
+  }
+
+  @Get()
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('subContentId') subContentId?: string,
+  ) {
+    return this.service.findAllAdmin({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search: search || undefined,
+      status: status || undefined,
+      subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+    });
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOneAdmin(id);
+  }
+
+  @Post()
+  create(
+    @Body() body: CreateLicenseDto,
+  ) {
+    return this.service.create(body);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateLicenseDto,
+  ) {
+    return this.service.update(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
   }
 }

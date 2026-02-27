@@ -9,6 +9,20 @@ export interface AuditLogEntry {
   metadata?: any;
 }
 
+export interface AdminAuditLogEntry {
+  userEmail: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  beforeJson?: Record<string, unknown>;
+  afterJson?: Record<string, unknown>;
+  actorAdminId?: string;
+  actorUserId?: string;
+  ip?: string;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+}
+
 @Injectable()
 export class AuditLogsService {
   constructor(private prisma: PrismaService) {}
@@ -55,6 +69,24 @@ export class AuditLogsService {
   async create(entry: AuditLogEntry) {
     return this.prisma.auditLog.create({
       data: entry,
+    });
+  }
+
+  async createAdminAudit(entry: AdminAuditLogEntry) {
+    return this.prisma.auditLog.create({
+      data: {
+        userEmail: entry.userEmail,
+        action: entry.action,
+        entityType: entry.entityType,
+        entityId: entry.entityId,
+        beforeJson: (entry.beforeJson ?? undefined) as object | undefined,
+        afterJson: (entry.afterJson ?? undefined) as object | undefined,
+        actorAdminId: entry.actorAdminId ?? undefined,
+        actorUserId: entry.actorUserId ?? undefined,
+        ip: entry.ip ?? undefined,
+        userAgent: entry.userAgent ?? undefined,
+        metadata: (entry.metadata ?? undefined) as object | undefined,
+      },
     });
   }
 

@@ -1,27 +1,74 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { CertificationsService } from './certifications.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateCertificationDto } from './dto/create-certification.dto';
+import { UpdateCertificationDto } from './dto/update-certification.dto';
 
-/**
- * CertificationsController - API endpoints for certification operations
- *
- * Note: Certifications CRUD is managed in Strapi CMS.
- * This controller handles notification rules and other API-specific features.
- */
 @ApiTags('certifications')
 @Controller('certifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @ApiBearerAuth('bearer')
 export class CertificationsController {
   constructor(private readonly service: CertificationsService) {}
 
   @Get('notification-rules')
-  @ApiOperation({
-    summary: 'Get certification notification rules',
-    description: 'Returns active notification rules for certification expiry',
-  })
   getNotificationRules() {
     return this.service.getNotificationRules();
+  }
+
+  @Get()
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('subContentId') subContentId?: string,
+  ) {
+    return this.service.findAllAdmin({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search: search || undefined,
+      status: status || undefined,
+      categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
+      subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+    });
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOneAdmin(id);
+  }
+
+  @Post()
+  create(
+    @Body() body: CreateCertificationDto,
+  ) {
+    return this.service.create(body);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateCertificationDto,
+  ) {
+    return this.service.update(id, body);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
   }
 }

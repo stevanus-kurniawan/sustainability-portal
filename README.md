@@ -1,28 +1,26 @@
 # SLMS - Sustainability Certification and Licensing Management System
 
-A comprehensive monorepo for managing sustainability certifications and business licenses. Built with modern technologies including Next.js, NestJS, and Strapi.
+A comprehensive monorepo for managing sustainability certifications and business licenses. Built with modern technologies including Next.js and NestJS.
 
 ## 🏗️ Architecture
 
 ```
 slms/
 ├── apps/
-│   ├── web-public/     # Next.js 14 App Router - Public portal
-│   ├── api/            # NestJS - Backend API with Prisma
-│   └── cms/            # Strapi v4 - Content Management System
+│   ├── web/        # Next.js 14 App Router - Public + Admin portal
+│   └── api/        # NestJS - Backend API with Prisma
 ├── packages/
-│   └── shared/         # Shared types, DTOs, and constants
-└── infra/              # Docker Compose infrastructure
+│   └── shared/     # Shared types, DTOs, and constants
+└── infra/          # Docker Compose infrastructure
 ```
 
 ## 🌐 Service URLs
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Web Portal** | http://localhost:3000 | Public sustainability portal |
+| **Web Portal** | http://localhost:3000 | Public and admin sustainability portal |
 | **API Swagger** | http://localhost:3001/docs | API documentation |
 | **API Endpoint** | http://localhost:3001/api/v1 | REST API |
-| **Strapi Admin** | http://localhost:1337/admin | CMS admin panel |
 | **MinIO Console** | http://localhost:9001 | Object storage UI |
 | **Mailhog** | http://localhost:8025 | Email testing UI |
 
@@ -34,10 +32,11 @@ slms/
 
 ## 🚀 Quick Start
 
+From the **repository root** (e.g. `sustainability-portal/`).
+
 ### 1. Install Dependencies
 
 ```bash
-cd Frontend/slms
 pnpm install
 ```
 
@@ -47,18 +46,35 @@ pnpm install
 pnpm build:shared
 ```
 
-### 3. Start Infrastructure
+### 3. Configure Environment Files (first time only)
+
+```bash
+pnpm setup:env
+```
+
+This copies `apps/api/env.example` → `apps/api/.env` and `apps/web/env.example` → `apps/web/.env.local` if they don't exist. Or manually:
+
+```bash
+# API (local)
+cp apps/api/env.example apps/api/.env
+
+# Web (local)
+cp apps/web/env.example apps/web/.env.local
+```
+
+### 4. Start Infrastructure (Docker)
 
 ```bash
 pnpm dev:infra
 ```
 
-Wait ~30 seconds for all services to start. Verify with:
+This starts **only** Postgres, Redis, MinIO, and Mailhog (API and Web run locally in the next step). Wait ~30 seconds, then verify:
+
 ```bash
 docker ps
 ```
 
-### 4. Setup Database
+### 5. Setup Database
 
 ```bash
 # Run migrations
@@ -68,32 +84,28 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-### 5. Configure Environment Files
+For other environments, use dedicated files (for example):
 
-```bash
-# API
-cp apps/api/env.example apps/api/.env
+- `apps/api/.env.dev`, `apps/api/.env.uat`, `apps/api/.env.prod`
+- `apps/web/.env.dev.local`, `apps/web/.env.uat.local`, `apps/web/.env.prod.local`
 
-# CMS (generate secrets for production)
-cp apps/cms/env.example apps/cms/.env
+Each environment **must** have:
 
-# Web
-cp apps/web-public/env.example apps/web-public/.env.local
-```
+- Its own `DATABASE_URL` and MinIO credentials (no sharing between local/dev/uat/prod).
+- Strong, unique `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `JWT_ADMIN_SECRET` (do not reuse `env.example` placeholders).
 
 ### 6. Start Development
 
 ```bash
-# Start all services concurrently
+# Start API + Web concurrently (infra must already be running)
 pnpm dev
 ```
 
 This starts:
 - **API** on http://localhost:3001
-- **CMS** on http://localhost:1337
 - **Web** on http://localhost:3000
 
-> ⚠️ **First time with Strapi?** Visit http://localhost:1337/admin to create your admin user.
+**One-command setup:** `pnpm setup` does install, build:shared, setup:env, dev:infra, wait, db:migrate, and db:seed. Then run `pnpm dev`. See [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) for detailed local run steps (including Windows).
 
 ## 📜 Available Commands
 
@@ -110,10 +122,12 @@ This starts:
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev:infra` | Start Docker services (postgres, redis, minio, mailhog) |
+| `pnpm dev:infra` | Start infra only (postgres, redis, minio, mailhog) for local dev |
+| `pnpm dev:infra:full` | Start infra + API + Web in Docker |
 | `pnpm dev:infra:logs` | View infrastructure logs |
 | `pnpm dev:infra:down` | Stop infrastructure |
 | `pnpm dev:infra:reset` | Stop and remove all data (volumes) |
+| `pnpm setup:env` | Copy env examples to `.env` / `.env.local` if missing |
 
 ### Database
 
@@ -152,26 +166,25 @@ This starts:
 
 ### Environment Variables
 
-**API (`apps/api/.env`):**
+**API (`apps/api/.env` – local example):**
 ```env
 PORT=3001
 DATABASE_URL="postgresql://slms:slms@localhost:5544/slms?schema=public"
 JWT_SECRET=your-secret-key
-STRAPI_URL=http://localhost:1337
-STRAPI_API_TOKEN=your-strapi-api-token
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=slms-docs
 ```
 
-**CMS (`apps/cms/.env`):**
-```env
-PORT=1337
-DATABASE_HOST=localhost
-DATABASE_PORT=5544
-DATABASE_NAME=slms
-DATABASE_USERNAME=slms
-DATABASE_PASSWORD=slms
-```
+In `NODE_ENV=production` or `NODE_ENV=uat`, the API will **refuse to start** if:
 
-**Web (`apps/web-public/.env.local`):**
+- Any JWT secret (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ADMIN_SECRET`) is missing or still uses the default placeholder.
+- MinIO credentials (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`) are missing or still use `minioadmin`.
+
+`infra/env.example` is intended for **local Docker-only** usage and must **not** be reused for UAT or production secrets.
+
+**Web (`apps/web/.env.local`):**
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
 ```
@@ -226,10 +239,10 @@ If you can't free a port, modify the environment files:
 # apps/api/.env - change API port
 PORT=3002
 
-# apps/web-public/.env.local - update API URL if API port changed
+# apps/web/.env.local - update API URL if API port changed
 NEXT_PUBLIC_API_URL=http://localhost:3002/api/v1
 
-# apps/web-public/package.json - change web port
+# apps/web/package.json - change web port
 "dev": "next dev -p 3010"
 ```
 
@@ -258,29 +271,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3002/api/v1
    pnpm db:seed
    ```
 
-### Strapi Issues
+### Strapi / CMS
 
-1. **First-time setup:**
-   - Visit http://localhost:1337/admin
-   - Create admin user
-   - Go to Settings → API Tokens → Create new token
-   - Copy token to `apps/api/.env` as `STRAPI_API_TOKEN`
-
-2. **Strapi won't start:**
-   ```bash
-   # Clear Strapi cache
-   cd apps/cms
-   rm -rf .cache .tmp
-   pnpm develop
-   ```
-
-3. **Database schema mismatch:**
-   ```bash
-   # Run Strapi migrations
-   cd apps/cms
-   pnpm strapi database:migrate
-   ```
-
+Strapi CMS is no longer used. All content and admin features are served by the single Next.js app (`apps/web`) and the NestJS API (`apps/api`).
 ### Redis Connection Issues
 
 1. **Verify Redis is running:**
@@ -335,25 +328,12 @@ slms/
 │   │       │   ├── auth/       # JWT authentication
 │   │       │   ├── users/      # User management
 │   │       │   ├── roles/      # RBAC
-│   │       │   ├── strapi/     # Strapi client
 │   │       │   ├── notifications/
 │   │       │   ├── audit-logs/
 │   │       │   └── notification-engine/
 │   │       └── main.ts
 │   │
-│   ├── cms/                    # Strapi CMS
-│   │   ├── config/
-│   │   │   ├── database.ts     # PostgreSQL config
-│   │   │   └── plugins.ts      # S3/MinIO upload
-│   │   └── src/api/            # Content types
-│   │       ├── category/
-│   │       ├── document/
-│   │       ├── certification/
-│   │       ├── license/
-│   │       ├── grievance-case/
-│   │       └── traceability-*/
-│   │
-│   └── web-public/             # Next.js Portal
+│   └── web/                    # Next.js Portal (public + admin)
 │       └── src/
 │           ├── app/            # App Router pages
 │           │   ├── page.tsx          # Home
@@ -413,6 +393,8 @@ Visit http://localhost:3001/docs for interactive Swagger documentation.
 - `CRUD /api/v1/admin/certifications`
 - `GET /api/v1/admin/audit-logs`
 - `GET /api/v1/admin/notifications`
+
+**User Management & Admin Management:** See [docs/ADMIN-USER-MANAGEMENT.md](docs/ADMIN-USER-MANAGEMENT.md) for `/admin/users` and `/admin/admins` endpoints, RBAC, and how to seed the initial SUPER_ADMIN.
 
 ## 🤝 Contributing
 
