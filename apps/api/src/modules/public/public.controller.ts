@@ -61,10 +61,31 @@ export class PublicController {
       return res.status(502).json({ message: 'Failed to stream file' });
     }
     res.setHeader('Content-Type', result.contentType);
+
     const isDownload = download === '1' || download === 'true';
-    if (isDownload) {
-      const safeName = filename && /^[a-zA-Z0-9._\-\s]+$/.test(filename) ? filename : key.replace(/^.*\//, '') || 'download';
-      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    const lowerContentType = (result.contentType || '').toLowerCase();
+
+    const safeInlineTypes = new Set<string>([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+    ]);
+
+    const shouldInline = safeInlineTypes.has(lowerContentType);
+
+    const safeName =
+      filename && /^[a-zA-Z0-9._\-\s]+$/.test(filename)
+        ? filename
+        : key.replace(/^.*\//, '') || 'download';
+
+    if (isDownload || !shouldInline) {
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${safeName}"`,
+      );
     } else {
       res.setHeader('Content-Disposition', 'inline');
     }

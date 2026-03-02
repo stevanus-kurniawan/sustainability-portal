@@ -57,15 +57,15 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get notification by ID' })
   @ApiResponse({ status: 200, description: 'Notification found' })
   @ApiResponse({ status: 404, description: 'Notification not found' })
-  findOne(@Param('id') id: string) {
-    return this.service.findById(id);
+  findOne(@Request() req: any, @Param('id') id: string) {
+    return this.service.findByIdForUser(id, req.user.email);
   }
 
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark notification as read' })
   @ApiResponse({ status: 200, description: 'Notification marked as read' })
-  markAsRead(@Param('id') id: string) {
-    return this.service.markAsRead(id);
+  markAsRead(@Request() req: any, @Param('id') id: string) {
+    return this.service.markAsReadForUser(id, req.user.email);
   }
 
   @Post('mark-all-read')
@@ -77,8 +77,8 @@ export class NotificationsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete notification' })
-  remove(@Param('id') id: string) {
-    return this.service.delete(id);
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.service.deleteForUser(id, req.user.email);
   }
 
   // ==========================================

@@ -502,8 +502,13 @@ export class AuthService {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
       });
 
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(refreshToken.trim())
+        .digest('hex');
+
       const storedToken = await this.prisma.refreshToken.findUnique({
-        where: { token: refreshToken },
+        where: { tokenHash },
         include: {
           user: {
             include: {
@@ -545,8 +550,12 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
 
     if (refreshToken) {
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(refreshToken.trim())
+        .digest('hex');
       await this.prisma.refreshToken.deleteMany({
-        where: { token: refreshToken },
+        where: { tokenHash },
       });
     } else {
       await this.prisma.refreshToken.deleteMany({
@@ -590,7 +599,10 @@ export class AuthService {
 
     await this.prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        tokenHash: crypto
+          .createHash('sha256')
+          .update(refreshToken)
+          .digest('hex'),
         userId: user.id,
         expiresAt,
       },

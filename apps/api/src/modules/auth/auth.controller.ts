@@ -11,6 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
+import * as crypto from 'crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -29,6 +30,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
+const CSRF_COOKIE_NAME = 'csrf_token';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -191,26 +193,57 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
-  private setUserCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
+  private getCookieOptions(req?: any): import('express').CookieOptions {
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const isProd = nodeEnv === 'production';
+    const forwardedProto = req?.headers?.['x-forwarded-proto'];
+    const reqSecure = !!req?.secure;
+
+    const appearsSecure = reqSecure || forwardedProto === 'https';
+    const secure = isProd ? true : appearsSecure;
+
+    const sameSite: boolean | 'lax' | 'strict' | 'none' =
+      (process.env.COOKIE_SAMESITE as any) || 'lax';
+
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+
+    return {
       httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      maxAge: expiresInSeconds * 1000,
+      secure,
+      sameSite,
+      domain,
       path: '/',
+    };
+  }
+
+  private setUserCookie(
+    res: Response,
+    token: string,
+    expiresInSeconds: number,
+    req?: any,
+  ): void {
+    const baseOptions = this.getCookieOptions(req);
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+
+    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
+      ...baseOptions,
+      maxAge: expiresInSeconds * 1000,
+    });
+
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
+      ...baseOptions,
+      httpOnly: false,
+      maxAge: expiresInSeconds * 1000,
     });
   }
 
   private clearUserCookie(res: Response, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, {
-      httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      path: '/',
+    const baseOptions = this.getCookieOptions(req);
+
+    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, baseOptions);
+    res.clearCookie(CSRF_COOKIE_NAME, {
+      ...baseOptions,
+      httpOnly: false,
     });
   }
 }
