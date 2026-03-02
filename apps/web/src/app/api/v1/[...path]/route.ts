@@ -105,19 +105,23 @@ function getRuntimeBackendBase(): string | null {
 }
 
 /**
- * Rewrite Set-Cookie so cookies are bound to the frontend host.
- * When the API sets Domain (e.g. API host in dev), the browser would store the cookie
- * for that domain and not send it to the frontend host, so post-login redirect sees no session.
+ * Rewrite Set-Cookie so cookies work when the response is sent via this proxy (same-origin).
+ * - Remove Domain= so the cookie is bound to the frontend host (fixes redirect after login on two-server dev).
+ * - Remove Secure when the request to the proxy is HTTP so the browser accepts the cookie on HTTP dev.
  */
-function rewriteSetCookieForFrontendHost(cookieHeader: string): string {
-  // Remove Domain= so the cookie is bound to the response origin (frontend host).
-  // Otherwise the browser stores it for the API host and won't send it to the frontend.
-  return cookieHeader.replace(/\s*;\s*Domain=[^;]+/gi, '');
+function rewriteSetCookieForFrontendHost(cookieHeader: string, requestIsHttps: boolean): string {
+  let out = cookieHeader.replace(/\s*;\s*Domain=[^;]+/gi, '');
+  if (!requestIsHttps) {
+    out = out.replace(/\s*;\s*Secure\b/gi, '');
+  }
+  return out;
 }
 
 async function forwardResponse(request: NextRequest, res: Response): Promise<NextResponse> {
   const responseHeaders = new Headers();
   const setCookies = 'getSetCookie' in res.headers ? (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie() : null;
+  const proto = request.nextUrl.protocol;
+  const requestIsHttps = proto === 'https:';
   res.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower === 'set-cookie') {
@@ -128,7 +132,7 @@ async function forwardResponse(request: NextRequest, res: Response): Promise<Nex
   });
   if (setCookies?.length) {
     setCookies.forEach((c) => {
-      responseHeaders.append('set-cookie', rewriteSetCookieForFrontendHost(c));
+      responseHeaders.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
     });
   }
 
