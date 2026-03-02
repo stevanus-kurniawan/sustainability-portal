@@ -163,8 +163,22 @@ export class AuthService {
       });
     }
 
-    await this.sendEmailVerificationLink(user.id, normalizedEmail);
-    await this.logAudit(normalizedEmail, 'REGISTER', 'User', user.id);
+    try {
+      await this.sendEmailVerificationLink(user.id, normalizedEmail);
+    } catch (emailErr: any) {
+      this.logger.warn(
+        `Verification email failed for ${normalizedEmail}: ${emailErr?.message ?? emailErr}. User is still registered.`,
+        emailErr?.stack,
+      );
+      // Do not fail registration if email fails (e.g. SMTP unavailable in dev)
+    }
+
+    try {
+      await this.logAudit(normalizedEmail, 'REGISTER', 'User', user.id);
+    } catch (auditErr: any) {
+      this.logger.warn(`Audit log failed: ${auditErr?.message ?? auditErr}`);
+    }
+
     return { message: 'Verification email sent. Link expires in 15 minutes.' };
   }
 
@@ -570,11 +584,12 @@ export class AuthService {
    * Generate access and refresh tokens for user
    */
   private async generateTokens(user: any): Promise<TokenResponse> {
-    const roles = user.userRoles?.map((ur: any) => ur.role.name) || [];
+    const roles = (user.userRoles?.map((ur: any) => ur?.role?.name).filter(Boolean) || []) as string[];
     const permissions = new Set<string>();
     for (const userRole of user.userRoles || []) {
-      for (const rp of userRole.role?.rolePermissions || []) {
-        permissions.add(rp.permission.code);
+      for (const rp of userRole?.role?.rolePermissions || []) {
+        const code = rp?.permission?.code;
+        if (code) permissions.add(code);
       }
     }
     const permissionsList = Array.from(permissions);
@@ -589,24 +604,42 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload);
     const refreshExpiresInStr = this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d');
+    const refreshSecret =
+      this.configService.get('JWT_REFRESH_SECRET') ??
+      this.configService.get<string>('jwt.refreshSecret');
+    if (!refreshSecret) {
+      this.logger.error('JWT_REFRESH_SECRET (or jwt.refreshSecret) is not set; login will fail.');
+      throw new BadRequestException(
+        'Server auth configuration error. Set JWT_REFRESH_SECRET in the API environment.',
+      );
+    }
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_REFRESH_SECRET'),
+      secret: refreshSecret,
       expiresIn: refreshExpiresInStr,
     });
 
     const refreshExpiresInSeconds = parseExpiryToSeconds(refreshExpiresInStr);
     const expiresAt = new Date(Date.now() + refreshExpiresInSeconds * 1000);
 
-    await this.prisma.refreshToken.create({
-      data: {
-        tokenHash: crypto
-          .createHash('sha256')
-          .update(refreshToken)
-          .digest('hex'),
-        userId: user.id,
-        expiresAt,
-      },
-    });
+    try {
+      await this.prisma.refreshToken.create({
+        data: {
+          tokenHash: crypto
+            .createHash('sha256')
+            .update(refreshToken)
+            .digest('hex'),
+          userId: user.id,
+          expiresAt,
+        },
+      });
+    } catch (prismaErr: any) {
+      const code = prismaErr?.code ?? prismaErr?.meta?.target;
+      this.logger.error(
+        `refreshToken.create failed: ${prismaErr?.message ?? prismaErr} (code: ${code})`,
+        prismaErr?.stack,
+      );
+      throw prismaErr;
+    }
 
     const accessExpiresInStr = this.configService.get('JWT_EXPIRES_IN', '1h');
     const expiresInSeconds = parseExpiryToSeconds(accessExpiresInStr);
