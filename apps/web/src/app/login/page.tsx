@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
 import { userLogin } from '@/lib/auth-api';
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const showPleaseLogin = searchParams.get('message') === 'please-login';
   const [email, setEmail] = useState('');
@@ -24,8 +23,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await userLogin(email.trim(), password);
-      router.push('/');
-      router.refresh();
+      // Full page redirect so the browser sends the cookie on the next request (fixes dev when router.push doesn't)
+      window.location.href = '/';
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
