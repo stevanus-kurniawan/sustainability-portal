@@ -70,13 +70,13 @@ async function proxyToBackend(request: NextRequest, pathSegments: string[]) {
 
   try {
     const res = await doFetch(backendUrl, method, headers, body);
-    return await forwardResponse(res);
+    return await forwardResponse(request, res);
   } catch (err) {
     if (/localhost|127\.0\.0\.1/.test(backendUrl)) {
       const fallbackUrl = backendUrl.replace(/https?:\/\/[^/]+/, DOCKER_API_ORIGIN);
       try {
         const res = await doFetch(fallbackUrl, method, headers, body);
-        return await forwardResponse(res);
+        return await forwardResponse(request, res);
       } catch (retryErr) {
         const message = retryErr instanceof Error ? retryErr.message : 'Backend request failed';
         return NextResponse.json(
@@ -104,7 +104,18 @@ function getRuntimeBackendBase(): string | null {
   }
 }
 
-async function forwardResponse(res: Response): Promise<NextResponse> {
+/**
+ * Rewrite Set-Cookie so cookies are bound to the frontend host.
+ * When the API sets Domain (e.g. API host in dev), the browser would store the cookie
+ * for that domain and not send it to the frontend host, so post-login redirect sees no session.
+ */
+function rewriteSetCookieForFrontendHost(cookieHeader: string): string {
+  // Remove Domain= so the cookie is bound to the response origin (frontend host).
+  // Otherwise the browser stores it for the API host and won't send it to the frontend.
+  return cookieHeader.replace(/\s*;\s*Domain=[^;]+/gi, '');
+}
+
+async function forwardResponse(request: NextRequest, res: Response): Promise<NextResponse> {
   const responseHeaders = new Headers();
   const setCookies = 'getSetCookie' in res.headers ? (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie() : null;
   res.headers.forEach((value, key) => {
@@ -116,7 +127,9 @@ async function forwardResponse(res: Response): Promise<NextResponse> {
     }
   });
   if (setCookies?.length) {
-    setCookies.forEach((c) => responseHeaders.append('set-cookie', c));
+    setCookies.forEach((c) => {
+      responseHeaders.append('set-cookie', rewriteSetCookieForFrontendHost(c));
+    });
   }
 
   const responseBody = await res.text();
