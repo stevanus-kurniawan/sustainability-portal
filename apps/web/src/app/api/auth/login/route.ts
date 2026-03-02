@@ -18,6 +18,26 @@ function rewriteCookieHeader(cookieHeader: string, requestIsHttps: boolean): str
   return out;
 }
 
+/** Build the public origin (e.g. http://172.28.92.56:3000) so redirect goes to the host the user used, not internal localhost. */
+function getRedirectOrigin(req: NextRequest): string {
+  const envOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+  if (envOrigin) {
+    const base = envOrigin.startsWith('http') ? envOrigin : `https://${envOrigin}`;
+    try {
+      const u = new URL(base);
+      return u.origin;
+    } catch {
+      // ignore
+    }
+  }
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+  const proto = req.headers.get('x-forwarded-proto') || req.nextUrl.protocol?.replace(':', '') || 'http';
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  return new URL(req.url).origin;
+}
+
 /**
  * Server-side login: call backend, then return 302 redirect with Set-Cookie from backend.
  * Browsers reliably store cookies when they receive a redirect response (vs 200 + JSON from fetch).
@@ -37,7 +57,7 @@ export async function POST(req: NextRequest) {
       };
     }
   } catch {
-    return NextResponse.redirect(new URL('/login?error=invalid-request', req.url), 302);
+    return NextResponse.redirect(new URL('/login?error=invalid-request', getRedirectOrigin(req)), 302);
   }
 
   const email = body.email?.trim();
@@ -45,7 +65,7 @@ export async function POST(req: NextRequest) {
   const nextUrl = body.next && body.next.startsWith('/') ? body.next : '/';
 
   if (!email || !password) {
-    return NextResponse.redirect(new URL('/login?error=missing-fields', req.url), 302);
+    return NextResponse.redirect(new URL('/login?error=missing-fields', getRedirectOrigin(req)), 302);
   }
 
   const base = getBackendBase(req);
@@ -60,17 +80,18 @@ export async function POST(req: NextRequest) {
       cache: 'no-store',
     });
   } catch (err) {
-    return NextResponse.redirect(new URL('/login?error=network', req.url), 302);
+    return NextResponse.redirect(new URL('/login?error=network', getRedirectOrigin(req)), 302);
   }
 
   if (!res.ok) {
-    return NextResponse.redirect(new URL('/login?error=invalid-credentials', req.url), 302);
+    return NextResponse.redirect(new URL('/login?error=invalid-credentials', getRedirectOrigin(req)), 302);
   }
 
   const proto = req.nextUrl.protocol;
   const requestIsHttps = proto === 'https:';
 
-  const redirectResponse = NextResponse.redirect(new URL(nextUrl, req.url), 302);
+  const redirectOrigin = getRedirectOrigin(req);
+  const redirectResponse = NextResponse.redirect(new URL(nextUrl, redirectOrigin), 302);
   const setCookies =
     'getSetCookie' in res.headers
       ? (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie()
