@@ -1,9 +1,14 @@
 # Production BACKEND server only (Postgres, Redis, MinIO, API).
-# Usage: on backend server, copy infra/env.example.backend to infra/.env then:
-#   docker compose -f infra/docker-compose.prod.backend.yml up -d
+# Usage: create infra/env.prod.backend from env.example.backend and set all required variables.
 #
-# Ports: DB host 5000, API host 8001. Ensure firewall allows FE server to reach this host:8001.
-# See env.example.backend for required variables (DB_*, REDIS_*, JWT_*, MINIO_*, CORS_ORIGIN).
+# Recommended (always loads infra/env.prod.backend):
+#   ./infra/up-prod-backend.sh up -d --build
+#   ./infra/up-prod-backend.sh up -d --build api
+#
+# Or manually from project root (must pass --env-file so variables are set):
+#   docker compose --env-file infra/env.prod.backend -f infra/docker-compose.prod.backend.yml up -d --build
+#
+# Ports: DB host 5000, API host 8001. See env.example.backend for required variables.
 
 services:
   postgres:
