@@ -7,10 +7,32 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // Log unhandled errors that might bypass Nest exception filter (e.g. body parser, middleware)
+  process.on('unhandledRejection', (reason: any) => {
+    logger.error('Unhandled Rejection', reason?.stack ?? reason);
+  });
+  process.on('uncaughtException', (err: Error) => {
+    logger.error('Uncaught Exception', err.stack);
+  });
+
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
   app.use(cookieParser());
+
+  // Error-handling middleware: only called when next(err) is invoked (e.g. body-parser invalid JSON)
+  app.use((err: any, _req: any, res: any, next: any) => {
+    if (res.headersSent) return next(err);
+    const status = err.status ?? err.statusCode ?? 500;
+    const message = err.message ?? 'Internal server error';
+    logger.warn(`Middleware error on ${_req?.method} ${_req?.url}: ${message}`, err?.stack);
+    res.status(status >= 400 && status < 600 ? status : 500).json({
+      statusCode: status >= 400 && status < 600 ? status : 500,
+      error: status === 400 ? 'Bad Request' : 'Internal Server Error',
+      message: status === 400 ? message : 'An error occurred. Check API logs.',
+    });
+  });
 
   // Global prefix
   const apiPrefix = configService.get('API_PREFIX', 'api/v1');
@@ -37,11 +59,11 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
-  // Global validation pipe
+  // Global validation pipe (forbidNonWhitelisted: false to avoid 400/500 on extra props from proxy or form libs)
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,

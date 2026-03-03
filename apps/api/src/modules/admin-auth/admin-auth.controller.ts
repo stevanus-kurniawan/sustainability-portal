@@ -64,26 +64,46 @@ export class AdminAuthController {
     };
   }
 
-  private setAdminCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.cookie(ADMIN_ACCESS_TOKEN_COOKIE, token, {
+  private getCookieOptions(req?: any): import('express').CookieOptions {
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const isProd = nodeEnv === 'production';
+    const forwardedProto = req?.headers?.['x-forwarded-proto'];
+    const reqSecure = !!req?.secure;
+
+    const appearsSecure = reqSecure || forwardedProto === 'https';
+    const secure = isProd ? true : appearsSecure;
+
+    const sameSite: boolean | 'lax' | 'strict' | 'none' =
+      (process.env.COOKIE_SAMESITE as any) || 'lax';
+
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+
+    return {
       httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      maxAge: expiresInSeconds * 1000,
+      secure,
+      sameSite,
+      domain,
       path: '/',
+    };
+  }
+
+  private setAdminCookie(
+    res: Response,
+    token: string,
+    expiresInSeconds: number,
+    req?: any,
+  ): void {
+    const baseOptions = this.getCookieOptions(req);
+
+    res.cookie(ADMIN_ACCESS_TOKEN_COOKIE, token, {
+      ...baseOptions,
+      maxAge: expiresInSeconds * 1000,
     });
   }
 
   private clearAdminCookie(res: Response, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.clearCookie(ADMIN_ACCESS_TOKEN_COOKIE, {
-      httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      path: '/',
-    });
+    const baseOptions = this.getCookieOptions(req);
+
+    res.clearCookie(ADMIN_ACCESS_TOKEN_COOKIE, baseOptions);
   }
 }

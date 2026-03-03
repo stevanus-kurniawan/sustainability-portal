@@ -37,14 +37,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
       `HTTP ${status} ${method} ${path} - ${message}`,
       isHttpException ? undefined : (exception as any)?.stack,
     );
+    if (status === HttpStatus.INTERNAL_SERVER_ERROR && !isHttpException) {
+      const ex = exception as any;
+      const name = ex?.name ?? ex?.constructor?.name ?? 'Error';
+      console.error(`[AllExceptionsFilter] 500 on ${method} ${path} - ${name}: ${ex?.message ?? exception}`);
+      const stack = ex?.stack;
+      if (stack) console.error('[AllExceptionsFilter] 500 stack:', stack);
+    }
 
-    response.status(status).json({
-      statusCode: status,
-      error: HttpStatus[status] || 'Error',
-      message,
-      path,
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      if (!response.headersSent) {
+        response.status(status).json({
+          statusCode: status,
+          error: HttpStatus[status] || 'Error',
+          message,
+          path,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (sendErr: any) {
+      this.logger.error('Failed to send error response', sendErr?.stack);
+      if (!response.headersSent) {
+        try {
+          response.status(500).send('Internal Server Error');
+        } catch (_) {}
+      }
+    }
   }
 }
 

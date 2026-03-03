@@ -2,16 +2,22 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
-import { userLogin } from '@/lib/auth-api';
+
+const ERROR_MESSAGES: Record<string, string> = {
+  'invalid-credentials': 'Invalid email or password.',
+  'missing-fields': 'Please enter email and password.',
+  'network': 'Cannot reach the server. Please try again.',
+  'invalid-request': 'Invalid request. Please try again.',
+};
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const showPleaseLogin = searchParams.get('message') === 'please-login';
+  const errorCode = searchParams.get('error') || '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,12 +29,23 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await userLogin(email.trim(), password);
-      router.push('/');
-      router.refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      setError(message);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Brief delay so the browser commits Set-Cookie before we navigate (fixes dev FE+BE
+        // where immediate redirect can send GET / before the cookie is attached).
+        await new Promise((r) => setTimeout(r, 50));
+        window.location.replace('/');
+        return;
+      }
+      setError((data?.message as string) || 'Login failed');
+    } catch {
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +75,11 @@ export default function LoginPage() {
               {showPleaseLogin && (
                 <Alert variant="info">Please login to continue.</Alert>
               )}
-              {error && <Alert variant="error">{error}</Alert>}
+              {(error || errorCode) && (
+                <Alert variant="error">
+                  {error || ERROR_MESSAGES[errorCode] || 'Something went wrong.'}
+                </Alert>
+              )}
               <div>
                 <label htmlFor="email" className="label block mb-2 text-charcoal">Email</label>
                 <Input id="email" type="email" autoComplete="email" placeholder="you@energi-up.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full" />

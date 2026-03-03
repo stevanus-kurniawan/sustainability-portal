@@ -28,13 +28,13 @@ export class NotificationsService {
     });
   }
 
-  async findById(id: string) {
-    const notification = await this.prisma.notification.findUnique({
-      where: { id },
+  async findByIdForUser(id: string, userEmail: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id, userEmail },
     });
 
     if (!notification) {
-      throw new NotFoundException(`Notification with ID ${id} not found`);
+      throw new NotFoundException(`Notification with ID ${id} not found for this user`);
     }
 
     return notification;
@@ -55,8 +55,9 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(id: string) {
-    await this.findById(id);
+  async markAsReadForUser(id: string, userEmail: string) {
+    // Ensure the notification belongs to this user
+    await this.findByIdForUser(id, userEmail);
 
     return this.prisma.notification.update({
       where: { id },
@@ -89,8 +90,9 @@ export class NotificationsService {
     });
   }
 
-  async delete(id: string) {
-    await this.findById(id);
+  async deleteForUser(id: string, userEmail: string) {
+    // Ensure the notification belongs to this user
+    await this.findByIdForUser(id, userEmail);
 
     return this.prisma.notification.delete({
       where: { id },

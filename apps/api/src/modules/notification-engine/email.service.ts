@@ -34,6 +34,9 @@ export class EmailService {
       secure,
       auth: user && pass ? { user, pass } : undefined,
       // For Mailhog, no auth is needed
+      connectionTimeout: this.configService.get<number>('SMTP_TIMEOUT_MS', 10000),
+      greetingTimeout: this.configService.get<number>('SMTP_GREETING_TIMEOUT_MS', 10000),
+      socketTimeout: this.configService.get<number>('SMTP_SOCKET_TIMEOUT_MS', 20000),
     });
 
     this.logger.log(`Email transporter configured: ${host}:${port}`);

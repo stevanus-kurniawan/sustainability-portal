@@ -9,7 +9,7 @@ import { UploadService } from './upload.service';
 /** Max file size for proxy upload (25 MB). */
 const MAX_UPLOAD_FILE_SIZE = 25 * 1024 * 1024;
 
-/** Allowed MIME types for admin document uploads (PDF, images, Office, text). */
+/** Allowed MIME types for admin document uploads (PDF, images, Office). */
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'image/jpeg',
@@ -23,8 +23,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'application/vnd.ms-powerpoint', // .ppt
   'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-  'text/plain',
-  'text/csv',
 ]);
 
 @ApiTags('admin/upload')
@@ -48,7 +46,7 @@ export class UploadController {
   /**
    * Proxy upload: accept file and stream it to MinIO. Use this when the client cannot
    * reach MinIO directly (e.g. presigned URL would use internal host minio:9000).
-   * Limits: 25 MB max; allowed types: PDF, images, Word, Excel, PowerPoint, text, CSV.
+     * Limits: 25 MB max; allowed types: PDF, images, Word, Excel, PowerPoint.
    */
   @Post('upload')
   @UseInterceptors(
@@ -75,7 +73,7 @@ export class UploadController {
         return {
           key: null,
           message:
-            'File type not allowed. Allowed: PDF, images (JPEG, PNG, GIF, WebP, SVG), Word, Excel, PowerPoint, text, CSV.',
+            'File type not allowed. Allowed: PDF, images (JPEG, PNG, GIF, WebP, SVG), Word, Excel, PowerPoint.',
         };
       }
       return { key: null, message: 'No file provided' };

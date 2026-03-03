@@ -9,8 +9,11 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import * as crypto from 'crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -27,14 +30,19 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Public } from './decorators/public.decorator';
 
 const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
+const CSRF_COOKIE_NAME = 'csrf_token';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private authService: AuthService) {}
 
+  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -47,14 +55,26 @@ export class AuthController {
   async register(
     @Body() dto: RegisterDto,
   ) {
-    const result = await this.authService.register(
-      dto.fullName,
-      dto.email,
-      dto.password,
-    );
-    return result;
+    this.logger.log('POST /auth/register received');
+    try {
+      const result = await this.authService.register(
+        dto.fullName,
+        dto.email,
+        dto.password,
+      );
+      return result;
+    } catch (err: any) {
+      if (err?.status && err.status >= 400 && err.status < 500) {
+        throw err;
+      }
+      this.logger.error(`Register failed: ${err?.message ?? err}`, err?.stack);
+      throw new InternalServerErrorException(
+        'Registration temporarily unavailable. Please try again or check API logs.',
+      );
+    }
   }
 
+  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User login' })
@@ -66,9 +86,27 @@ export class AuthController {
     @Request() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(loginDto.email, loginDto.password);
-    this.setUserCookie(res, result.accessToken, result.expiresIn, req);
-    return { user: result.user, expiresIn: result.expiresIn };
+    this.logger.log('POST /auth/login received');
+    try {
+      const result = await this.authService.login(loginDto.email, loginDto.password);
+      try {
+        this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+      } catch (cookieErr: any) {
+        this.logger.error(`setUserCookie failed: ${cookieErr?.message ?? cookieErr}`, cookieErr?.stack);
+        throw new InternalServerErrorException(
+          'Login temporarily unavailable. Please try again or check API logs.',
+        );
+      }
+      return { user: result.user, expiresIn: result.expiresIn };
+    } catch (err: any) {
+      if (err?.status && err.status >= 400 && err.status < 500) {
+        throw err;
+      }
+      this.logger.error(`Login failed: ${err?.message ?? err}`, err?.stack);
+      throw new InternalServerErrorException(
+        'Login temporarily unavailable. Please try again or check API logs.',
+      );
+    }
   }
 
   @Post('refresh')
@@ -111,12 +149,13 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@Request() req: any) {
     const user = req.user;
-    const roles = user.userRoles?.map((ur: any) => ur.role.name) || [];
+    const roles = (user.userRoles?.map((ur: any) => ur?.role?.name).filter(Boolean) || []) as string[];
     const permissions = new Set<string>();
 
     for (const userRole of user.userRoles || []) {
-      for (const rp of userRole.role?.rolePermissions || []) {
-        permissions.add(rp.permission.code);
+      for (const rp of userRole?.role?.rolePermissions || []) {
+        const code = rp?.permission?.code;
+        if (code) permissions.add(code);
       }
     }
 
@@ -191,26 +230,57 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
-  private setUserCookie(res: Response, token: string, expiresInSeconds: number, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
+  private getCookieOptions(req?: any): import('express').CookieOptions {
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    const isProd = nodeEnv === 'production';
+    const forwardedProto = req?.headers?.['x-forwarded-proto'];
+    const reqSecure = !!req?.secure;
+
+    const appearsSecure = reqSecure || forwardedProto === 'https';
+    const secure = isProd ? true : appearsSecure;
+
+    const sameSite: boolean | 'lax' | 'strict' | 'none' =
+      (process.env.COOKIE_SAMESITE as any) || 'lax';
+
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+
+    return {
       httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      maxAge: expiresInSeconds * 1000,
+      secure,
+      sameSite,
+      domain,
       path: '/',
+    };
+  }
+
+  private setUserCookie(
+    res: Response,
+    token: string,
+    expiresInSeconds: number,
+    req?: any,
+  ): void {
+    const baseOptions = this.getCookieOptions(req);
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+
+    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
+      ...baseOptions,
+      maxAge: expiresInSeconds * 1000,
+    });
+
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
+      ...baseOptions,
+      httpOnly: false,
+      maxAge: expiresInSeconds * 1000,
     });
   }
 
   private clearUserCookie(res: Response, req?: any): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isSecureRequest = req && (req.secure || req.headers?.['x-forwarded-proto'] === 'https');
-    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, {
-      httpOnly: true,
-      secure: isProduction && !!isSecureRequest,
-      sameSite: 'lax',
-      path: '/',
+    const baseOptions = this.getCookieOptions(req);
+
+    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, baseOptions);
+    res.clearCookie(CSRF_COOKIE_NAME, {
+      ...baseOptions,
+      httpOnly: false,
     });
   }
 }
