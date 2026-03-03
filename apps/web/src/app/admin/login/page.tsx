@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
-import { adminLogin } from '@/lib/auth-api';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -17,13 +16,23 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
     try {
-      await adminLogin(email.trim(), password);
-      // Brief delay so the browser commits Set-Cookie before we navigate (same fix as visitor login).
-      await new Promise((r) => setTimeout(r, 50));
-      window.location.replace('/admin');
-      return;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Admin login failed');
+      const res = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Same as visitor login: brief delay so the browser commits Set-Cookie before we navigate.
+        await new Promise((r) => setTimeout(r, 100));
+        window.location.replace('/admin');
+        return;
+      }
+      const message = Array.isArray(data?.message) ? data.message[0] : data?.message;
+      setError(typeof message === 'string' ? message : 'Admin login failed');
+    } catch {
+      setError('Cannot reach the server. Please try again.');
     } finally {
       setLoading(false);
     }

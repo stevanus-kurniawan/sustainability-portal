@@ -27,9 +27,12 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
 
-    // Skip CSRF for admin-auth (login has no admin session yet; guard is for user-portal cookie)
+    // Skip CSRF for auth endpoints that don't need it: admin-auth, and logout (self-action, no state change to app data)
     const path = request.url || request.path || '';
     if (path.includes('admin-auth')) {
+      return true;
+    }
+    if (path.includes('auth/logout')) {
       return true;
     }
 
