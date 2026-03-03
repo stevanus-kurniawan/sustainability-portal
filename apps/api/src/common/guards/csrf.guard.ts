@@ -27,6 +27,15 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
 
+    // Skip CSRF for auth endpoints that don't need it: admin-auth, and logout (self-action, no state change to app data)
+    const path = request.url || request.path || '';
+    if (path.includes('admin-auth')) {
+      return true;
+    }
+    if (path.includes('auth/logout')) {
+      return true;
+    }
+
     const hasUserCookie = !!request.cookies?.[USER_ACCESS_TOKEN_COOKIE];
 
     // If we're not using cookie-based user auth, do not enforce CSRF here

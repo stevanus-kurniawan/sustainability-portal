@@ -214,9 +214,13 @@ export interface AdminMeResponse {
 }
 
 export async function adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
+  // Use same-origin API route (like visitor login) so backend receives no Cookie header;
+  // cookie is received only from the response (Set-Cookie).
+  const url =
+    typeof window !== 'undefined' ? '/api/auth/admin-login' : `${getApiBaseUrl()}/admin-auth/login`;
   let res: Response;
   try {
-    res = await fetch(`${getApiBaseUrl()}/admin-auth/login`, {
+    res = await fetch(url, {
       ...defaultOptions,
       method: 'POST',
       body: JSON.stringify({ email, password }),
