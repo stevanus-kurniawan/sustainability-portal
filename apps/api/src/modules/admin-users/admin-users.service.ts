@@ -229,11 +229,49 @@ export class AdminUsersService {
     return this.getById(id);
   }
 
+  async updateEmailVerification(
+    id: string,
+    emailVerified: boolean,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const existing = await this.usersService.findById(id);
+    const before = this.snapshotUser(existing);
+
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        emailVerified,
+        emailVerifiedAt: emailVerified ? new Date() : null,
+      },
+    });
+    const updated = await this.usersService.findById(id);
+    const after = this.snapshotUser(updated);
+
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'UPDATE_EMAIL_VERIFICATION',
+      entityType: 'user',
+      entityId: id,
+      beforeJson: before,
+      afterJson: after,
+      metadata: { emailVerified },
+      ip,
+      userAgent,
+    });
+
+    return this.getById(id);
+  }
+
   private snapshotUser(user: {
     id: string;
     email: string;
     name: string;
     status: string;
+    emailVerified?: boolean;
+    emailVerifiedAt?: Date | null;
     userRoles: { role: { name: string } }[];
   }): Record<string, unknown> {
     return {
@@ -241,6 +279,8 @@ export class AdminUsersService {
       email: user.email,
       name: user.name,
       status: user.status,
+      emailVerified: user.emailVerified,
+      emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
       roles: user.userRoles.map((ur) => ur.role.name),
     };
   }

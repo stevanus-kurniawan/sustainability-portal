@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Low-memory build: disable webpack cache to reduce peak RAM (used in Docker on 8GB servers).
+  ...(process.env.BUILD_LOW_MEMORY === '1' && {
+    webpack: (config, { dev }) => {
+      if (!dev) config.cache = false;
+      return config;
+    },
+  }),
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   },

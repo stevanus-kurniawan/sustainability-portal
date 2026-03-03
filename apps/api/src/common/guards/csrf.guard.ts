@@ -28,11 +28,11 @@ export class CsrfGuard implements CanActivate {
     }
 
     // Skip CSRF for auth endpoints that don't need it: admin-auth, and logout (self-action, no state change to app data)
-    const path = request.url || request.path || '';
+    const path = (request.url || request.path || '').toLowerCase();
     if (path.includes('admin-auth')) {
       return true;
     }
-    if (path.includes('auth/logout')) {
+    if (path.includes('auth/logout') || (path.includes('auth') && path.endsWith('/logout'))) {
       return true;
     }
 

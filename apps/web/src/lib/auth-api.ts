@@ -182,7 +182,9 @@ export async function changeUserEmail(params: {
 }
 
 export async function userLogout(): Promise<void> {
-  const res = await fetch(`${getApiBaseUrl()}/auth/logout`, {
+  // Use same-origin API route (avoids proxy + CSRF; route forwards Cookie and Set-Cookie).
+  const url = typeof window !== 'undefined' ? '/api/auth/logout' : `${getApiBaseUrl()}/auth/logout`;
+  const res = await fetch(url, {
     ...defaultOptions,
     method: 'POST',
   });

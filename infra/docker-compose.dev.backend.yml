@@ -23,9 +23,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 768M
         reservations:
-          memory: 512M
+          memory: 256M
 
   redis:
     image: redis:7
@@ -121,7 +121,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 768M
 
 volumes:
   postgres_data:

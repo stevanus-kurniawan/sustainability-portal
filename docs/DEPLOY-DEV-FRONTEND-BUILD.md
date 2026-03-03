@@ -10,6 +10,18 @@ the server may **hang** (become unresponsive) during the build. This has happene
 
 ---
 
+## Optimizations for 8GB servers (already applied)
+
+The **docker-compose.dev.frontend.yml** and **apps/web/Dockerfile** are tuned for low-memory builds:
+
+- **NODE_OPTIONS=--max-old-space-size=1536** — Caps Node.js heap at 1.5GB during build so the process doesn’t grab 2–2.5GB and hang the server. Override in `.env.fe.dev` (e.g. `NODE_OPTIONS=--max-old-space-size=1024`) for stricter cap.
+- **BUILD_LOW_MEMORY=1** — Disables webpack cache during build to reduce peak RAM.
+- **Backend** (`docker-compose.dev.backend.yml`): Postgres and API limits reduced to 768M each so more memory is free for the system and for frontend builds.
+
+If the build still OOMs or the server is still tight, use Option 1 (build elsewhere) or Option 2 (add swap) below.
+
+---
+
 ## Why it happens
 
 The **build** of the web image does:
@@ -111,24 +123,21 @@ Build will be slower but the server is less likely to hang.
 
 ---
 
-### Option 3: Limit Node memory so the build fails instead of hanging
+### Option 3: Stricter Node memory cap (build fails instead of hanging)
 
-If you prefer the build to **fail** with an error instead of freezing the server, you can cap Node’s memory. That may cause the Next.js build to run out of memory and exit, so the server stays responsive.
-
-Set before running compose (or in `infra/.env.fe.dev` if you use it for build args):
+The compose file already passes **NODE_OPTIONS=--max-old-space-size=1536** by default. To cap lower so the build **fails** with OOM instead of freezing the server (e.g. on very tight RAM), set in `infra/.env.fe.dev`:
 
 ```bash
-export NODE_OPTIONS="--max-old-space-size=1024"
-docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
+NODE_OPTIONS=--max-old-space-size=1024
 ```
 
-Then either fix the OOM by building elsewhere / adding swap, or increase the limit a bit (e.g. 1536) if the server has enough free RAM.
+Then run compose as usual. If the build OOMs, either add swap / build elsewhere, or increase (e.g. 1536).
 
 ---
 
 ## Summary
 
 | Cause | Build uses a lot of RAM (1.5–2.5GB); small dev server runs out → hang. |
-| Fix   | Build the web image on a machine with enough RAM and load/run it on the dev server, or add swap on the dev server, or limit Node memory so the build fails instead of hanging. |
+| Fix   | **Default:** Compose now caps build with NODE_OPTIONS and BUILD_LOW_MEMORY. If still tight: build the image elsewhere and load/run on the dev server, or add swap, or lower NODE_OPTIONS so the build fails instead of hanging. |
 
 The `memory: 512M` in `docker-compose.dev.frontend.yml` only limits the **running** container; it does not limit the **build**. The hang is from the build step.

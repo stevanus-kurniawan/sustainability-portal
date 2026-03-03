@@ -365,6 +365,18 @@ export async function adminUserUpdateStatus(id: string, status: UserStatus): Pro
   return res.json();
 }
 
+export async function adminUserUpdateEmailVerification(
+  id: string,
+  emailVerified: boolean
+): Promise<AdminUserDetail> {
+  const res = await adminFetch(`/api/admin/users/${id}/email-verification`, {
+    method: 'PATCH',
+    body: JSON.stringify({ emailVerified }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
 // ========== Admin Management (SUPER_ADMIN only) ==========
 
 export interface AdminListItem {
