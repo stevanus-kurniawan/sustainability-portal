@@ -1,14 +1,12 @@
 # Frontend server only (e.g. 172.28.92.56): Next.js web only.
 # Usage: docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
 #
-# IMPORTANT – If the server hangs during "up -d --build":
-# The Next.js build uses a lot of RAM (often 1.5–2.5GB). On a small dev server this can exhaust
-# memory and hang the machine. See docs/DEPLOY-DEV-FRONTEND-BUILD.md for workarounds:
-# - Build the image on another machine (more RAM) and load it on the dev server, or
-# - Add swap on the dev server before building, or
-# - Use up -d without --build if the image was already built elsewhere.
+# Optimized for 8GB servers: NODE_OPTIONS and BUILD_LOW_MEMORY cap build RAM so the server
+# doesn't hang. If build still OOMs, add swap (see docs/DEPLOY-DEV-FRONTEND-BUILD.md) or
+# build the image elsewhere and run without --build.
 #
 # .env: API_URL, API_BACKEND_URL (optional), CMS_URL (optional).
+# Optional: NODE_OPTIONS=--max-old-space-size=1024, BUILD_LOW_MEMORY=1 (stricter cap / single-thread webpack).
 
 services:
   web:
@@ -19,6 +17,9 @@ services:
         NEXT_PUBLIC_API_URL: ${API_URL}
         NEXT_PUBLIC_CMS_URL: ${CMS_URL:-}
         API_BACKEND_URL: ${API_BACKEND_URL:-}
+        # NODE_OPTIONS: override in .env.fe.dev to cap Node heap (e.g. 1024); Dockerfile default is 1536
+        NODE_OPTIONS: ${NODE_OPTIONS}
+        BUILD_LOW_MEMORY: ${BUILD_LOW_MEMORY:-1}
     restart: always
     environment:
       NODE_ENV: production

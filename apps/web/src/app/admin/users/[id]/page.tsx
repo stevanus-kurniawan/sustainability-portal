@@ -10,6 +10,7 @@ import {
   adminUserUpdate,
   adminUserUpdateRole,
   adminUserUpdateStatus,
+  adminUserUpdateEmailVerification,
   type AdminUserDetail,
   type UserStatus,
 } from '@/lib/admin-api';
@@ -122,6 +123,20 @@ export default function AdminUserDetailPage() {
     }
   };
 
+  const handleEmailVerificationChange = async (emailVerified: boolean) => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      const updated = await adminUserUpdateEmailVerification(id, emailVerified);
+      setUser(updated);
+      showToast('success', emailVerified ? 'Email marked as verified.' : 'Email marked as unverified.');
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Email verification update failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-8">
@@ -220,6 +235,23 @@ export default function AdminUserDetailPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="mb-1 block text-sm text-steel">Email verification</label>
+            <select
+              className="input w-full max-w-[200px]"
+              value={user.emailVerified ? 'verified' : 'unverified'}
+              onChange={(e) => handleEmailVerificationChange(e.target.value === 'verified')}
+              disabled={saving}
+            >
+              <option value="unverified">Unverified</option>
+              <option value="verified">Verified</option>
+            </select>
+            {user.emailVerifiedAt && (
+              <p className="mt-1 text-xs text-steel">
+                Verified at: {new Date(user.emailVerifiedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-2 pt-2">
             <Button onClick={handleSaveProfile} disabled={saving} className="gap-2">
               <Save className="h-4 w-4" />
@@ -236,7 +268,6 @@ export default function AdminUserDetailPage() {
         <CardContent className="text-sm text-steel space-y-1">
           <p>Created: {new Date(user.createdAt).toLocaleString()}</p>
           <p>Updated: {new Date(user.updatedAt).toLocaleString()}</p>
-          <p>Email verified: {user.emailVerified ? 'Yes' : 'No'}</p>
         </CardContent>
       </Card>
     </div>

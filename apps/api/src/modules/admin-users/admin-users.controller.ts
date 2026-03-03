@@ -17,6 +17,7 @@ import { AdminUsersService, AuditActor } from './admin-users.service';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { AdminUserRoleDto } from './dto/admin-user-role.dto';
 import { AdminUserStatusDto } from './dto/admin-user-status.dto';
+import { AdminUserEmailVerificationDto } from './dto/admin-user-email-verification.dto';
 import { UserStatus } from '@prisma/client';
 
 function getActor(req: Request & { user?: { id: string; email: string; role: string } }): AuditActor {
@@ -123,6 +124,23 @@ export class AdminUsersController {
     return this.service.updateStatus(
       id,
       dto.status,
+      getActor(req as any),
+      getIp(req),
+      getUserAgent(req),
+    );
+  }
+
+  @Patch(':id/email-verification')
+  @ApiOperation({ summary: 'Update user email verification status' })
+  @ApiResponse({ status: 200, description: 'Email verification status updated' })
+  async updateEmailVerification(
+    @Param('id') id: string,
+    @Body() dto: AdminUserEmailVerificationDto,
+    @Req() req: Request,
+  ) {
+    return this.service.updateEmailVerification(
+      id,
+      dto.emailVerified,
       getActor(req as any),
       getIp(req),
       getUserAgent(req),
