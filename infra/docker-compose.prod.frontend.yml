@@ -1,0 +1,34 @@
+# Production FRONTEND server only (Next.js web).
+# Usage: on frontend server, copy infra/env.example.frontend to infra/.env then:
+#   docker compose -f infra/docker-compose.prod.frontend.yml up -d
+#
+# Port: 8000. API_BACKEND_URL must be the backend server IP:8001 so login/proxy work.
+# See env.example.frontend. When domain is ready, replace IPs with domain in .env.
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${API_URL}
+        API_BACKEND_URL: ${API_BACKEND_URL}
+    container_name: slms-web-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${API_URL}
+      NEXT_PUBLIC_CMS_URL: ${CMS_URL:-}
+      API_BACKEND_URL: ${API_BACKEND_URL}
+      SLMS_DOCKER_WEB: "true"
+    ports:
+      - "8000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+networks:
+  default:
+    name: slms-network-prod-frontend
