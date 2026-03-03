@@ -18,32 +18,22 @@ function rewriteCookieHeader(cookieHeader: string, requestIsHttps: boolean): str
   return out;
 }
 
-/** Build the public origin (e.g. http://172.28.92.56:3000) so redirect goes to the host the user used, not internal localhost. */
-function getRedirectOrigin(req: NextRequest): string {
-  const envOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-  if (envOrigin) {
-    const base = envOrigin.startsWith('http') ? envOrigin : `https://${envOrigin}`;
-    try {
-      const u = new URL(base);
-      return u.origin;
-    } catch {
-      // ignore
-    }
+/** Get all Set-Cookie header values from a fetch Response (Node 18+ getSetCookie, or fallback). */
+function getSetCookiesFromResponse(res: Response): string[] {
+  const headers = res.headers as Headers & { getSetCookie?(): string[] };
+  if (typeof headers.getSetCookie === 'function') {
+    return headers.getSetCookie();
   }
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
-  const proto = req.headers.get('x-forwarded-proto') || req.nextUrl.protocol?.replace(':', '') || 'http';
-  if (host) {
-    return `${proto}://${host}`;
-  }
-  return new URL(req.url).origin;
+  const single = res.headers.get('set-cookie');
+  return single ? [single] : [];
 }
 
 /**
- * Server-side login: call backend, then return 302 redirect with Set-Cookie from backend.
- * Browsers reliably store cookies when they receive a redirect response (vs 200 + JSON from fetch).
+ * Server-side login: call backend, return 200 OK with body + Set-Cookie.
+ * FE redirects to landing page on 200. Same-origin response so browser stores cookies.
  */
 export async function POST(req: NextRequest) {
-  let body: { email?: string; password?: string; next?: string };
+  let body: { email?: string; password?: string };
   try {
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -53,19 +43,17 @@ export async function POST(req: NextRequest) {
       body = {
         email: (form.get('email') as string) || '',
         password: (form.get('password') as string) || '',
-        next: (form.get('next') as string) || '/',
       };
     }
   } catch {
-    return NextResponse.redirect(new URL('/login?error=invalid-request', getRedirectOrigin(req)), 302);
+    return NextResponse.json({ message: 'Invalid request' }, { status: 400 });
   }
 
   const email = body.email?.trim();
   const password = body.password;
-  const nextUrl = body.next && body.next.startsWith('/') ? body.next : '/';
 
   if (!email || !password) {
-    return NextResponse.redirect(new URL('/login?error=missing-fields', getRedirectOrigin(req)), 302);
+    return NextResponse.json({ message: 'Email and password required' }, { status: 400 });
   }
 
   const base = getBackendBase(req);
@@ -80,28 +68,33 @@ export async function POST(req: NextRequest) {
       cache: 'no-store',
     });
   } catch (err) {
-    return NextResponse.redirect(new URL('/login?error=network', getRedirectOrigin(req)), 302);
+    return NextResponse.json({ message: 'Cannot reach the server. Please try again.' }, { status: 502 });
+  }
+
+  const responseBody = await res.text();
+  let data: unknown;
+  try {
+    data = responseBody ? JSON.parse(responseBody) : null;
+  } catch {
+    data = { message: 'Invalid response from server' };
   }
 
   if (!res.ok) {
-    return NextResponse.redirect(new URL('/login?error=invalid-credentials', getRedirectOrigin(req)), 302);
+    const message = (data as { message?: string })?.message || 'Login failed';
+    return NextResponse.json({ message }, { status: res.status });
   }
 
   const proto = req.nextUrl.protocol;
   const requestIsHttps = proto === 'https:';
 
-  const redirectOrigin = getRedirectOrigin(req);
-  const redirectResponse = NextResponse.redirect(new URL(nextUrl, redirectOrigin), 302);
-  const setCookies =
-    'getSetCookie' in res.headers
-      ? (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie()
-      : null;
+  const responseHeaders = new Headers();
+  const setCookies = getSetCookiesFromResponse(res);
 
   if (setCookies?.length) {
     setCookies.forEach((c) => {
-      redirectResponse.headers.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
+      responseHeaders.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
     });
   }
 
-  return redirectResponse;
+  return NextResponse.json(data, { status: 200, headers: responseHeaders });
 }

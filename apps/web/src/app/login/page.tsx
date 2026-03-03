@@ -33,22 +33,19 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        redirect: 'manual',
-        body: JSON.stringify({ email: email.trim(), password, next: '/' }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      if (res.type === 'error' || res.status === 0) {
-        setError('Network error. Please try again.');
-        return;
-      }
-      if (res.status === 302) {
-        const location = res.headers.get('Location') || '/';
-        window.location.href = location;
-        return;
-      }
       const data = await res.json().catch(() => ({}));
-      setError(data?.message || 'Login failed');
+      if (res.ok) {
+        // Brief delay so the browser commits Set-Cookie before we navigate (fixes dev FE+BE
+        // where immediate redirect can send GET / before the cookie is attached).
+        await new Promise((r) => setTimeout(r, 50));
+        window.location.replace('/');
+        return;
+      }
+      setError((data?.message as string) || 'Login failed');
     } catch {
-      setError('Login failed');
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
