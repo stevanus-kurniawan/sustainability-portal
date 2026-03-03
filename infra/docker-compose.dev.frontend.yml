@@ -1,7 +1,14 @@
 # Frontend server only (e.g. 172.28.92.56): Next.js web only.
-# Usage: docker compose -f infra/docker-compose.dev.frontend.yml up -d
-# .env: API_URL (e.g. http://172.28.92.57:3001/api/v1), CMS_URL (optional).
-# For admin login when FE and API are on different hosts: set API_URL=/api/v1 and API_BACKEND_URL=http://172.28.92.57:3001 so /api/v1 is proxied and the admin cookie is same-origin.
+# Usage: docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
+#
+# IMPORTANT – If the server hangs during "up -d --build":
+# The Next.js build uses a lot of RAM (often 1.5–2.5GB). On a small dev server this can exhaust
+# memory and hang the machine. See docs/DEPLOY-DEV-FRONTEND-BUILD.md for workarounds:
+# - Build the image on another machine (more RAM) and load it on the dev server, or
+# - Add swap on the dev server before building, or
+# - Use up -d without --build if the image was already built elsewhere.
+#
+# .env: API_URL, API_BACKEND_URL (optional), CMS_URL (optional).
 
 services:
   web:
@@ -18,7 +25,6 @@ services:
       PORT: 3000
       NEXT_PUBLIC_API_URL: ${API_URL}
       NEXT_PUBLIC_CMS_URL: ${CMS_URL:-}
-      # Server-side API routes need an absolute URL (Node fetch). Set when API_URL is relative (/api/v1).
       API_BACKEND_URL: ${API_BACKEND_URL:-}
       INTERNAL_API_URL: ${INTERNAL_API_URL:-}
     ports:
