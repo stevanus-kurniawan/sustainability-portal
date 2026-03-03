@@ -117,20 +117,30 @@ function rewriteSetCookieForFrontendHost(cookieHeader: string, requestIsHttps: b
   return out;
 }
 
+/** Get all Set-Cookie header values (Node 18+ getSetCookie, or fallback so admin-auth/login cookie is always forwarded). */
+function getSetCookiesFromResponse(res: Response): string[] {
+  const headers = res.headers as Headers & { getSetCookie?(): string[] };
+  if (typeof headers.getSetCookie === 'function') {
+    return headers.getSetCookie();
+  }
+  const single = res.headers.get('set-cookie');
+  return single ? [single] : [];
+}
+
 async function forwardResponse(request: NextRequest, res: Response): Promise<NextResponse> {
   const responseHeaders = new Headers();
-  const setCookies = 'getSetCookie' in res.headers ? (res.headers as Headers & { getSetCookie(): string[] }).getSetCookie() : null;
+  const setCookies = getSetCookiesFromResponse(res);
   const proto = request.nextUrl.protocol;
   const requestIsHttps = proto === 'https:';
   res.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower === 'set-cookie') {
-      if (!setCookies?.length) responseHeaders.append(key, value);
+      if (!setCookies.length) responseHeaders.append(key, value);
     } else if (lower !== 'content-encoding' && lower !== 'transfer-encoding') {
       responseHeaders.set(key, value);
     }
   });
-  if (setCookies?.length) {
+  if (setCookies.length) {
     setCookies.forEach((c) => {
       responseHeaders.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
     });
