@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button, Input, Card, CardHeader, CardTitle, CardContent, Alert } from '@/components/ui';
 import { adminLogin } from '@/lib/auth-api';
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,8 +18,10 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       await adminLogin(email.trim(), password);
-      router.push('/admin');
-      router.refresh();
+      // Brief delay so the browser commits Set-Cookie before we navigate (same fix as visitor login).
+      await new Promise((r) => setTimeout(r, 50));
+      window.location.replace('/admin');
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Admin login failed');
     } finally {
