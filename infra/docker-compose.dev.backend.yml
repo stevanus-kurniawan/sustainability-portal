@@ -32,7 +32,8 @@ services:
     restart: always
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    # Cap memory so cache doesn't grow unbounded and crash the server (dev).
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 200mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s

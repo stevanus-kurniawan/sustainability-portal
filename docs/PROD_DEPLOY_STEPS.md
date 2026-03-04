@@ -372,6 +372,7 @@ When you have a domain:
 
 | Problem | What to check |
 |--------|----------------|
+| **Connection timeout to DB** (pgAdmin/DBeaver) | Timeout = network/firewall, not wrong password. (1) On backend server: `docker compose -f infra/docker-compose.prod.backend.yml ps` — postgres must be Up. (2) Port: prod uses `POSTGRES_PORT` from backend `.env` (example: **5000**). (3) Firewall/security group must allow **your client IP** (where pgAdmin runs) to backend **TCP port 5000** (or 5432 if you didn’t set `POSTGRES_PORT`). (4) If you’re outside the VPC: use backend **public IP** and open that port for your IP, or use **SSH tunnel**: `ssh -L 5000:172.28.80.51:5000 user@<backend-public-ip>` then in pgAdmin use Host `localhost`, Port `5000`. |
 | API container exits | `docker compose -f infra/docker-compose.prod.backend.yml logs api`. Check `DATABASE_URL`, `REDIS_*`, `JWT_*`, `MINIO_*` in `infra/.env`. |
 | Migrations fail | `docker compose -f infra/docker-compose.prod.backend.yml exec api npx prisma migrate status`. Ensure Postgres is up and `DB_*` correct. |
 | Frontend cannot reach API | From frontend server: `curl -s http://BACKEND_IP:8001/api/v1/health`. Open port 8001 from frontend to backend. |

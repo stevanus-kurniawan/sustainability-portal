@@ -84,6 +84,8 @@ export function renderBaseEmailTemplate(params: BaseEmailTemplateParams): string
 `
       : '';
 
+  // Escape URL for HTML so token query string (e.g. containing &) does not break the link
+  const ctaHref = cta ? cta.url.replace(/&/g, '&amp;').replace(/"/g, '&quot;') : '';
   const ctaBlock = cta
     ? `
     <tr>
@@ -91,7 +93,7 @@ export function renderBaseEmailTemplate(params: BaseEmailTemplateParams): string
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
           <tr>
             <td style="border-radius: ${theme.radius}; background-color: ${theme.primary};">
-              <a href="${cta.url}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; font-family: ${theme.fontFamily}; font-size: ${theme.fontSizeBase}; font-weight: 600; color: #FFFFFF; text-decoration: none; border-radius: ${theme.radius};">
+              <a href="${ctaHref}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; font-family: ${theme.fontFamily}; font-size: ${theme.fontSizeBase}; font-weight: 600; color: #FFFFFF; text-decoration: none; border-radius: ${theme.radius};">
                 ${cta.text}
               </a>
             </td>
