@@ -29,7 +29,8 @@ export function buildResetPasswordHtml(params: ResetPasswordHtmlParams): string 
 
   return renderBaseEmailTemplate({
     headerTitle: 'Reset your password',
-    logoUrl: webUrl ? `${webUrl.replace(/\/$/, '')}/logo.png` : undefined,
+    // Omit logo to avoid broken image when email client blocks images or URL is unreachable
+    logoUrl: undefined,
     greeting: 'Hello,',
     subtitle: 'You requested a password reset. Click the link below to set a new password.',
     contentHtml,

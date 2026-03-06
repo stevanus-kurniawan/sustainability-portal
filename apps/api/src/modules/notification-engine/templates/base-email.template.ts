@@ -46,15 +46,21 @@ export function renderBaseEmailTemplate(params: BaseEmailTemplateParams): string
     ? `<!--[if !mso]><!--><span style="display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">${previewText}</span><!--<![endif]-->`
     : '';
 
-  const logoBlock = logoUrl
-    ? `
+  // Only show logo when URL is absolute (http/https); relative or invalid URLs cause broken images in email clients
+  const hasValidLogoUrl =
+    logoUrl &&
+    typeof logoUrl === 'string' &&
+    (logoUrl.startsWith('https://') || logoUrl.startsWith('http://'));
+  const logoBlock =
+    hasValidLogoUrl
+      ? `
     <tr>
       <td align="center" style="padding: 28px 24px 12px 24px;">
         <img src="${logoUrl}" alt="Logo" width="72" height="72" style="display:block;max-width:72px;height:auto;border:0;" />
       </td>
     </tr>
 `
-    : '';
+      : '';
 
   const greetingBlock = greeting
     ? `
@@ -77,7 +83,7 @@ export function renderBaseEmailTemplate(params: BaseEmailTemplateParams): string
     : '';
 
   const dividerBlock =
-    greeting || subtitle || logoUrl
+    greeting || subtitle || hasValidLogoUrl
       ? `
     <tr>
       <td style="padding: 0 32px; border-bottom: 1px solid ${theme.border};"></td>
@@ -87,16 +93,15 @@ export function renderBaseEmailTemplate(params: BaseEmailTemplateParams): string
 
   // Escape URL for HTML so token query string (e.g. containing &) does not break the link
   const ctaHref = cta ? cta.url.replace(/&/g, '&amp;').replace(/"/g, '&quot;') : '';
+  // Button styled like app primary: #C43A31 bg, white text, rounded. Background on both td and a for Outlook/Gmail compatibility.
   const ctaBlock = cta
     ? `
     <tr>
       <td style="padding: 28px 32px 8px 32px; text-align: center;">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
           <tr>
-            <td align="center" style="border-radius: ${theme.radius}; background-color: ${theme.primary}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-              <a href="${ctaHref}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 14px 32px; font-family: ${theme.fontFamily}; font-size: 16px; font-weight: 600; color: #FFFFFF; text-decoration: none; border-radius: ${theme.radius}; letter-spacing: 0.02em;">
-                ${cta.text}
-              </a>
+            <td align="center" style="border-radius: 8px; background-color: ${theme.primary};">
+              <a href="${ctaHref}" target="_blank" rel="noopener noreferrer" style="display: block; padding: 12px 24px; font-family: ${theme.fontFamily}; font-size: 14px; font-weight: 600; color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF; text-decoration: none; border-radius: 8px; background-color: ${theme.primary};">${cta.text}</a>
             </td>
           </tr>
         </table>
