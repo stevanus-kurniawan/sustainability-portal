@@ -9,6 +9,8 @@ const PUBLIC_USER_ROUTES = [
   '/register',
   '/register/verify-email',
   '/auth/verify-email',
+  '/forgot-password',
+  '/auth/reset-password',
 ];
 const ADMIN_PREFIX = '/admin';
 const ADMIN_LOGIN = '/admin/login';
