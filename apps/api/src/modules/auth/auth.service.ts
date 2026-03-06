@@ -383,10 +383,17 @@ export class AuthService {
       },
     });
 
-    const appBaseUrl =
+    let appBaseUrl =
       this.configService.get('APP_BASE_URL') ||
       this.configService.get('WEB_URL', 'http://localhost:3000');
-    const resetUrl = `${String(appBaseUrl).replace(/\/$/, '')}/auth/reset-password?token=${encodeURIComponent(token)}`;
+    appBaseUrl = String(appBaseUrl).trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(appBaseUrl)) {
+      this.logger.warn(
+        `APP_BASE_URL/WEB_URL must be absolute (http:// or https://). Got: ${appBaseUrl || '(empty)'}. Using http://localhost:3000.`,
+      );
+      appBaseUrl = 'http://localhost:3000';
+    }
+    const resetUrl = `${appBaseUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
 
     const ok = await this.emailService.sendEmail({
       to: normalizedEmail,
