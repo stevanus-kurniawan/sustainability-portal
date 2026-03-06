@@ -1,0 +1,167 @@
+# REFERENCE: Correct nginx-ssl.conf for BOTH pm.energi-up.com AND sustainability.kpndomain.com
+# Copy this to the server as /opt/Project-Management-V2.0/frontend/nginx-ssl.conf (backup the original first)
+#
+# WHAT WAS WRONG: The sustainability ssl_certificate lines were added INSIDE the pm.energi-up.com
+# server block. In NGINX the last ssl_certificate wins, so pm.energi-up.com was serving
+# sustainability's cert → certificate mismatch, HTTPS broken for pm.energi-up.com.
+#
+# FIX: Each domain has its OWN server block with its OWN ssl_certificate. No duplicate directives.
+
+# ========== pm.energi-up.com: HTTP → redirect to HTTPS ==========
+server {
+    listen 80;
+    server_name pm.energi-up.com localhost;
+    return 301 https://$host$request_uri;
+}
+
+# ========== pm.energi-up.com: HTTPS (PM app) ==========
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name pm.energi-up.com localhost;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Certificates for pm.energi-up.com ONLY (mounted from host /opt/Project-Management-V2.0/assets/ssl)
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    # Modern TLS settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # Security headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+
+    # Cache control for static assets
+    location ~* \.(jpg|jpeg|png|gif|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location ~* (favicon|apple-touch-icon|android-chrome)\.(ico|png)$ {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+
+    location ~* \.(js|css)$ {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+
+    location ~* \.html$ {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+
+    # Proxy API to PM backend
+    location /api/ {
+        proxy_pass http://172.28.80.51:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location /docs/ {
+        proxy_pass http://172.28.80.51:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+}
+
+# ========== sustainability.kpndomain.com: HTTP → app on 8000 ==========
+server {
+    listen 80;
+    listen [::]:80;
+    server_name sustainability.kpndomain.com;
+
+    location / {
+        proxy_pass http://172.28.80.50:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+}
+
+# ========== sustainability.kpndomain.com: HTTPS → app on 8000 ==========
+# Only add this block if you have SSL certs for sustainability (e.g. Let's Encrypt or internal CA)
+# and have placed fullchain.pem + privkey.pem in /opt/Project-Management-V2.0/assets/ssl/sustainability.kpndomain.com/
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name sustainability.kpndomain.com;
+
+    ssl_certificate     /etc/nginx/ssl/sustainability.kpndomain.com/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/sustainability.kpndomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    location / {
+        proxy_pass http://172.28.80.50:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_buffering off;
+    }
+}

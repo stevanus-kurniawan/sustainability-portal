@@ -3,20 +3,25 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AuthService } from '../auth/auth.service';
 import {
   clampPagination,
   paginationMeta,
   wrapPaginated,
 } from '../../common/response';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { UserStatus } from '@prisma/client';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 
 const ALLOWED_USER_ROLES = ['USER', 'ADMIN', 'SUPER_ADMIN'];
+const SALT_ROUNDS = 10;
 
 export interface AdminListUsersParams {
   page?: number;
@@ -40,6 +45,7 @@ export class AdminUsersService {
     private prisma: PrismaService,
     private usersService: UsersService,
     private auditLogs: AuditLogsService,
+    private authService: AuthService,
   ) {}
 
   async list(params: AdminListUsersParams) {
@@ -121,6 +127,79 @@ export class AdminUsersService {
       updatedAt: user.updatedAt,
       roles: user.userRoles.map((ur) => ur.role.name),
     };
+  }
+
+  async createUser(
+    dto: AdminCreateUserDto,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    const roles = dto.roles?.length ? dto.roles : ['USER'];
+    const hasSuperAdmin = roles.includes('SUPER_ADMIN');
+    if (hasSuperAdmin && actor.adminRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only SUPER_ADMIN can assign SUPER_ADMIN role to users');
+    }
+    for (const r of roles) {
+      if (!ALLOWED_USER_ROLES.includes(r)) {
+        throw new BadRequestException(
+          `Role must be one of: ${ALLOWED_USER_ROLES.join(', ')}`,
+        );
+      }
+    }
+
+    const sendVerificationEmail = dto.sendVerificationEmail !== false;
+    const status: UserStatus = sendVerificationEmail
+      ? ('PENDING_VERIFICATION' as UserStatus)
+      : (dto.status ?? ('ACTIVE' as UserStatus));
+    const emailVerified = !sendVerificationEmail;
+    const passwordHash = await bcrypt.hash(dto.temporaryPassword, SALT_ROUNDS);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        name: dto.name.trim(),
+        passwordHash,
+        status,
+        emailVerified,
+        emailVerifiedAt: emailVerified ? new Date() : null,
+      } as any,
+    });
+
+    if (roles.length > 0) {
+      await this.usersService.assignRoles(user.id, roles);
+    }
+
+    let verificationEmailSent = false;
+    if (sendVerificationEmail) {
+      try {
+        await this.authService.sendVerificationEmailForUser(user.id, email);
+        verificationEmailSent = true;
+      } catch {
+        // Log but do not fail user creation; audit will record that email was not sent
+      }
+    }
+
+    const after = this.snapshotUser(await this.usersService.findById(user.id));
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'CREATE',
+      entityType: 'user',
+      entityId: user.id,
+      afterJson: after,
+      metadata: sendVerificationEmail ? { verificationEmailSent } : undefined,
+      ip,
+      userAgent,
+    });
+
+    return this.getById(user.id);
   }
 
   async update(

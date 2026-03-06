@@ -1,12 +1,13 @@
 'use client';
 
-import { Users as UsersIcon, Search, Pencil, Eye } from 'lucide-react';
+import { Users as UsersIcon, Search, Pencil, Eye, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Pagination, StatusBadge } from '@/components/ui';
 import { AccessDenied } from '@/components/admin/AccessDenied';
 import {
+  adminUserCreate,
   type AdminUserListItem,
   type UserStatus,
 } from '@/lib/admin-api';
@@ -33,6 +34,14 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formEmail, setFormEmail] = useState('');
+  const [formName, setFormName] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formRole, setFormRole] = useState('USER');
+  const [formSendVerification, setFormSendVerification] = useState(true);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -97,6 +106,54 @@ export default function AdminUsersPage() {
     });
   };
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const openCreateModal = () => {
+    setFormEmail('');
+    setFormName('');
+    setFormPassword('');
+    setFormRole('USER');
+    setFormSendVerification(true);
+    setCreateModalOpen(true);
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formEmail.trim() || !formName.trim() || !formPassword) {
+      showToast('error', 'Email, name, and password are required.');
+      return;
+    }
+    if (formPassword.length < 8) {
+      showToast('error', 'Password must be at least 8 characters.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminUserCreate({
+        email: formEmail.trim(),
+        name: formName.trim(),
+        temporaryPassword: formPassword,
+        roles: [formRole],
+        sendVerificationEmail: formSendVerification,
+      });
+      showToast(
+        'success',
+        formSendVerification
+          ? 'User created. Verification email sent.'
+          : 'User created. They can log in with the password you set.',
+      );
+      setCreateModalOpen(false);
+      fetchList();
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Failed to create user.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pagination = list?.meta?.pagination;
   const totalPages = pagination?.pageCount ?? 1;
   const users = list?.data ?? [];
@@ -116,12 +173,28 @@ export default function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
-        <h1 className="font-heading text-h1 text-charcoal flex items-center gap-2">
-          <UsersIcon className="h-8 w-8 text-primary" />
-          Users
-        </h1>
-        <p className="mt-1 text-steel">Manage registered portal users.</p>
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 rounded-lg px-4 py-2 shadow-lg ${
+            toast.type === 'success' ? 'bg-success/90 text-white' : 'bg-danger/90 text-white'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-heading text-h1 text-charcoal flex items-center gap-2">
+            <UsersIcon className="h-8 w-8 text-primary" />
+            Users
+          </h1>
+          <p className="mt-1 text-steel">Manage registered portal users. Create visitors or assign roles.</p>
+        </div>
+        <Button onClick={openCreateModal} className="gap-2 shrink-0">
+          <Plus className="h-4 w-4" />
+          Create user
+        </Button>
       </div>
 
       <Card className="mb-6">
@@ -262,6 +335,98 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {createModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Create visitor user</CardTitle>
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="text-steel hover:text-charcoal text-xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Email *</label>
+                  <Input
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    required
+                    placeholder="user@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Full name *</label>
+                  <Input
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    required
+                    placeholder="Jane Doe"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Password * (min 8 characters)</label>
+                  <Input
+                    type="password"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    placeholder="••••••••"
+                  />
+                  <p className="mt-1 text-xs text-steel">Share this password with the user securely.</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Role</label>
+                  <select
+                    className="input w-full"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                    disabled={saving}
+                  >
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="send-verification"
+                    checked={formSendVerification}
+                    onChange={(e) => setFormSendVerification(e.target.checked)}
+                    disabled={saving}
+                    className="rounded border-border-light"
+                  />
+                  <label htmlFor="send-verification" className="text-sm text-steel">
+                    Send verification email (user must verify before first login)
+                  </label>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? 'Creating…' : 'Create user'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setCreateModalOpen(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

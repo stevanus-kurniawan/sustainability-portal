@@ -335,6 +335,31 @@ export async function adminUserGet(id: string): Promise<AdminUserDetail | null> 
   return res.json();
 }
 
+export interface AdminCreateUserParams {
+  email: string;
+  name: string;
+  temporaryPassword: string;
+  status?: UserStatus;
+  roles?: string[];
+  sendVerificationEmail?: boolean;
+}
+
+export async function adminUserCreate(params: AdminCreateUserParams): Promise<AdminUserDetail> {
+  const res = await adminFetch('/api/admin/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: params.email.trim(),
+      name: params.name.trim(),
+      temporaryPassword: params.temporaryPassword,
+      status: params.status,
+      roles: params.roles,
+      sendVerificationEmail: params.sendVerificationEmail,
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
 export async function adminUserUpdate(
   id: string,
   body: { name?: string; status?: UserStatus; roles?: string[] }

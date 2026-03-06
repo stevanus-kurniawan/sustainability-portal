@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+# Run dev frontend (Next.js) with the correct env file.
+# Usage (from repo root or infra/):
+#   ./infra/up-dev-frontend.sh up -d --build web
+#   ./infra/up-dev-frontend.sh up -d web
+#   ./infra/up-dev-frontend.sh down
+# Optional: run ./infra/clean-dev-cache.sh first if the server is low on space (reduces cache before build).
+
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="${SCRIPT_DIR}/.env.fe.dev"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.dev.frontend.yml"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: env file not found: $ENV_FILE"
+  echo "Create infra/.env.fe.dev with API_URL, API_BACKEND_URL (see docker-compose.dev.frontend.yml)."
+  exit 1
+fi
+
+cd "$PROJECT_ROOT"
+exec docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"

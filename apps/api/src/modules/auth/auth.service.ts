@@ -485,10 +485,18 @@ export class AuthService {
     email: string,
   ): Promise<void> {
     const token = this.createEmailVerificationToken({ userId, email });
-    const appBaseUrl =
+    let appBaseUrl =
       this.configService.get('APP_BASE_URL') ||
       this.configService.get('WEB_URL', 'http://localhost:3000');
-    const verifyUrl = `${String(appBaseUrl).replace(/\/$/, '')}/auth/verify-email?token=${encodeURIComponent(token)}`;
+    appBaseUrl = String(appBaseUrl).trim().replace(/\/$/, '');
+    // Ensure absolute URL so email clients (e.g. Outlook) open in browser, not as a file
+    if (!/^https?:\/\//i.test(appBaseUrl)) {
+      this.logger.warn(
+        `APP_BASE_URL/WEB_URL must be absolute (http:// or https://). Got: ${appBaseUrl || '(empty)'}. Using http://localhost:3000.`,
+      );
+      appBaseUrl = 'http://localhost:3000';
+    }
+    const verifyUrl = `${appBaseUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
 
     const ok = await this.emailService.sendEmail({
       to: email,
@@ -505,6 +513,14 @@ export class AuthService {
         'Failed to send verification email. Please try again later or contact support.',
       );
     }
+  }
+
+  /**
+   * Send verification email for a user (e.g. when admin creates a visitor).
+   * Public so AdminUsersService can call it.
+   */
+  async sendVerificationEmailForUser(userId: string, email: string): Promise<void> {
+    await this.sendEmailVerificationLink(userId, email);
   }
 
   /**
