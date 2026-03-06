@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Header } from './Header';
 import { Footer } from './Footer';
 
-const NO_HEADER_ROUTES = ['/login', '/register'];
+const NO_HEADER_ROUTES = ['/login', '/register', '/forgot-password', '/auth'];
 
 function HeaderPlaceholder() {
   return (
