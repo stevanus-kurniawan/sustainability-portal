@@ -516,6 +516,14 @@ export class AuthService {
   }
 
   /**
+   * Send verification email for a user (e.g. when admin creates a visitor).
+   * Public so AdminUsersService can call it.
+   */
+  async sendVerificationEmailForUser(userId: string, email: string): Promise<void> {
+    await this.sendEmailVerificationLink(userId, email);
+  }
+
+  /**
    * Refresh tokens using refresh token
    */
   async refreshTokens(refreshToken: string): Promise<TokenResponse> {

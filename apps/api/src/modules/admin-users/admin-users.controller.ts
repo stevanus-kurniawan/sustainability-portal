@@ -1,12 +1,15 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
   Query,
   Req,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -15,6 +18,7 @@ import { AdminRolesGuard } from '../admin-auth/guards/admin-roles.guard';
 import { AdminRoles } from '../admin-auth/decorators/admin-roles.decorator';
 import { AdminUsersService, AuditActor } from './admin-users.service';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUserRoleDto } from './dto/admin-user-role.dto';
 import { AdminUserStatusDto } from './dto/admin-user-status.dto';
 import { AdminUserEmailVerificationDto } from './dto/admin-user-email-verification.dto';
@@ -44,6 +48,23 @@ function getUserAgent(req: Request): string | undefined {
 @ApiBearerAuth('bearer')
 export class AdminUsersController {
   constructor(private readonly service: AdminUsersService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a visitor user (admin only)' })
+  @ApiResponse({ status: 201, description: 'User created' })
+  @ApiResponse({ status: 409, description: 'User with this email already exists' })
+  async create(
+    @Body() dto: AdminCreateUserDto,
+    @Req() req: Request,
+  ) {
+    return this.service.createUser(
+      dto,
+      getActor(req as any),
+      getIp(req),
+      getUserAgent(req),
+    );
+  }
 
   @Get()
   @ApiOperation({ summary: 'List users with pagination, search, filter, sort' })
