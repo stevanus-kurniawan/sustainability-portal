@@ -30,7 +30,8 @@ export function buildVerifyEmailHtml(params: VerifyEmailHtmlParams): string {
 
   return renderBaseEmailTemplate({
     headerTitle: 'Verify your email',
-    logoUrl: webUrl ? `${webUrl.replace(/\/$/, '')}/logo.png` : undefined,
+    // Omit logo to avoid broken image when email client blocks images or URL is unreachable
+    logoUrl: undefined,
     greeting: 'Welcome!',
     subtitle: 'Please verify your email address to activate your account.',
     contentHtml,
