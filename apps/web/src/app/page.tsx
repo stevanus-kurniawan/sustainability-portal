@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui';
 
 const features = [
   { name: 'Policies', description: 'Corporate sustainability policies and commitments', href: '/policies', icon: FileText, color: 'bg-primary/10 text-primary' },
-  { name: 'Certifications', description: 'Sustainability certifications and standards compliance', href: '/certifications', icon: Award, color: 'bg-success/10 text-success' },
+  { name: 'Certifications', description: 'Sustainability certifications and standards compliance', href: '/sustainability/certificate', icon: Award, color: 'bg-success/10 text-success' },
   { name: 'Licenses', description: 'Operating licenses and regulatory approvals', href: '/licenses', icon: ScrollText, color: 'bg-warning/10 text-warning' },
   { name: 'Grievance', description: 'Grievance mechanism for stakeholder concerns', href: '/grievance', icon: MessageSquareWarning, color: 'bg-danger/10 text-danger' },
   { name: 'Sustainability report', description: 'Annual sustainability reports and ESG performance documentation', href: '/sustainability/sustainability-report', icon: FileBarChart, color: 'bg-brand-deep/10 text-brand-deep' },

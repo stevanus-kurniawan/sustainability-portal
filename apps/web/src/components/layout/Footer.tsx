@@ -4,7 +4,7 @@ import Link from 'next/link';
 const footerLinks = {
   portal: [
     { name: 'Policies', href: '/policies' },
-    { name: 'Certifications', href: '/certifications' },
+    { name: 'Certifications', href: '/sustainability/certificate' },
     { name: 'Licenses', href: '/licenses' },
     { name: 'Document Library', href: '/library' },
   ],
