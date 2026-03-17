@@ -1,18 +1,13 @@
-# NGINX Reverse Proxy for sustainability.energi-up.com
+# NGINX Reverse Proxy for sustainability.kpndomain.com
 
-Routes **http://sustainability.energi-up.com** (and later **https://**) to the app at **147.139.176.70:8000** so users do not need to specify the port.
+Routes **https://sustainability.kpndomain.com** (and **http://**) to the app at **172.28.80.50:8000** so users do not need to specify the port.
 
 ## Files
 
 | File | Purpose |
 |------|--------|
-| **`sustainability.energi-up.com.http-only.conf`** | **HTTP-only proxy** (current; use before SSL is ready) — backend configurable (127.0.0.1 or 147.139.176.70:8000) |
-| **`DEVOPS-DOMAIN-AND-PUBLIC-IP.md`** | **Troubleshooting:** domain wrong port + public IP 147.139.176.70:8000 not accessible |
-| **`FIX-FIREFOX-WORKS-CHROME-INCOGNITO-PM-APP.md`** | **Intermittent:** Firefox shows sustainability app, Chrome incognito shows PM app (HTTP vs HTTPS) |
-| **`ENV-FOR-DOMAIN-SUSTAINABILITY-ENERGI-UP.md`** | **Env:** Which backend/frontend env values to set for sustainability.energi-up.com |
-| **`FIX-PM-APP-403-AFTER-SUSTAINABILITY.md`** | **403:** PM app returns 403 Forbidden after adding sustainability blocks |
-| `sustainability.kpndomain.com.conf` | Full config for old domain: HTTP→HTTPS redirect + HTTPS proxy |
-| `sustainability.kpndomain.com.http-only.conf` | HTTP-only for old domain (172.28.80.50:8000) |
+| `sustainability.kpndomain.com.conf` | Full config: HTTP→HTTPS redirect + HTTPS proxy (production) |
+| `sustainability.kpndomain.com.http-only.conf` | HTTP-only proxy (use before SSL is ready) |
 | `DOCKER-NGINX-SETUP.md` | **Port 80 in Docker:** step-by-step guide to add this site to the NGINX container already on port 80 |
 | `SSL-DOCKER-SETUP.md` | **SSL in Docker:** add HTTPS for sustainability.kpndomain.com when NGINX runs in project_management_frontend container |
 | `INTERNAL-CA-SSL.md` | **Internal-only SSL:** create a private CA and issue a certificate for sustainability.kpndomain.com (no public DNS) |
@@ -24,18 +19,16 @@ Routes **http://sustainability.energi-up.com** (and later **https://**) to the a
 
 1. On the NGINX server, copy the HTTP-only config:
    ```bash
-   sudo cp sustainability.energi-up.com.http-only.conf /etc/nginx/sites-available/sustainability.energi-up.com.conf
+   sudo cp sustainability.kpndomain.com.http-only.conf /etc/nginx/sites-available/sustainability.kpndomain.com.conf
    ```
-   **Docker (shared nginx-ssl.conf):** Add the contents of `sustainability.energi-up.com.http-only.conf` as a new `server { ... }` block in `/opt/Project-Management-V2.0/frontend/nginx-ssl.conf`, then reload the container.
-2. Enable and test (system NGINX):
+2. Enable and test:
    ```bash
-   sudo ln -sf /etc/nginx/sites-available/sustainability.energi-up.com.conf /etc/nginx/sites-enabled/
+   sudo ln -sf /etc/nginx/sites-available/sustainability.kpndomain.com.conf /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
    ```
-   **Docker:** `docker exec project_management_frontend nginx -t && docker exec project_management_frontend nginx -s reload`
-3. Ensure **sustainability.energi-up.com** DNS points to the NGINX host.
+3. Ensure **sustainability.kpndomain.com** DNS points to this NGINX server.
 
-Users can then use **http://sustainability.energi-up.com** (no `:8000`). Backend: **147.139.176.70:8000**.
+Users can then use **http://sustainability.kpndomain.com** (no `:8000`).
 
 ## Production (HTTPS)
 
@@ -62,15 +55,34 @@ Users can then use **http://sustainability.energi-up.com** (no `:8000`). Backend
 
 ## Requirements
 
-- NGINX installed on a host that will serve **sustainability.energi-up.com** (or shared config in Docker).
-- DNS for **sustainability.energi-up.com** pointing to that NGINX host.
-- Backend app listening on **147.139.176.70:8000** (reachable from the NGINX host).
+- NGINX installed on a host that will serve **sustainability.kpndomain.com**.
+- DNS for **sustainability.kpndomain.com** pointing to that NGINX host.
+- Backend app listening on **172.28.80.50:8000** (either on the same machine or reachable from the NGINX host).
 
-## Expected result (HTTP only)
+## Expected result
 
-- **http://sustainability.energi-up.com** → proxied to **http://147.139.176.70:8000**; users do not need to use `:8000`.  
-- HTTPS can be added later (Let's Encrypt, internal CA, or self-signed); see the other docs in this folder.
+- **http://sustainability.kpndomain.com** → redirects to HTTPS (when using full config).
+- **https://sustainability.kpndomain.com** → proxied to **http://172.28.80.50:8000**; users do not need to use `:8000`.
 
 ## Port 80 already used by another project
 
-Port 80 can be shared: NGINX chooses the server block by **Host** (`server_name`). For **sustainability.energi-up.com** to go to the app on **8000**, ensure this site’s server block is loaded and the other project uses `listen 80 default_server;`. Then requests to `sustainability.energi-up.com` will match this block and proxy to **147.139.176.70:8000**.
+Port 80 can be shared: NGINX chooses the server block by **Host** (`server_name`). For **sustainability.kpndomain.com** to go to the app on **8000**, do the following.
+
+1. **This site’s config must be loaded**  
+   The file must be in `sites-enabled` (symlink from `sites-available`) and NGINX must be reloaded after adding it.
+
+2. **Other project must be default server only**  
+   So it only handles requests that do *not* match any other `server_name`. In the **other** project’s server block (the one that currently gets port 80), set:
+   ```nginx
+   listen 80 default_server;
+   listen [::]:80 default_server;
+   ```
+   Then reload NGINX. Requests to `sustainability.kpndomain.com` will match this project’s block and proxy to 8000; other hostnames will use the other project.
+
+3. **Check which config is used**  
+   On the server:
+   ```bash
+   ls -la /etc/nginx/sites-enabled/
+   sudo nginx -T | grep -A2 "server_name sustainability"
+   ```
+   You should see `server_name sustainability.kpndomain.com` and a block that does `proxy_pass` to `:8000`.

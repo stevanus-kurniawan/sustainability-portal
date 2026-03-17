@@ -63,7 +63,7 @@ export default function HomePage() {
                 Browse Documents
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
-              <Link href="/sustainability/certificate" className="btn bg-white/10 text-white hover:bg-white/20 px-6 py-3 text-base">
+              <Link href="/certifications" className="btn bg-white/10 text-white hover:bg-white/20 px-6 py-3 text-base">
                 View Certifications
               </Link>
             </div>

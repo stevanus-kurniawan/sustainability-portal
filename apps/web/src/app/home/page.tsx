@@ -26,7 +26,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/sustainability/certificate">
+        <Link href="/certifications">
           <Card hover className="h-full">
             <CardContent className="p-6">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-success/10 text-success mb-4">
