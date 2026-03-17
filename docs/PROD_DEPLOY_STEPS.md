@@ -58,7 +58,13 @@ Use this checklist before deploying.
 | Login sets cookie via FE proxy | Frontend must have `API_BACKEND_URL` so `/api/auth/login` and `/api/v1` proxy work; login then redirects to landing |
 | CORS | Backend `CORS_ORIGIN` must match the URL users use to open the app (e.g. `http://FRONTEND_IP:8000`) |
 
-### 1.6 Verification result
+### 1.6 Backups
+
+| Item | Notes |
+|------|--------|
+| Backup plan & script | See **[BACKUP-PLAN.md](./BACKUP-PLAN.md)** and **`infra/backup/`** for recommended schedule (daily Postgres + MinIO) and cron setup. |
+
+### 1.7 Verification result
 
 If all items above are in place, preparation for prod is **complete**. Proceed to Part 2.
 
