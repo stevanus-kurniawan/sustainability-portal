@@ -46,6 +46,8 @@ model Admin {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  planningActivities AdminPlanningActivity[]
+
   @@index([email])
   @@index([status])
   @@index([role])
@@ -545,4 +547,33 @@ enum TraceabilityRecordType {
   AUDIT
   CHAIN_OF_CUSTODY
   ORIGIN
+}
+
+// ==========================================
+// Admin planning (Gantt dashboard)
+// ==========================================
+
+enum PlanningActivityStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETE
+  RESCHEDULE
+}
+
+model AdminPlanningActivity {
+  id               Int                     @id @default(autoincrement())
+  description      String                  @db.Text
+  startDate        DateTime                @map("start_date") @db.Date
+  endDate          DateTime                @map("end_date") @db.Date
+  status           PlanningActivityStatus  @default(PENDING)
+  assigneeAdminId  String?                 @map("assignee_admin_id")
+  assigneeAdmin    Admin?                  @relation(fields: [assigneeAdminId], references: [id], onDelete: SetNull)
+  progressPercent  Int                     @default(0) @map("progress_percent")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  @@index([startDate])
+  @@index([endDate])
+  @@index([assigneeAdminId])
+  @@map("admin_planning_activities")
 }

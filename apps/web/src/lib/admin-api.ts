@@ -244,12 +244,15 @@ export async function adminCertificationsList(params: {
   pageSize?: number;
   search?: string;
   status?: string;
+  /** Non-expired items with expiry on or before this many days from now (e.g. 60). */
+  expiringWithinDays?: number;
 }): Promise<ListResponse<unknown>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
   if (params.pageSize != null) sp.set('pageSize', String(params.pageSize));
   if (params.search) sp.set('search', params.search);
   if (params.status) sp.set('status', params.status);
+  if (params.expiringWithinDays != null) sp.set('expiringWithinDays', String(params.expiringWithinDays));
   const res = await adminFetch(`/api/admin/certifications?${sp.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -260,12 +263,14 @@ export async function adminLicensesList(params: {
   pageSize?: number;
   search?: string;
   status?: string;
+  expiringWithinDays?: number;
 }): Promise<ListResponse<unknown>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
   if (params.pageSize != null) sp.set('pageSize', String(params.pageSize));
   if (params.search) sp.set('search', params.search);
   if (params.status) sp.set('status', params.status);
+  if (params.expiringWithinDays != null) sp.set('expiringWithinDays', String(params.expiringWithinDays));
   const res = await adminFetch(`/api/admin/licenses?${sp.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -400,6 +405,96 @@ export async function adminUserUpdateEmailVerification(
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
+}
+
+// ========== Planning activities (admin Gantt) ==========
+
+export type PlanningActivityStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETE' | 'RESCHEDULE';
+
+export interface PlanningActivityAttributes {
+  description: string;
+  startDate: string;
+  endDate: string;
+  status: PlanningActivityStatus;
+  /** Display label (admin name or email). */
+  assignee: string;
+  assigneeAdminId: string | null;
+  progressPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanningActivityItem {
+  id: number;
+  attributes: PlanningActivityAttributes;
+}
+
+export async function adminPlanningActivitiesList(params?: {
+  from?: string;
+  to?: string;
+}): Promise<{ data: PlanningActivityItem[] }> {
+  const sp = new URLSearchParams();
+  if (params?.from) sp.set('from', params.from);
+  if (params?.to) sp.set('to', params.to);
+  const q = sp.toString();
+  const res = await adminFetch(`/api/admin/planning-activities${q ? `?${q}` : ''}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export interface PlanningAssigneeOption {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+}
+
+export async function adminPlanningAssigneesList(): Promise<{ data: PlanningAssigneeOption[] }> {
+  const res = await adminFetch('/api/admin/planning-activities/assignees', { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminPlanningActivityCreate(body: {
+  description: string;
+  startDate: string;
+  endDate: string;
+  status?: PlanningActivityStatus;
+  assigneeAdminId?: string;
+  progressPercent?: number;
+}): Promise<PlanningActivityItem> {
+  const res = await adminFetch('/api/admin/planning-activities', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminPlanningActivityUpdate(
+  id: number,
+  body: {
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: PlanningActivityStatus;
+    assigneeAdminId?: string | null;
+    progressPercent?: number;
+  }
+): Promise<PlanningActivityItem> {
+  const res = await adminFetch(`/api/admin/planning-activities/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminPlanningActivityDelete(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/planning-activities/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) {
+    throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  }
 }
 
 // ========== Admin Management (SUPER_ADMIN only) ==========

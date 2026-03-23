@@ -35,6 +35,7 @@ export class LicensesController {
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('subContentId') subContentId?: string,
+    @Query('expiringWithinDays') expiringWithinDays?: string,
   ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
@@ -42,6 +43,7 @@ export class LicensesController {
       search: search || undefined,
       status: status || undefined,
       subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+      expiringWithinDays: expiringWithinDays ? parseInt(expiringWithinDays, 10) : undefined,
     });
   }
 
