@@ -167,6 +167,8 @@ export class CertificationsService {
     status?: string;
     categoryId?: number | null;
     subContentId?: number | null;
+    /** If set, only non-expired items with expiry within this many days (e.g. 60), ordered by expiry. */
+    expiringWithinDays?: number;
   }) {
     const { page, pageSize } = clampPagination(params.page, params.pageSize);
 
@@ -187,12 +189,24 @@ export class CertificationsService {
       else if (params.status === 'EXPIRING') and.push({ expiryDate: { gte: now, lte: in30 } });
       else if (params.status === 'ACTIVE') and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
     }
+    if (params.expiringWithinDays != null && params.expiringWithinDays > 0) {
+      const now = new Date();
+      const end = new Date(now.getTime() + params.expiringWithinDays * 24 * 60 * 60 * 1000);
+      and.push({ expiryDate: { not: null, gte: now, lte: end } });
+    }
     if (params.subContentId != null) {
       and.push({ subContentId: params.subContentId });
     } else if (params.categoryId != null) {
       and.push({ categoryId: params.categoryId });
     }
     const where = and.length ? { AND: and } : {};
+
+    const orderBy =
+      params.expiringWithinDays != null && params.expiringWithinDays > 0
+        ? ({ expiryDate: 'asc' } as const)
+        : params.status === 'EXPIRED'
+          ? ({ expiryDate: 'desc' } as const)
+          : ({ updatedAt: 'desc' } as const);
 
     const [items, total] = await Promise.all([
       this.prisma.certification.findMany({
@@ -202,7 +216,7 @@ export class CertificationsService {
           category: true,
           subContent: true,
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

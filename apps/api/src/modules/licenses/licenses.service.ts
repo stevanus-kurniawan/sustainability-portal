@@ -143,6 +143,7 @@ export class LicensesService {
     search?: string;
     status?: string;
     subContentId?: number;
+    expiringWithinDays?: number;
   }) {
     const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
@@ -166,12 +167,23 @@ export class LicensesService {
       else if (params.status === 'ACTIVE')
         and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
     }
+    if (params.expiringWithinDays != null && params.expiringWithinDays > 0) {
+      const now = new Date();
+      const end = new Date(now.getTime() + params.expiringWithinDays * 24 * 60 * 60 * 1000);
+      and.push({ expiryDate: { not: null, gte: now, lte: end } });
+    }
     const where = (and.length ? { AND: and } : {}) as any;
+    const orderBy =
+      params.expiringWithinDays != null && params.expiringWithinDays > 0
+        ? ({ expiryDate: 'asc' } as const)
+        : params.status === 'EXPIRED'
+          ? ({ expiryDate: 'desc' } as const)
+          : ({ updatedAt: 'desc' } as const);
     const [items, total] = await Promise.all([
       this.prisma.license.findMany({
         where,
         include: { document: { include: documentInclude }, subContent: true },
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

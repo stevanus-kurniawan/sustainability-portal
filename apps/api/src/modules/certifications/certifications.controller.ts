@@ -36,6 +36,7 @@ export class CertificationsController {
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
     @Query('subContentId') subContentId?: string,
+    @Query('expiringWithinDays') expiringWithinDays?: string,
   ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
@@ -44,6 +45,7 @@ export class CertificationsController {
       status: status || undefined,
       categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
       subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+      expiringWithinDays: expiringWithinDays ? parseInt(expiringWithinDays, 10) : undefined,
     });
   }
 
