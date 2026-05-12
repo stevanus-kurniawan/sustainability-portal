@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { CategoriesService } from './categories.service';
@@ -14,7 +15,7 @@ export class CategoriesController {
 
   @Get()
   findAll() {
-    return this.service.findAll(false);
+    return this.service.findAll(false, { includeAudit: true });
   }
 
   @Get(':id')
@@ -23,13 +24,17 @@ export class CategoriesController {
   }
 
   @Post()
-  create(@Body() body: CreateCategoryDto) {
-    return this.service.create(body);
+  create(@Body() body: CreateCategoryDto, @Req() req: Request & { user?: { id?: string } }) {
+    return this.service.create(body, req.user?.id);
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateCategoryDto) {
-    return this.service.update(id, body);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateCategoryDto,
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

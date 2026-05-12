@@ -9,7 +9,12 @@ const documentInclude = {
   currentVersion: true,
 } as const;
 
-type LicenseStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+function operationalUnitData(u: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null) {
+  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug, logoFileKey: u.logoFileKey, colorClass: u.colorClass }) } : { data: null };
+}
+
+type LicenseStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING_RENEWAL' | 'IN_REVIEW' | 'NONE';
+const DATE_DRIVEN_STATUSES: LicenseStatusLiteral[] = ['ACTIVE', 'EXPIRING', 'EXPIRED'];
 
 function computeStatus(expiryDate: Date | null): LicenseStatusLiteral {
   if (!expiryDate) return 'ACTIVE';
@@ -20,9 +25,44 @@ function computeStatus(expiryDate: Date | null): LicenseStatusLiteral {
   return 'ACTIVE';
 }
 
+function normalizedStatus(expiryDate: Date | null, status?: LicenseStatusLiteral | null): LicenseStatusLiteral {
+  const dateStatus = computeStatus(expiryDate);
+  if (dateStatus === 'EXPIRED') return 'EXPIRED';
+  if (!status || DATE_DRIVEN_STATUSES.includes(status)) return dateStatus;
+  return status;
+}
+
 @Injectable()
 export class LicensesService {
   constructor(private prisma: PrismaService) {}
+
+  private async syncDateDrivenStatuses() {
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction([
+      this.prisma.license.updateMany({
+        where: {
+          expiryDate: { not: null, lt: now },
+          status: { not: 'EXPIRED' },
+        },
+        data: { status: 'EXPIRED' as any },
+      }),
+      this.prisma.license.updateMany({
+        where: {
+          expiryDate: { not: null, gte: now, lte: in30 },
+          status: { in: DATE_DRIVEN_STATUSES.filter((status) => status !== 'EXPIRING') as any },
+        },
+        data: { status: 'EXPIRING' as any },
+      }),
+      this.prisma.license.updateMany({
+        where: {
+          OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }],
+          status: { in: DATE_DRIVEN_STATUSES.filter((status) => status !== 'ACTIVE') as any },
+        },
+        data: { status: 'ACTIVE' as any },
+      }),
+    ]);
+  }
 
   async getNotificationRules() {
     return this.prisma.notificationRule.findMany({
@@ -36,7 +76,9 @@ export class LicensesService {
     pageSize?: number;
     status?: string;
     search?: string;
+    operationalUnitId?: number;
   }) {
+    await this.syncDateDrivenStatuses();
     const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
     if (params.search) {
@@ -49,17 +91,15 @@ export class LicensesService {
       });
     }
     if (params.status) {
-      const now = new Date();
-      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      if (params.status === 'EXPIRED') and.push({ expiryDate: { lt: now } });
-      else if (params.status === 'EXPIRING') and.push({ expiryDate: { gte: now, lte: in30 } });
-      else if (params.status === 'ACTIVE') and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
+      and.push({ status: params.status });
     }
+    if (params.operationalUnitId != null) and.push({ operationalUnitId: params.operationalUnitId });
+    and.push({ contentVersion: 'V2' });
     const where = and.length ? { AND: and } : {};
     const [items, total] = await Promise.all([
       this.prisma.license.findMany({
         where,
-        include: { document: { include: documentInclude } },
+        include: { document: { include: documentInclude }, operationalUnit: true },
         orderBy: { expiryDate: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -73,8 +113,11 @@ export class LicensesService {
         licenseNo: c.licenseNo,
         issuedDate: c.issuedDate?.toISOString() ?? null,
         expiryDate: c.expiryDate?.toISOString() ?? null,
-        status: computeStatus(c.expiryDate),
+        status: normalizedStatus(c.expiryDate, (c as { status?: LicenseStatusLiteral }).status),
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+        contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+        operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
@@ -91,6 +134,7 @@ export class LicensesService {
     pageSizeParam = DEFAULT_PAGE_SIZE,
     search?: string,
   ) {
+    await this.syncDateDrivenStatuses();
     const { page, pageSize } = clampPagination(pageParam, pageSizeParam);
     const slugLower = categorySlug.toLowerCase();
     const licenseSlugs = slugLower === 'license' || slugLower === 'licenses' ? ['license', 'licenses'] : [categorySlug];
@@ -127,7 +171,7 @@ export class LicensesService {
         licenseNo: c.licenseNo,
         issuedDate: c.issuedDate?.toISOString() ?? null,
         expiryDate: c.expiryDate?.toISOString() ?? null,
-        status: computeStatus(c.expiryDate),
+        status: normalizedStatus(c.expiryDate, (c as { status?: LicenseStatusLiteral }).status),
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
@@ -143,12 +187,22 @@ export class LicensesService {
     search?: string;
     status?: string;
     subContentId?: number;
+    contentVersion?: string;
+    operationalUnitId?: number;
     expiringWithinDays?: number;
+    expiredByDate?: boolean;
   }) {
+    await this.syncDateDrivenStatuses();
     const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
     if (params.subContentId != null) {
       and.push({ subContentId: params.subContentId });
+    }
+    if (params.contentVersion != null) {
+      and.push({ contentVersion: params.contentVersion });
+    }
+    if (params.operationalUnitId != null) {
+      and.push({ operationalUnitId: params.operationalUnitId });
     }
     if (params.search) {
       and.push({
@@ -160,12 +214,10 @@ export class LicensesService {
       });
     }
     if (params.status) {
-      const now = new Date();
-      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      if (params.status === 'EXPIRED') and.push({ expiryDate: { lt: now } });
-      else if (params.status === 'EXPIRING') and.push({ expiryDate: { gte: now, lte: in30 } });
-      else if (params.status === 'ACTIVE')
-        and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
+      and.push({ status: params.status });
+    }
+    if (params.expiredByDate) {
+      and.push({ expiryDate: { not: null, lt: new Date() } });
     }
     if (params.expiringWithinDays != null && params.expiringWithinDays > 0) {
       const now = new Date();
@@ -176,13 +228,13 @@ export class LicensesService {
     const orderBy =
       params.expiringWithinDays != null && params.expiringWithinDays > 0
         ? ({ expiryDate: 'asc' } as const)
-        : params.status === 'EXPIRED'
+        : params.expiredByDate || params.status === 'EXPIRED'
           ? ({ expiryDate: 'desc' } as const)
           : ({ updatedAt: 'desc' } as const);
     const [items, total] = await Promise.all([
       this.prisma.license.findMany({
         where,
-        include: { document: { include: documentInclude }, subContent: true },
+        include: { document: { include: documentInclude }, subContent: true, operationalUnit: true },
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -196,8 +248,15 @@ export class LicensesService {
         licenseNo: c.licenseNo,
         issuedDate: c.issuedDate?.toISOString() ?? null,
         expiryDate: c.expiryDate?.toISOString() ?? null,
-        status: computeStatus(c.expiryDate),
+        status: normalizedStatus(c.expiryDate, (c as { status?: LicenseStatusLiteral }).status),
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+        contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+        operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
+        createdById: (c as { createdById?: string | null }).createdById ?? null,
+        updatedById: (c as { updatedById?: string | null }).updatedById ?? null,
+        createdAt: (c as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+        updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
         subContent: c.subContent
           ? {
               data: toStrapiLike(c.subContent.id, {
@@ -216,9 +275,10 @@ export class LicensesService {
   }
 
   async findOneAdmin(id: number) {
+    await this.syncDateDrivenStatuses();
     const c = await this.prisma.license.findUnique({
       where: { id },
-      include: { document: { include: documentInclude }, subContent: true },
+      include: { document: { include: documentInclude }, subContent: true, operationalUnit: true },
     });
     if (!c) throw new NotFoundException('License not found');
     return toStrapiLike(c.id, {
@@ -227,8 +287,15 @@ export class LicensesService {
       licenseNo: c.licenseNo,
       issuedDate: c.issuedDate?.toISOString() ?? null,
       expiryDate: c.expiryDate?.toISOString() ?? null,
-      status: computeStatus(c.expiryDate),
+      status: normalizedStatus(c.expiryDate, (c as { status?: LicenseStatusLiteral }).status),
       externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
+      contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+      operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
+      createdById: (c as { createdById?: string | null }).createdById ?? null,
+      updatedById: (c as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (c as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
+      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
       subContent: c.subContent
         ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
         : { data: null },
@@ -244,39 +311,55 @@ export class LicensesService {
     licenseNo?: string;
     issuedDate?: string;
     expiryDate?: string;
+    status?: string;
     documentId?: number;
     subContentId?: number | null;
+    contentVersion?: string;
+    operationalUnitId?: number | null;
     externalLink?: string;
     createdById?: string;
-  }) {
+  }, adminId?: string) {
+    const expiryDate = data.expiryDate ? new Date(data.expiryDate) : null;
+    const status = normalizedStatus(expiryDate, data.status as LicenseStatusLiteral | undefined);
     const c = await this.prisma.license.create({
       data: {
         name: data.name,
         authority: data.authority,
         licenseNo: data.licenseNo,
         issuedDate: data.issuedDate ? new Date(data.issuedDate) : null,
-        expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+        expiryDate,
+        status: status as any,
         documentId: data.documentId,
         subContentId: data.subContentId ?? undefined,
+        contentVersion: (data.contentVersion ?? 'V1') as any,
+        operationalUnitId: data.operationalUnitId ?? undefined,
         externalLink: data.externalLink,
-        createdById: data.createdById,
-        updatedById: data.createdById,
+        createdById: adminId ?? data.createdById,
+        updatedById: adminId ?? data.createdById,
       },
-      include: { document: { include: documentInclude }, subContent: true },
+      include: { document: { include: documentInclude }, subContent: true, operationalUnit: true },
     });
-    return toStrapiLike(c.id, {
-      name: c.name,
-      authority: c.authority,
-      licenseNo: c.licenseNo,
-      issuedDate: c.issuedDate?.toISOString() ?? null,
-      expiryDate: c.expiryDate?.toISOString() ?? null,
-      status: computeStatus(c.expiryDate),
-      externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
-      subContent: c.subContent
-        ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
+    const row = c as any;
+    return toStrapiLike(row.id, {
+      name: row.name,
+      authority: row.authority,
+      licenseNo: row.licenseNo,
+      issuedDate: row.issuedDate?.toISOString() ?? null,
+      expiryDate: row.expiryDate?.toISOString() ?? null,
+      status: normalizedStatus(row.expiryDate, row.status),
+      externalLink: row.externalLink ?? null,
+      contentVersion: row.contentVersion ?? 'V1',
+      operationalUnitId: row.operationalUnitId ?? null,
+      createdById: row.createdById ?? null,
+      updatedById: row.updatedById ?? null,
+      createdAt: row.createdAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt?.toISOString() ?? null,
+      operationalUnit: operationalUnitData(row.operationalUnit ?? null),
+      subContent: row.subContent
+        ? { data: toStrapiLike(row.subContent.id, { title: row.subContent.title, slug: row.subContent.slug }) }
         : { data: null },
       document: {
-        data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
+        data: documentDataForResponse(row.document as unknown as DocumentWithRelations),
       },
     });
   }
@@ -289,34 +372,53 @@ export class LicensesService {
       licenseNo?: string;
       issuedDate?: string;
       expiryDate?: string;
+      status?: string;
       documentId?: number | null;
       subContentId?: number | null;
+      contentVersion?: string;
+      operationalUnitId?: number | null;
       externalLink?: string | null;
       updatedById?: string;
     },
+    adminId?: string,
   ) {
+    const existing = await this.prisma.license.findUnique({ where: { id }, select: { expiryDate: true, status: true } });
+    if (!existing) throw new NotFoundException('License not found');
+    const expiryDate = data.expiryDate ? new Date(data.expiryDate) : existing.expiryDate;
+    const status = normalizedStatus(expiryDate, (data.status ?? existing.status) as LicenseStatusLiteral);
     const c = await this.prisma.license.update({
       where: { id },
       data: {
         ...data,
+        contentVersion: data.contentVersion as any,
         issuedDate: data.issuedDate ? new Date(data.issuedDate) : undefined,
-        expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
-      },
-      include: { document: { include: documentInclude }, subContent: true },
+        expiryDate: data.expiryDate ? expiryDate : undefined,
+        status: status as any,
+        updatedById: adminId ?? data.updatedById,
+      } as any,
+      include: { document: { include: documentInclude }, subContent: true, operationalUnit: true },
     });
-    return toStrapiLike(c.id, {
-      name: c.name,
-      authority: c.authority,
-      licenseNo: c.licenseNo,
-      issuedDate: c.issuedDate?.toISOString() ?? null,
-      expiryDate: c.expiryDate?.toISOString() ?? null,
-      status: computeStatus(c.expiryDate),
-      externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
-      subContent: c.subContent
-        ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
+    const row = c as any;
+    return toStrapiLike(row.id, {
+      name: row.name,
+      authority: row.authority,
+      licenseNo: row.licenseNo,
+      issuedDate: row.issuedDate?.toISOString() ?? null,
+      expiryDate: row.expiryDate?.toISOString() ?? null,
+      status: normalizedStatus(row.expiryDate, row.status),
+      externalLink: row.externalLink ?? null,
+      contentVersion: row.contentVersion ?? 'V1',
+      operationalUnitId: row.operationalUnitId ?? null,
+      createdById: row.createdById ?? null,
+      updatedById: row.updatedById ?? null,
+      createdAt: row.createdAt?.toISOString() ?? null,
+      updatedAt: row.updatedAt?.toISOString() ?? null,
+      operationalUnit: operationalUnitData(row.operationalUnit ?? null),
+      subContent: row.subContent
+        ? { data: toStrapiLike(row.subContent.id, { title: row.subContent.title, slug: row.subContent.slug }) }
         : { data: null },
       document: {
-        data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
+        data: documentDataForResponse(row.document as unknown as DocumentWithRelations),
       },
     });
   }

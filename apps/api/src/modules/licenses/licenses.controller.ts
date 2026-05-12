@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { LicensesService } from './licenses.service';
@@ -35,7 +37,10 @@ export class LicensesController {
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('subContentId') subContentId?: string,
+    @Query('contentVersion') contentVersion?: string,
+    @Query('operationalUnitId') operationalUnitId?: string,
     @Query('expiringWithinDays') expiringWithinDays?: string,
+    @Query('expiredByDate') expiredByDate?: string,
   ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
@@ -43,7 +48,10 @@ export class LicensesController {
       search: search || undefined,
       status: status || undefined,
       subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+      contentVersion,
+      operationalUnitId: operationalUnitId ? parseInt(operationalUnitId, 10) : undefined,
       expiringWithinDays: expiringWithinDays ? parseInt(expiringWithinDays, 10) : undefined,
+      expiredByDate: expiredByDate === 'true',
     });
   }
 
@@ -55,16 +63,18 @@ export class LicensesController {
   @Post()
   create(
     @Body() body: CreateLicenseDto,
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.create(body);
+    return this.service.create(body, req.user?.id);
   }
 
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateLicenseDto,
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

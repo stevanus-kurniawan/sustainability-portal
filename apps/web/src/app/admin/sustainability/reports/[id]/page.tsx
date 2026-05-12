@@ -14,6 +14,7 @@ export default function AdminSustainabilityReportsEditPage() {
       id={id}
       type="GENERAL"
       categorySlug="sustainability-report"
+      hideCategoryPicker
       backHref="/admin/sustainability/reports"
       title="Edit Sustainability Report"
     />

@@ -14,6 +14,7 @@ export default function AdminComplianceStandardEditPage() {
       id={id}
       type="GENERAL"
       categorySlug="standard"
+      hideCategoryPicker
       backHref="/admin/compliance/standard"
       title="Edit Standard Compliance"
     />

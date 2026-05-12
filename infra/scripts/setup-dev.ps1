@@ -68,7 +68,8 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Available services:"
 Write-Host "  - PostgreSQL (API):    localhost:5432"
-Write-Host "  - Redis:               localhost:6379"
+$redisHostPort = if ($env:REDIS_HOST_PORT) { $env:REDIS_HOST_PORT } else { "6380" }
+Write-Host "  - Redis:               localhost:$redisHostPort"
 Write-Host "  - Mailhog UI:          http://localhost:8025"
 Write-Host ""
 Write-Host "Run the applications:"

@@ -37,6 +37,8 @@ export class AdminAdminsService {
         name: true,
         role: true,
         status: true,
+        createdById: true,
+        updatedById: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -53,6 +55,8 @@ export class AdminAdminsService {
         name: true,
         role: true,
         status: true,
+        createdById: true,
+        updatedById: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -91,6 +95,8 @@ export class AdminAdminsService {
         passwordHash,
         role,
         status: 'ACTIVE',
+        createdById: actor.adminId,
+        updatedById: actor.adminId,
       },
     });
 
@@ -144,6 +150,7 @@ export class AdminAdminsService {
         ...(dto.name !== undefined && { name: dto.name?.trim() || null }),
         ...(dto.role !== undefined && { role: dto.role }),
         ...(dto.status !== undefined && { status: dto.status }),
+        updatedById: actor.adminId,
       },
     });
 

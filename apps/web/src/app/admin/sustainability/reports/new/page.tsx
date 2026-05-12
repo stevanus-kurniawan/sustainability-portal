@@ -7,6 +7,7 @@ export default function AdminSustainabilityReportsNewPage() {
     <DocumentForm
       type="GENERAL"
       categorySlug="sustainability-report"
+      hideCategoryPicker
       backHref="/admin/sustainability/reports"
       title="New Sustainability Report"
     />

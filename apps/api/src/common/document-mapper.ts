@@ -41,14 +41,23 @@ export type DocumentWithRelations = {
   documentType?: string | null;
   versionLabel?: string | null;
   effectiveDate?: Date | null;
+  contentVersion?: 'V1' | 'V2';
+  policyKind?: 'SOP' | 'FORM' | null;
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+  operationalUnitId?: number | null;
   isPublic: boolean;
   isPublished: boolean;
   publishedAt: Date | null;
+  createdById?: string | null;
+  updatedById?: string | null;
   createdAt: Date;
+  updatedAt?: Date;
   isDeleted?: boolean;
   deletedById?: string | null;
   deletedAt?: Date | null;
   category: { id: number; name: string; slug: string; isPublic: boolean; displayOrder: number } | null;
+  operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null;
   tags: { tag: { id: number; name: string; slug: string } }[];
   currentVersion: {
     id: number;
@@ -75,7 +84,11 @@ export function documentDataForResponse(
   return mapDocumentToStrapi(doc as DocumentWithRelations, baseUrl);
 }
 
-export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string) {
+export function mapDocumentToStrapi(
+  doc: DocumentWithRelations,
+  baseUrl?: string,
+  options: { includeAudit?: boolean } = {},
+) {
   return toStrapiLike(doc.id, {
     title: doc.title,
     type: doc.type,
@@ -85,10 +98,20 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
     documentType: (doc as DocumentWithRelations).documentType ?? null,
     versionLabel: (doc as DocumentWithRelations).versionLabel ?? null,
     effectiveDate: (doc as DocumentWithRelations).effectiveDate?.toISOString() ?? null,
+    contentVersion: (doc as DocumentWithRelations).contentVersion ?? 'V1',
+    policyKind: (doc as DocumentWithRelations).policyKind ?? null,
+    regulationKind: (doc as DocumentWithRelations).regulationKind ?? null,
+    procedureScope: (doc as DocumentWithRelations).procedureScope ?? null,
+    operationalUnitId: (doc as DocumentWithRelations).operationalUnitId ?? null,
     isPublic: doc.isPublic,
     isPublished: doc.isPublished,
     publishedAt: doc.publishedAt?.toISOString() ?? null,
     createdAt: doc.createdAt.toISOString(),
+    ...(options.includeAudit && {
+      createdById: doc.createdById ?? null,
+      updatedById: doc.updatedById ?? null,
+      updatedAt: doc.updatedAt?.toISOString() ?? null,
+    }),
     ...(doc.isDeleted !== undefined && {
       isDeleted: doc.isDeleted,
       deletedById: doc.deletedById ?? null,
@@ -104,6 +127,16 @@ export function mapDocumentToStrapi(doc: DocumentWithRelations, baseUrl?: string
           })
         : null,
     },
+    ...((doc as DocumentWithRelations).operationalUnit != null && {
+      operationalUnit: {
+        data: toStrapiLike((doc as DocumentWithRelations).operationalUnit!.id, {
+          name: (doc as DocumentWithRelations).operationalUnit!.name,
+          slug: (doc as DocumentWithRelations).operationalUnit!.slug,
+          logoFileKey: (doc as DocumentWithRelations).operationalUnit!.logoFileKey,
+          colorClass: (doc as DocumentWithRelations).operationalUnit!.colorClass,
+        }),
+      },
+    }),
     ...((doc as { subContentId?: number | null }).subContentId != null && {
       subContentId: (doc as unknown as { subContentId: number }).subContentId,
     }),

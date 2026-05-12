@@ -22,7 +22,7 @@ up:
 	@echo ""
 	@echo "Services available at:"
 	@echo "  - PostgreSQL:    localhost:5544 (user: slms, password: slms, db: slms)"
-	@echo "  - Redis:         localhost:6379"
+	@echo "  - Redis:         localhost:$${REDIS_HOST_PORT:-6380}"
 	@echo "  - MinIO API:     http://localhost:9000"
 	@echo "  - MinIO Console: http://localhost:9001 (user: minioadmin, password: minioadmin)"
 	@echo "  - Mailhog UI:    http://localhost:8025"

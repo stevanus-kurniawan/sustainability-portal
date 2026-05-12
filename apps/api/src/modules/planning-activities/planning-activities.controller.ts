@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { PlanningActivitiesService } from './planning-activities.service';
@@ -40,13 +42,17 @@ export class PlanningActivitiesController {
   }
 
   @Post()
-  create(@Body() body: CreatePlanningActivityDto) {
-    return this.service.create(body);
+  create(@Body() body: CreatePlanningActivityDto, @Req() req: Request & { user?: { id?: string } }) {
+    return this.service.create(body, req.user?.id);
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdatePlanningActivityDto) {
-    return this.service.update(id, body);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdatePlanningActivityDto,
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

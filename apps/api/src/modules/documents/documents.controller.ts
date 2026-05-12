@@ -34,6 +34,15 @@ export class DocumentsController {
     @Query('isPublished') isPublished?: string,
     @Query('categoryId') categoryId?: string,
     @Query('subContentId') subContentId?: string,
+    @Query('contentVersion') contentVersion?: string,
+    @Query('policyKind') policyKind?: string,
+    @Query('regulationKind') regulationKind?: string,
+    @Query('documentType') documentType?: string,
+    @Query('regulationOnly') regulationOnly?: string,
+    @Query('procedureScope') procedureScope?: string,
+    @Query('procedureOnly') procedureOnly?: string,
+    @Query('updateOnly') updateOnly?: string,
+    @Query('operationalUnitId') operationalUnitId?: string,
   ) {
     return this.service.findAllAdmin({
       page: page ? parseInt(page, 10) : undefined,
@@ -43,6 +52,15 @@ export class DocumentsController {
       isPublished: isPublished === 'true' ? true : isPublished === 'false' ? false : undefined,
       categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
       subContentId: subContentId ? parseInt(subContentId, 10) : undefined,
+      contentVersion,
+      policyKind,
+      regulationKind,
+      documentType,
+      regulationOnly: regulationOnly === 'true',
+      procedureScope,
+      procedureOnly: procedureOnly === 'true',
+      updateOnly: updateOnly === 'true',
+      operationalUnitId: operationalUnitId ? parseInt(operationalUnitId, 10) : undefined,
     });
   }
 

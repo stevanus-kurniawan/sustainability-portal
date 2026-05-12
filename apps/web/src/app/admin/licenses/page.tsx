@@ -12,8 +12,9 @@ interface LicenseAttributes {
   licenseNo: string;
   issuedDate: string | null;
   expiryDate: string | null;
-  status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+  status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING_RENEWAL' | 'IN_REVIEW' | 'NONE';
   subContent?: { data: { id: number; attributes: { title: string; slug: string } } | null };
+  operationalUnit?: { data: { id: number; attributes: { name: string; slug: string } } | null };
 }
 
 interface LicenseItem {
@@ -30,23 +31,20 @@ export default function AdminLicensesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-  const categoryId = searchParams.get('categoryId');
-  const subContentId = searchParams.get('subContentId');
   const [list, setList] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const showSubContentColumn = true;
 
   const fetchList = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     params.set('page', String(page));
     params.set('pageSize', '20');
+    params.set('contentVersion', 'V2');
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
-    if (subContentId) params.set('subContentId', subContentId);
     try {
       const res = await fetch(`/api/admin/licenses?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
       if (res.status === 401) {
@@ -60,7 +58,7 @@ export default function AdminLicensesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, subContentId, router]);
+  }, [page, search, statusFilter, router]);
 
   useEffect(() => {
     fetchList();
@@ -71,8 +69,6 @@ export default function AdminLicensesPage() {
     params.set('page', '1');
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
-    if (categoryId) params.set('categoryId', categoryId);
-    if (subContentId) params.set('subContentId', subContentId);
     router.push(`/admin/licenses?${params.toString()}`);
   };
 
@@ -112,34 +108,18 @@ export default function AdminLicensesPage() {
   const pagination = list?.meta?.pagination;
   const totalPages = pagination?.pageCount ?? 1;
   const licenses = list?.data ?? [];
-  const isSubContentFilter = categoryId && subContentId;
-  const createHref = isSubContentFilter
-    ? `/admin/licenses/new?categoryId=${categoryId}&subContentId=${subContentId}`
-    : '/admin/licenses/new';
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      {isSubContentFilter && (
-        <div className="mb-4 text-sm text-steel">
-          <Link href="/admin/categories" className="hover:text-charcoal">Categories</Link>
-          {' → '}
-          <Link href={`/admin/categories/${categoryId}/sub-contents`} className="hover:text-charcoal">
-            Sub-contents
-          </Link>
-          {' → Licenses (filtered by sub-content)'}
-        </div>
-      )}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-h1 text-charcoal flex items-center gap-2">
             <Scale className="h-8 w-8 text-primary" />
             Licenses
           </h1>
-          <p className="mt-1 text-steel">
-            {isSubContentFilter ? 'Licenses under this sub-content.' : 'Manage compliance licenses.'}
-          </p>
+          <p className="mt-1 text-steel">Manage compliance licenses.</p>
         </div>
-        <Link href={createHref}>
+        <Link href="/admin/licenses/new">
           <Button leftIcon={<Plus className="h-4 w-4" />}>New License</Button>
         </Link>
       </div>
@@ -172,6 +152,9 @@ export default function AdminLicensesPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="EXPIRING">Expiring</option>
                 <option value="EXPIRED">Expired</option>
+                <option value="PENDING_RENEWAL">Pending Renewal</option>
+                <option value="IN_REVIEW">In Review</option>
+                <option value="NONE">-</option>
               </select>
             </div>
             <Button variant="secondary" onClick={applyFilters}>
@@ -198,7 +181,7 @@ export default function AdminLicensesPage() {
                   <thead>
                     <tr className="border-b border-border-medium text-steel">
                       <th className="pb-3 pr-4 font-medium">Name</th>
-                      {showSubContentColumn && <th className="pb-3 pr-4 font-medium">Sub-content</th>}
+                      <th className="pb-3 pr-4 font-medium">Operational Unit</th>
                       <th className="pb-3 pr-4 font-medium">Authority</th>
                       <th className="pb-3 pr-4 font-medium">License No</th>
                       <th className="pb-3 pr-4 font-medium">Issued</th>
@@ -208,14 +191,10 @@ export default function AdminLicensesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {licenses.map((lic) => {
-                      const subContentTitle = lic.attributes.subContent?.data?.attributes?.title ?? null;
-                      return (
+                    {licenses.map((lic) => (
                       <tr key={lic.id} className="border-b border-border-light">
                         <td className="py-3 pr-4 font-medium text-charcoal">{lic.attributes.name}</td>
-                        {showSubContentColumn && (
-                          <td className="py-3 pr-4 text-steel">{subContentTitle ?? '—'}</td>
-                        )}
+                        <td className="py-3 pr-4 text-steel">{lic.attributes.operationalUnit?.data?.attributes?.name ?? '—'}</td>
                         <td className="py-3 pr-4 text-steel">{lic.attributes.authority || '—'}</td>
                         <td className="py-3 pr-4 text-steel">{lic.attributes.licenseNo || '—'}</td>
                         <td className="py-3 pr-4 text-steel">{formatDate(lic.attributes.issuedDate)}</td>
@@ -225,7 +204,7 @@ export default function AdminLicensesPage() {
                         </td>
                         <td className="py-3 text-right">
                           <div className="flex justify-end gap-2">
-                            <Link href={categoryId && subContentId ? `/admin/licenses/${lic.id}?categoryId=${categoryId}&subContentId=${subContentId}` : `/admin/licenses/${lic.id}`}>
+                            <Link href={`/admin/licenses/${lic.id}`}>
                               <Button variant="ghost" size="sm" leftIcon={<Pencil className="h-4 w-4" />}>
                                 Edit
                               </Button>
@@ -243,8 +222,7 @@ export default function AdminLicensesPage() {
                           </div>
                         </td>
                       </tr>
-                    );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>

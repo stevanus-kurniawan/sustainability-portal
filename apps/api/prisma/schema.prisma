@@ -24,6 +24,8 @@ model User {
   status       UserStatus @default(ACTIVE)
   emailVerified   Boolean   @default(false) @map("email_verified")
   emailVerifiedAt DateTime? @map("email_verified_at")
+  createdById  String?    @map("created_by_id")
+  updatedById  String?    @map("updated_by_id")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -43,6 +45,8 @@ model Admin {
   passwordHash String   @map("password_hash")
   role         String   @default("ADMIN")
   status       String   @default("ACTIVE")
+  createdById  String?  @map("created_by_id")
+  updatedById  String?  @map("updated_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -90,6 +94,8 @@ model Role {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -103,6 +109,8 @@ model Permission {
   id          String   @id @default(uuid())
   code        String   @unique
   description String?
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -218,6 +226,26 @@ enum CategoryMode {
   WITH_SUBCONTENT // menu shows sub content list first (e.g. Sites), then documents per sub content
 }
 
+enum ContentVersion {
+  V1
+  V2
+}
+
+enum PolicyKind {
+  SOP
+  FORM
+}
+
+enum RegulationKind {
+  NATIONAL
+  INTERNATIONAL
+}
+
+enum ProcedureScope {
+  SUSTAINABILITY
+  OPERATIONAL_UNIT
+}
+
 model Category {
   id           Int          @id @default(autoincrement())
   name         String
@@ -226,6 +254,8 @@ model Category {
   mode         CategoryMode @default(DIRECT) @map("mode")
   isPublic     Boolean      @default(true) @map("is_public")
   displayOrder Int          @default(0) @map("display_order")
+  createdById  String?      @map("created_by_id")
+  updatedById  String?      @map("updated_by_id")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
@@ -246,6 +276,8 @@ model SubContent {
   slug               String
   order              Int      @default(0)
   description        String?  @db.Text
+  createdById        String?  @map("created_by_id")
+  updatedById        String?  @map("updated_by_id")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -263,6 +295,8 @@ model Tag {
   id        Int      @id @default(autoincrement())
   name      String
   slug      String   @unique
+  createdById String? @map("created_by_id")
+  updatedById String? @map("updated_by_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -285,6 +319,11 @@ model Document {
   isPublic         Boolean   @default(false) @map("is_public")
   isPublished     Boolean   @default(false) @map("is_published")
   publishedAt     DateTime? @map("published_at")
+  contentVersion  ContentVersion @default(V1) @map("content_version")
+  policyKind      PolicyKind?    @map("policy_kind")
+  regulationKind  RegulationKind? @map("regulation_kind")
+  procedureScope  ProcedureScope? @map("procedure_scope")
+  operationalUnitId Int?      @map("operational_unit_id")
   categoryId      Int?      @map("category_id")
   subContentId    Int?      @map("sub_content_id")
   currentVersionId Int?     @unique @map("current_version_id")
@@ -298,6 +337,7 @@ model Document {
 
   category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   subContent      SubContent?       @relation(fields: [subContentId], references: [id], onDelete: SetNull)
+  operationalUnit OperationalUnit?  @relation(fields: [operationalUnitId], references: [id], onDelete: SetNull)
   currentVersion  DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
   versions        DocumentVersion[] @relation("DocumentVersions")
   tags            DocumentTag[]
@@ -309,6 +349,11 @@ model Document {
   @@index([type])
   @@index([isPublic])
   @@index([isPublished])
+  @@index([contentVersion])
+  @@index([policyKind])
+  @@index([regulationKind])
+  @@index([procedureScope])
+  @@index([operationalUnitId])
   @@index([categoryId])
   @@index([subContentId])
   @@index([publishedAt])
@@ -361,6 +406,8 @@ model Certification {
   status        CertificationStatus @default(ACTIVE)
   documentId    Int?                @map("document_id")
   externalLink  String?             @map("external_link")
+  contentVersion ContentVersion     @default(V1) @map("content_version")
+  operationalUnitId Int?            @map("operational_unit_id")
   categoryId    Int?                @map("category_id")
   subContentId  Int?                @map("sub_content_id")
   createdById   String?             @map("created_by_id")
@@ -369,11 +416,14 @@ model Certification {
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
   document  Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  operationalUnit OperationalUnit? @relation(fields: [operationalUnitId], references: [id], onDelete: SetNull)
   category  Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   subContent SubContent? @relation(fields: [subContentId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([documentId])
+  @@index([contentVersion])
+  @@index([operationalUnitId])
   @@index([categoryId])
   @@index([subContentId])
   @@index([expiryDate])
@@ -389,6 +439,8 @@ model License {
   expiryDate    DateTime?     @map("expiry_date")
   status        LicenseStatus @default(ACTIVE)
   documentId    Int?          @map("document_id")
+  contentVersion ContentVersion @default(V1) @map("content_version")
+  operationalUnitId Int?      @map("operational_unit_id")
   subContentId  Int?          @map("sub_content_id")
   externalLink  String?       @map("external_link")
   createdById   String?       @map("created_by_id")
@@ -397,10 +449,13 @@ model License {
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
   document    Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  operationalUnit OperationalUnit? @relation(fields: [operationalUnitId], references: [id], onDelete: SetNull)
   subContent  SubContent? @relation(fields: [subContentId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([documentId])
+  @@index([contentVersion])
+  @@index([operationalUnitId])
   @@index([subContentId])
   @@index([expiryDate])
   @@map("licenses")
@@ -529,6 +584,9 @@ enum LicenseStatus {
   ACTIVE
   EXPIRING
   EXPIRED
+  PENDING_RENEWAL
+  IN_REVIEW
+  NONE
 }
 
 enum GrievanceStatus {
@@ -569,6 +627,8 @@ model AdminPlanningActivity {
   assigneeAdminId  String?                 @map("assignee_admin_id")
   assigneeAdmin    Admin?                  @relation(fields: [assigneeAdminId], references: [id], onDelete: SetNull)
   progressPercent  Int                     @default(0) @map("progress_percent")
+  createdById      String?                 @map("created_by_id")
+  updatedById      String?                 @map("updated_by_id")
   createdAt        DateTime                @default(now()) @map("created_at")
   updatedAt        DateTime                @updatedAt @map("updated_at")
 
@@ -576,4 +636,23 @@ model AdminPlanningActivity {
   @@index([endDate])
   @@index([assigneeAdminId])
   @@map("admin_planning_activities")
+}
+
+model OperationalUnit {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  logoFileKey String?  @map("logo_file_key")
+  colorClass  String?  @map("color_class")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  documents      Document[]
+  certifications Certification[]
+  licenses       License[]
+
+  @@index([name])
+  @@map("operational_units")
 }

@@ -59,9 +59,21 @@ type ExpiryDashboardRow = {
   kind: 'certification' | 'license';
   id: number;
   name: string;
+  /** Operational Unit name; "-" when missing. */
+  plant: string;
   expiryDate: string | null;
   status: string;
 };
+
+function operationalUnitName(attributes: Record<string, unknown>): string {
+  const operationalUnit = attributes.operationalUnit as { data?: unknown } | undefined;
+  const data = operationalUnit?.data;
+  if (!data || typeof data !== 'object') return '-';
+  const inner = data as { attributes?: Record<string, unknown> };
+  const name = inner.attributes?.name;
+  if (typeof name === 'string' && name.trim()) return name.trim();
+  return '-';
+}
 
 function parseExpiryList(
   res: { data?: unknown },
@@ -79,7 +91,7 @@ function parseExpiryList(
     const name = typeof a.name === 'string' ? a.name : '';
     const expiryDate = typeof a.expiryDate === 'string' ? a.expiryDate : null;
     const status = typeof a.status === 'string' ? a.status : '';
-    out.push({ kind, id, name, expiryDate, status });
+    out.push({ kind, id, name, plant: operationalUnitName(a), expiryDate, status });
   }
   return out;
 }
@@ -385,15 +397,17 @@ export function AdminGanttDashboard() {
           adminCertificationsList({
             page: 1,
             pageSize: 500,
+            contentVersion: 'V2',
             expiringWithinDays: EXPIRING_SOON_DAYS,
           }),
           adminLicensesList({
             page: 1,
             pageSize: 500,
+            contentVersion: 'V2',
             expiringWithinDays: EXPIRING_SOON_DAYS,
           }),
-          adminCertificationsList({ page: 1, pageSize: 500, status: 'EXPIRED' }),
-          adminLicensesList({ page: 1, pageSize: 500, status: 'EXPIRED' }),
+          adminCertificationsList({ page: 1, pageSize: 500, contentVersion: 'V2', status: 'EXPIRED' }),
+          adminLicensesList({ page: 1, pageSize: 500, contentVersion: 'V2', expiredByDate: true }),
         ]);
         if (cancelled) return;
         const soon = [
@@ -406,7 +420,7 @@ export function AdminGanttDashboard() {
         });
         const expired = [
           ...parseExpiryList(cExp, 'certification'),
-          ...parseExpiryList(lExp, 'license'),
+          ...parseExpiryList(lExp, 'license').map((row) => ({ ...row, status: 'EXPIRED' })),
         ].sort((a, b) => {
           const ea = a.expiryDate || '';
           const eb = b.expiryDate || '';
@@ -922,6 +936,7 @@ export function AdminGanttDashboard() {
                   <tr className="bg-light/80 border-b border-border-light text-left">
                     <th className="px-3 py-2 font-medium text-steel">Type</th>
                     <th className="px-3 py-2 font-medium text-steel">Name</th>
+                    <th className="px-3 py-2 font-medium text-steel">Plant</th>
                     <th className="px-3 py-2 font-medium text-steel">Expiry</th>
                     <th className="px-3 py-2 font-medium text-steel">Status</th>
                     <th className="px-3 py-2 font-medium text-steel w-28"> </th>
@@ -940,7 +955,7 @@ export function AdminGanttDashboard() {
                       <Fragment key={section.key}>
                         <tr className="bg-light/90 border-b border-border-light">
                           <td
-                            colSpan={5}
+                            colSpan={6}
                             className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-charcoal"
                           >
                             {section.label}
@@ -967,6 +982,7 @@ export function AdminGanttDashboard() {
                                 </span>
                               </td>
                               <td className="px-3 py-2 font-medium text-charcoal">{row.name}</td>
+                              <td className="px-3 py-2 text-steel">{row.plant}</td>
                               <td className="px-3 py-2 text-steel tabular-nums">
                                 {formatExpiryLabel(row.expiryDate)}
                               </td>

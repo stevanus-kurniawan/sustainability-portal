@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 
 import { Button, Input } from '@/components/ui';
-import { adminCategoriesList, adminSubContentsList, adminDocumentCreate } from '@/lib/admin-api';
+import { adminCategoriesList, adminSubContentsList, adminDocumentCreate, adminOperationalUnitsList } from '@/lib/admin-api';
+import type { OperationalUnitItem } from '@/lib/admin-api';
 
 export interface CertificationFormData {
   name: string;
@@ -18,6 +19,7 @@ export interface CertificationFormData {
   externalLink: string;
   categoryId: number | null;
   subContentId: number | null;
+  operationalUnitId: number | null;
   attachment: { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null;
   currentFileUrl: string | null;
 }
@@ -32,6 +34,7 @@ const defaultForm: CertificationFormData = {
   externalLink: '',
   categoryId: null,
   subContentId: null,
+  operationalUnitId: null,
   attachment: null,
   currentFileUrl: null,
 };
@@ -53,6 +56,7 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subContentOptions, setSubContentOptions] = useState<{ categoryId: number; subContentId: number; label: string }[]>([]);
+  const [operationalUnits, setOperationalUnits] = useState<OperationalUnitItem[]>([]);
   const [form, setForm] = useState<CertificationFormData>({
     ...defaultForm,
     ...(initialData && {
@@ -65,6 +69,7 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
       externalLink: initialData.externalLink ?? '',
       categoryId: initialData.categoryId ?? null,
       subContentId: initialData.subContentId ?? null,
+      operationalUnitId: initialData.operationalUnitId ?? null,
       attachment: null,
       currentFileUrl: initialData.currentFileUrl ?? null,
     }),
@@ -72,6 +77,12 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
   const [uploading, setUploading] = useState(false);
   const [certificateCategoryId, setCertificateCategoryId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    adminOperationalUnitsList()
+      .then((res) => setOperationalUnits(res.data ?? []))
+      .catch(() => setOperationalUnits([]));
+  }, []);
 
   useEffect(() => {
     adminCategoriesList()
@@ -174,13 +185,14 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
     setSaving(true);
     try {
       let documentId: number | null = form.documentId ?? null;
-      if (form.attachment && (certificateCategoryId || form.categoryId)) {
-        const catId = form.categoryId ?? certificateCategoryId;
+      if (form.attachment) {
         const doc = await adminDocumentCreate({
           title: `Certificate attachment: ${form.name.trim() || 'Untitled'}`,
           type: 'GENERAL',
-          categoryId: catId ?? undefined,
-          subContentId: form.subContentId ?? undefined,
+          contentVersion: 'V2',
+          operationalUnitId: form.operationalUnitId,
+          categoryId: undefined,
+          subContentId: null,
           isPublic: false,
           isPublished: false,
           attachment: form.attachment,
@@ -195,8 +207,10 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
         expiryDate: form.expiryDate || undefined,
         documentId: documentId ?? form.documentId ?? (id ? null : undefined),
         externalLink: form.externalLink.trim() || (id ? null : undefined),
-        categoryId: form.categoryId ?? null,
-        subContentId: form.subContentId ?? null,
+        contentVersion: 'V2',
+        operationalUnitId: form.operationalUnitId,
+        categoryId: null,
+        subContentId: null,
       };
       if (id) {
         const res = await fetch(`/api/admin/certifications/${id}`, {
@@ -249,7 +263,28 @@ export function CertificationForm({ initialData, id }: CertificationFormProps) {
           {error}
         </div>
       )}
-      {subContentOptions.length > 0 && (
+      <div>
+        <label className="mb-1 block text-sm font-medium text-charcoal">Operational Unit *</label>
+        <select
+          className="input w-full"
+          value={form.operationalUnitId ?? ''}
+          onChange={(e) =>
+            setForm((prev) => ({
+              ...prev,
+              operationalUnitId: e.target.value === '' ? null : parseInt(e.target.value, 10),
+            }))
+          }
+          required
+        >
+          <option value="">— Select operational unit —</option>
+          {operationalUnits.map((unit) => (
+            <option key={unit.id} value={unit.id}>
+              {unit.attributes.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {false && subContentOptions.length > 0 && (
         <div>
           <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content (optional)</label>
           <p className="mb-2 text-xs text-steel">Choose where this will appear in the portal (e.g. site).</p>

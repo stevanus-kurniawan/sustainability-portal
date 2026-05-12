@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
-import { adminSubContentsList, adminCategoriesList, adminDocumentCreate } from '@/lib/admin-api';
+import { adminSubContentsList, adminCategoriesList, adminDocumentCreate, adminOperationalUnitsList } from '@/lib/admin-api';
+import type { OperationalUnitItem } from '@/lib/admin-api';
 
 function toFormValue(date: string | null): string {
   if (!date) return '';
@@ -31,16 +32,25 @@ export default function AdminLicensesEditPage() {
     licenseNo: '',
     issuedDate: '',
     expiryDate: '',
+    status: 'ACTIVE',
     documentId: null as number | null,
     subContentId: null as number | null,
+    operationalUnitId: null as number | null,
     externalLink: '',
     attachment: null as { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null,
     currentFileUrl: null as string | null,
   });
   const [subContents, setSubContents] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [operationalUnits, setOperationalUnits] = useState<OperationalUnitItem[]>([]);
   const [licenseCategoryId, setLicenseCategoryId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    adminOperationalUnitsList()
+      .then((res) => setOperationalUnits(res.data ?? []))
+      .catch(() => setOperationalUnits([]));
+  }, []);
 
   useEffect(() => {
     adminCategoriesList()
@@ -90,8 +100,10 @@ export default function AdminLicensesEditPage() {
           licenseNo: attrs.licenseNo ?? '',
           issuedDate: toFormValue(attrs.issuedDate ?? null),
           expiryDate: toFormValue(attrs.expiryDate ?? null),
+          status: attrs.status ?? 'ACTIVE',
           documentId: docData?.id ?? attrs.documentId ?? null,
           subContentId: subId ?? null,
+          operationalUnitId: attrs.operationalUnitId ?? null,
           externalLink: attrs.externalLink ?? '',
           attachment: null,
           currentFileUrl: fileUrl ?? null,
@@ -146,12 +158,14 @@ export default function AdminLicensesEditPage() {
     setSaving(true);
     try {
       let documentId: number | null = form.documentId ?? null;
-      if (form.attachment && licenseCategoryId) {
+      if (form.attachment) {
         const doc = await adminDocumentCreate({
           title: `License attachment: ${form.name.trim() || 'Untitled'}`,
           type: 'GENERAL',
-          categoryId: licenseCategoryId,
-          subContentId: form.subContentId ?? undefined,
+          contentVersion: 'V2',
+          operationalUnitId: form.operationalUnitId,
+          categoryId: undefined,
+          subContentId: null,
           isPublic: false,
           isPublished: false,
           attachment: form.attachment,
@@ -164,8 +178,11 @@ export default function AdminLicensesEditPage() {
         licenseNo: form.licenseNo.trim() || undefined,
         issuedDate: form.issuedDate || undefined,
         expiryDate: form.expiryDate || undefined,
+        status: form.status,
         documentId,
-        subContentId: form.subContentId ?? null,
+        contentVersion: 'V2',
+        operationalUnitId: form.operationalUnitId,
+        subContentId: null,
         externalLink: form.externalLink.trim() || null,
       };
       const res = await fetch(`/api/admin/licenses/${id}`, {
@@ -233,7 +250,25 @@ export default function AdminLicensesEditPage() {
             className="w-full"
           />
         </div>
-        {subContents.length > 0 && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-charcoal">Operational Unit *</label>
+          <select
+            className="input w-full"
+            value={form.operationalUnitId ?? ''}
+            onChange={(e) =>
+              update('operationalUnitId', e.target.value === '' ? null : parseInt(e.target.value, 10))
+            }
+            required
+          >
+            <option value="">— Select operational unit —</option>
+            {operationalUnits.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.attributes.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {false && subContents.length > 0 && (
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content</label>
             <select
@@ -271,6 +306,17 @@ export default function AdminLicensesEditPage() {
               className="w-full"
             />
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-charcoal">Status</label>
+          <select className="input w-full" value={form.status} onChange={(e) => update('status', e.target.value)}>
+            <option value="ACTIVE">Active</option>
+            <option value="EXPIRING">Expiring</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="PENDING_RENEWAL">Pending Renewal</option>
+            <option value="IN_REVIEW">In Review</option>
+            <option value="NONE">-</option>
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-charcoal flex items-center gap-2">

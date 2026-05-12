@@ -2,56 +2,47 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight, FileText, FolderOpen, Leaf, LogOut, Scale, Award, AlertCircle, FolderTree, Users, Shield } from 'lucide-react';
+import { Award, BellRing, Building2, ChevronDown, ChevronRight, FileBadge, FileBarChart, FileText, FolderOpen, Gauge, Leaf, LogOut, MessageSquareWarning, Scale, ShieldCheck, ShieldPlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { adminLogout } from '@/lib/auth-api';
 import { useState } from 'react';
 
-const adminNav: { name: string; href: string; icon?: React.ReactNode; children?: { name: string; href: string }[] }[] = [
-  { name: 'Policies', href: '/admin/policies', icon: <FileText className="h-4 w-4" /> },
+const adminNav: Array<
+  | { type?: 'item'; name: string; href: string; icon?: React.ReactNode; children?: { name: string; href: string; icon?: React.ReactNode }[] }
+  | { type: 'divider' }
+> = [
   {
     name: 'Procedure',
-    href: '/admin/procedure/sop',
+    href: '/admin/procedure',
     icon: <FolderOpen className="h-4 w-4" />,
-    children: [
-      { name: 'SOP', href: '/admin/procedure/sop' },
-      { name: 'Form', href: '/admin/procedure/forms' },
-    ],
   },
   {
     name: 'Sustainability',
     href: '/admin/sustainability/reports',
     icon: <Leaf className="h-4 w-4" />,
     children: [
-      { name: 'Sustainability Report', href: '/admin/sustainability/reports' },
-      { name: 'Certificate', href: '/admin/sustainability/certificates' },
+      { name: 'Policy', href: '/admin/policies', icon: <FileText className="h-4 w-4" /> },
+      { name: 'Sustainability Report', href: '/admin/sustainability/reports', icon: <FileBarChart className="h-4 w-4" /> },
+      { name: 'Regulation', href: '/admin/compliance/regulations', icon: <Scale className="h-4 w-4" /> },
+      { name: 'Standards', href: '/admin/compliance/standard', icon: <ShieldCheck className="h-4 w-4" /> },
+      { name: 'Grievance', href: '/admin/grievance', icon: <MessageSquareWarning className="h-4 w-4" /> },
     ],
   },
-  {
-    name: 'Compliance',
-    href: '/admin/compliance/national',
-    icon: <Scale className="h-4 w-4" />,
-    children: [
-      { name: 'National', href: '/admin/compliance/national' },
-      { name: 'International', href: '/admin/compliance/international' },
-      { name: 'Standard', href: '/admin/compliance/standard' },
-      { name: 'License', href: '/admin/compliance/licenses' },
-    ],
-  },
-  { name: 'Grievance', href: '/admin/grievance', icon: <AlertCircle className="h-4 w-4" /> },
-  { name: 'Categories', href: '/admin/categories', icon: <FolderTree className="h-4 w-4" /> },
+  { type: 'divider' },
+  { name: 'Certificate', href: '/admin/certifications', icon: <Award className="h-4 w-4" /> },
+  { name: 'License', href: '/admin/licenses', icon: <FileBadge className="h-4 w-4" /> },
+  { name: 'Operational Unit', href: '/admin/operational-units', icon: <Building2 className="h-4 w-4" /> },
+  { name: 'Updates', href: '/admin/updates', icon: <BellRing className="h-4 w-4" /> },
   { name: 'Users', href: '/admin/users', icon: <Users className="h-4 w-4" /> },
-  { name: 'Admins', href: '/admin/admins', icon: <Shield className="h-4 w-4" /> },
+  { name: 'Admins', href: '/admin/admins', icon: <ShieldPlus className="h-4 w-4" /> },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
-    Procedure: true,
     Sustainability: true,
-    Compliance: true,
   });
   const isLoginPage = pathname === '/admin/login';
 
@@ -95,9 +86,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 : 'text-steel hover:bg-light hover:text-charcoal'
             )}
           >
+            <Gauge className="h-4 w-4" />
             Dashboard
           </Link>
           {adminNav.map((item) => {
+            if (item.type === 'divider') {
+              return <div key="admin-nav-divider" className="my-2 border-t border-border-light" />;
+            }
             if (item.children?.length) {
               const isOpen = openMenus[item.name] ?? false;
               const isActive = item.children.some((c) => pathname === c.href);
@@ -133,6 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             : 'text-steel hover:bg-light hover:text-charcoal'
                         )}
                       >
+                        {child.icon}
                         {child.name}
                       </Link>
                     ))}

@@ -64,7 +64,7 @@ export class RolesService {
     });
   }
 
-  async create(data: { name: string; description?: string; permissions?: string[] }) {
+  async create(data: { name: string; description?: string; permissions?: string[] }, actorId?: string) {
     const existing = await this.prisma.role.findUnique({
       where: { name: data.name },
     });
@@ -77,6 +77,8 @@ export class RolesService {
       data: {
         name: data.name,
         description: data.description,
+        createdById: actorId ?? undefined,
+        updatedById: actorId ?? undefined,
       },
     });
 
@@ -87,14 +89,14 @@ export class RolesService {
     return this.findById(role.id);
   }
 
-  async update(id: string, data: { name?: string; description?: string; permissions?: string[] }) {
+  async update(id: string, data: { name?: string; description?: string; permissions?: string[] }, actorId?: string) {
     await this.findById(id);
 
     const { permissions, ...roleData } = data;
 
     await this.prisma.role.update({
       where: { id },
-      data: roleData,
+      data: { ...roleData, updatedById: actorId ?? undefined },
     });
 
     if (permissions !== undefined) {

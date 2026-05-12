@@ -24,6 +24,7 @@ import { AdminAdminsModule } from './modules/admin-admins/admin-admins.module';
 import { NotificationEngineModule } from './modules/notification-engine/notification-engine.module';
 import { HealthModule } from './modules/health/health.module';
 import { PlanningActivitiesModule } from './modules/planning-activities/planning-activities.module';
+import { OperationalUnitsModule } from './modules/operational-units/operational-units.module';
 import { QueuesModule } from './queues/queues.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -92,6 +93,7 @@ const redisEnabled = process.env.REDIS_ENABLED !== 'false';
     NotificationEngineModule,
     HealthModule,
     PlanningActivitiesModule,
+    OperationalUnitsModule,
   ],
   providers: [
     {

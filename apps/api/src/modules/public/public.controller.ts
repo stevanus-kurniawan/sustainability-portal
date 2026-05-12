@@ -174,8 +174,55 @@ export class PublicController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
+    @Query('policyKind') policyKind?: string,
   ) {
     return this.documentsService.findPoliciesPublic(
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+      search?.trim() || undefined,
+      policyKind?.trim() || undefined,
+    );
+  }
+
+  @Get('regulations')
+  getRegulations(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('regulationKind') regulationKind?: string,
+  ) {
+    return this.documentsService.findRegulationsPublic(
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+      search?.trim() || undefined,
+      regulationKind?.trim() || undefined,
+    );
+  }
+
+  @Get('procedures')
+  getProcedures(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('procedureScope') procedureScope?: string,
+    @Query('operationalUnitId') operationalUnitId?: string,
+  ) {
+    return this.documentsService.findProceduresPublic({
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      search: search?.trim() || undefined,
+      procedureScope: procedureScope?.trim() || undefined,
+      operationalUnitId: operationalUnitId ? parseInt(operationalUnitId, 10) : undefined,
+    });
+  }
+
+  @Get('updates')
+  getUpdates(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.documentsService.findUpdatesPublic(
       page ? parseInt(page, 10) : undefined,
       pageSize ? parseInt(pageSize, 10) : undefined,
       search?.trim() || undefined,
@@ -188,12 +235,14 @@ export class PublicController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('operationalUnitId') operationalUnitId?: string,
   ) {
     return this.certificationsService.findAllPublic({
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
       status,
       search,
+      operationalUnitId: operationalUnitId ? parseInt(operationalUnitId, 10) : undefined,
     });
   }
 
@@ -203,12 +252,14 @@ export class PublicController {
     @Query('pageSize') pageSize?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('operationalUnitId') operationalUnitId?: string,
   ) {
     return this.licensesService.findAllPublic({
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
       status,
       search,
+      operationalUnitId: operationalUnitId ? parseInt(operationalUnitId, 10) : undefined,
     });
   }
 

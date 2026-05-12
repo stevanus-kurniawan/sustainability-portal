@@ -13,6 +13,7 @@ export default function AdminPoliciesEditPage() {
     <DocumentForm
       id={id}
       type="POLICY"
+      contentVersion="V2"
       backHref="/admin/policies"
       title="Edit Policy"
     />
