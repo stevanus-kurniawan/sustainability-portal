@@ -1,4 +1,6 @@
-# Frontend server only (e.g. 172.28.92.56): Next.js web only.
+# Frontend server only — DEVELOPMENT (Next.js web).
+# Production equivalent: docker-compose.prod.frontend.yml + ./infra/up-prod-frontend.sh
+#
 # Usage: docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
 #
 # Optimized for 8GB servers: NODE_OPTIONS and BUILD_LOW_MEMORY cap build RAM so the server
@@ -7,6 +9,8 @@
 #
 # .env: API_URL, API_BACKEND_URL (optional), CMS_URL (optional).
 # Optional: NODE_OPTIONS=--max-old-space-size=1024, BUILD_LOW_MEMORY=1 (stricter cap / single-thread webpack).
+
+name: slms-dev-frontend
 
 services:
   web:

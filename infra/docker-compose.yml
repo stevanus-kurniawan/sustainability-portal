@@ -1,3 +1,9 @@
+# Local all-in-one stack (Postgres, Redis, MinIO, Mailhog, API, Web) — laptop / CI.
+# Split servers: infra/docker-compose.dev.backend.yml + docker-compose.dev.frontend.yml
+# Production single host: infra/docker-compose.prod.yml
+
+name: slms-local
+
 services:
   # PostgreSQL Database
   postgres:

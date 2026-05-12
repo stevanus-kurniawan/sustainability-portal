@@ -29,19 +29,17 @@ FROM node:20-slim AS runner
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/api ./apps/api
-COPY apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
-RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh && chmod +x /app/apps/api/docker-entrypoint.sh
+# Set ownership on copy so we avoid `chown -R` over node_modules (large tree = heavy I/O and can fail when disk is tight).
+COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/packages ./packages
+COPY --chown=node:node --from=builder /app/apps/api ./apps/api
+COPY --chown=node:node --chmod=0755 apps/api/docker-entrypoint.sh /app/apps/api/docker-entrypoint.sh
+USER node
+RUN sed -i 's/\r$//' /app/apps/api/docker-entrypoint.sh
 # Generate Prisma client in final image so debian-openssl-3.0.x engine is present for this runtime
 WORKDIR /app/apps/api
 RUN npx prisma generate
-# Run as non-root (node image includes 'node' user)
-RUN chown -R node:node /app
-USER node
-WORKDIR /app/apps/api
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -q -O- http://localhost:3001/api/v1/health/ready || exit 1

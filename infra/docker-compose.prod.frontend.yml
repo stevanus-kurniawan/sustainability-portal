@@ -1,5 +1,7 @@
-# Production FRONTEND server only (Next.js web).
-# Usage: create infra/env.prod.frontend from env.example.frontend.
+# Frontend server only — PRODUCTION (Next.js web).
+# Development equivalent: docker-compose.dev.frontend.yml + infra/.env.fe.dev
+#
+# Create infra/env.prod.frontend from env.example.frontend.
 #
 # Recommended (always loads infra/env.prod.frontend):
 #   ./infra/up-prod-frontend.sh up -d --build
@@ -8,6 +10,8 @@
 #
 # Port: 8000. API_BACKEND_URL must be the backend server IP:8001 so login/proxy work.
 # See env.example.frontend. When domain is ready, replace IPs with domain in .env.
+
+name: slms-prod-frontend
 
 services:
   web:

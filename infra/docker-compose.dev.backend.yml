@@ -1,7 +1,14 @@
-# Backend server only (e.g. 172.28.92.57): Postgres, Redis, MinIO, API.
-# Usage: docker compose -f infra/docker-compose.dev.backend.yml up -d
-# .env: DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, CORS_ORIGIN, etc.
-# File upload requires MinIO (included below); set MINIO_* in .env to override.
+# Backend server only — DEVELOPMENT (Postgres, Redis, MinIO, API).
+# Production equivalent: docker-compose.prod.backend.yml + ./infra/up-prod-backend.sh
+#
+# Usage (from repo root):
+#   ./infra/up-dev-backend.sh up -d
+#   ./infra/up-dev-backend.sh build api --no-cache && ./infra/up-dev-backend.sh up -d
+# Env: infra/.env.be.dev or infra/.env (DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, CORS_ORIGIN, …).
+# File upload requires MinIO; set MINIO_* in .env to override.
+# Project name isolates volumes from prod on the same host.
+
+name: slms-dev-backend
 
 services:
   postgres:

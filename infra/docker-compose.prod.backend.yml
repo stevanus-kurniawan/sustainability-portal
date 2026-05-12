@@ -1,14 +1,18 @@
-# Production BACKEND server only (Postgres, Redis, MinIO, API).
-# Usage: create infra/env.prod.backend from env.example.backend and set all required variables.
+# Backend server only — PRODUCTION (Postgres, Redis, MinIO, API).
+# Development equivalent: docker-compose.dev.backend.yml + ./infra/up-dev-backend.sh
 #
-# Recommended (always loads infra/env.prod.backend):
+# Create infra/env.prod.backend from env.example.backend and set all required variables.
+# Recommended (loads infra/env.prod.backend):
 #   ./infra/up-prod-backend.sh up -d --build
 #   ./infra/up-prod-backend.sh up -d --build api
 #
-# Or manually from project root (must pass --env-file so variables are set):
+# Or manually from project root:
 #   docker compose --env-file infra/env.prod.backend -f infra/docker-compose.prod.backend.yml up -d --build
 #
 # Ports: DB host 5000, API host 8001. See env.example.backend for required variables.
+# Project name isolates volumes from dev on the same host.
+
+name: slms-prod-backend
 
 services:
   postgres:

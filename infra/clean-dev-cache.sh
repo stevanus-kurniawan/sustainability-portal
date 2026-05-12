@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Free disk and reduce cache on dev servers to avoid crashes from accumulated Docker/build cache.
-# Run periodically (e.g. before/after deploy) or when the server is low on space.
+# Free disk and reduce Docker build cache / unused images on dev or prod servers.
+# Run periodically (e.g. before/after deploy) or when the server is low on space ("No space left on device").
 #
 # Usage:
 #   ./infra/clean-dev-cache.sh          # Safe: builder prune + dangling images

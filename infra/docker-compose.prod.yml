@@ -1,16 +1,18 @@
-# Production Docker Compose – SINGLE SERVER (all services on one host).
-# Usage: from repo root: docker compose -f infra/docker-compose.prod.yml up -d
+# Production — SINGLE SERVER (Postgres, Redis, MinIO, API, Web on one host).
+# Usage: docker compose --env-file infra/.env -f infra/docker-compose.prod.yml up -d
 #
-# For TWO SERVERS (FE and BE separate, same as dev): use instead
-#   Backend:  docker compose -f infra/docker-compose.prod.backend.yml  (env: infra/env.example.backend)
-#   Frontend: docker compose -f infra/docker-compose.prod.frontend.yml (env: infra/env.example.frontend)
+# Split servers (same pattern as dev):
+#   Backend:  docker-compose.prod.backend.yml + ./infra/up-prod-backend.sh
+#   Frontend: docker-compose.prod.frontend.yml + ./infra/up-prod-frontend.sh
 # Ports: DB 5000, Web 8000, API 8001.
 #
 # Required in infra/.env (see infra/env.example):
 #   DB_USER, DB_PASSWORD, DB_NAME, REDIS_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, JWT_ADMIN_SECRET
-#   API_URL (public URL for API, e.g. https://your-domain.com/api/v1), CORS_ORIGIN (e.g. https://your-domain.com)
+#   API_URL (public URL for API), CORS_ORIGIN
 #   MINIO_ACCESS_KEY, MINIO_SECRET_KEY (use strong values in prod)
 # Optional: CMS_URL, SMTP_*, WEB_URL, API_PUBLIC_BASE_URL, COOKIE_DOMAIN
+
+name: slms-prod-all
 
 services:
   postgres:
