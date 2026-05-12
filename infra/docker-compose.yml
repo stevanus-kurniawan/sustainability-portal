@@ -170,7 +170,3 @@ volumes:
     driver: local
   minio_data:
     driver: local
-
-networks:
-  default:
-    name: slms-network

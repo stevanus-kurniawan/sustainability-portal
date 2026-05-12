@@ -38,7 +38,3 @@ services:
       resources:
         limits:
           memory: 512M
-
-networks:
-  default:
-    name: slms-network-dev-frontend
