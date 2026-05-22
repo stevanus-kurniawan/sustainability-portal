@@ -34,7 +34,7 @@ export interface DocumentItem {
     regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
     procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
     operationalUnitId?: number | null;
-    operationalUnit?: { data: { id: number; attributes: { name: string; slug: string; logoFileKey?: string | null; colorClass?: string | null } } | null };
+    operationalUnit?: { data: { id: number; attributes: { name: string; slug: string } } | null };
   };
 }
 
@@ -606,20 +606,11 @@ export async function adminAdminUpdate(
 
 // ========== Operational Units ==========
 
-export type OperationalUnitColorClass =
-  | 'text-primary'
-  | 'text-success'
-  | 'text-warning'
-  | 'text-brand-deep'
-  | 'text-charcoal';
-
 export interface OperationalUnitItem {
   id: number;
   attributes: {
     name: string;
     slug: string;
-    logoFileKey: string | null;
-    colorClass: OperationalUnitColorClass;
     createdAt: string;
     updatedAt: string;
   };
@@ -633,8 +624,6 @@ export async function adminOperationalUnitsList(): Promise<{ data: OperationalUn
 
 export async function adminOperationalUnitCreate(body: {
   name: string;
-  logoFileKey?: string | null;
-  colorClass?: OperationalUnitColorClass;
 }): Promise<OperationalUnitItem> {
   const res = await adminFetch('/api/admin/operational-units', {
     method: 'POST',
@@ -646,7 +635,7 @@ export async function adminOperationalUnitCreate(body: {
 
 export async function adminOperationalUnitUpdate(
   id: number,
-  body: { name?: string; logoFileKey?: string | null; colorClass?: OperationalUnitColorClass }
+  body: { name?: string }
 ): Promise<OperationalUnitItem> {
   const res = await adminFetch(`/api/admin/operational-units/${id}`, {
     method: 'PUT',

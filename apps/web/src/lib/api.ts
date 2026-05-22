@@ -235,8 +235,6 @@ export interface OperationalUnit {
   attributes: {
     name: string;
     slug: string;
-    logoFileKey: string | null;
-    colorClass: string | null;
   };
 }
 

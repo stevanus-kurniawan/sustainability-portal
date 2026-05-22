@@ -9,8 +9,8 @@ const documentInclude = {
   currentVersion: true,
 } as const;
 
-function operationalUnitData(u: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null) {
-  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug, logoFileKey: u.logoFileKey, colorClass: u.colorClass }) } : { data: null };
+function operationalUnitData(u: { id: number; name: string; slug: string } | null) {
+  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug }) } : { data: null };
 }
 
 type LicenseStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING_RENEWAL' | 'IN_REVIEW' | 'NONE';
@@ -117,7 +117,7 @@ export class LicensesService {
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
         operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
-        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
@@ -256,7 +256,7 @@ export class LicensesService {
         updatedById: (c as { updatedById?: string | null }).updatedById ?? null,
         createdAt: (c as { createdAt?: Date }).createdAt?.toISOString() ?? null,
         updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
-        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         subContent: c.subContent
           ? {
               data: toStrapiLike(c.subContent.id, {
@@ -295,7 +295,7 @@ export class LicensesService {
       updatedById: (c as { updatedById?: string | null }).updatedById ?? null,
       createdAt: (c as { createdAt?: Date }).createdAt?.toISOString() ?? null,
       updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
-      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
       subContent: c.subContent
         ? { data: toStrapiLike(c.subContent.id, { title: c.subContent.title, slug: c.subContent.slug }) }
         : { data: null },

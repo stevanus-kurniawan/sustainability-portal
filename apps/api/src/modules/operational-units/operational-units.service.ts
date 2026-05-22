@@ -4,8 +4,6 @@ import { toStrapiLike, wrapData } from '../../common/response';
 import { CreateOperationalUnitDto } from './dto/create-operational-unit.dto';
 import { UpdateOperationalUnitDto } from './dto/update-operational-unit.dto';
 
-const DEFAULT_COLOR_CLASS = 'text-primary';
-
 function slugifyName(name: string): string {
   return name
     .toLowerCase()
@@ -40,8 +38,6 @@ export class OperationalUnitsService {
     id: number;
     name: string;
     slug: string;
-    logoFileKey: string | null;
-    colorClass: string | null;
     createdById?: string | null;
     updatedById?: string | null;
     createdAt: Date;
@@ -50,8 +46,6 @@ export class OperationalUnitsService {
     return toStrapiLike(row.id, {
       name: row.name,
       slug: row.slug,
-      logoFileKey: row.logoFileKey,
-      colorClass: row.colorClass || DEFAULT_COLOR_CLASS,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       ...(options.includeAudit && {
@@ -82,8 +76,6 @@ export class OperationalUnitsService {
       data: {
         name,
         slug,
-        logoFileKey: payload.logoFileKey ?? null,
-        colorClass: payload.colorClass ?? DEFAULT_COLOR_CLASS,
         createdById: adminId ?? undefined,
         updatedById: adminId ?? undefined,
       },
@@ -104,8 +96,6 @@ export class OperationalUnitsService {
       data: {
         name,
         slug,
-        ...(payload.logoFileKey !== undefined ? { logoFileKey: payload.logoFileKey || null } : {}),
-        ...(payload.colorClass !== undefined ? { colorClass: payload.colorClass } : {}),
         updatedById: adminId ?? undefined,
       },
     });

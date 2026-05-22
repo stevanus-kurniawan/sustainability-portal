@@ -15,8 +15,8 @@ function categoryData(c: { id: number; name: string; slug: string } | null) {
 function subContentData(s: { id: number; title: string; slug: string } | null) {
   return s ? { data: toStrapiLike(s.id, { title: s.title, slug: s.slug }) } : { data: null };
 }
-function operationalUnitData(u: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null) {
-  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug, logoFileKey: u.logoFileKey, colorClass: u.colorClass }) } : { data: null };
+function operationalUnitData(u: { id: number; name: string; slug: string } | null) {
+  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug }) } : { data: null };
 }
 
 type CertificationStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
@@ -101,7 +101,7 @@ export class CertificationsService {
         operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
         category: categoryData(c.category),
         subContent: subContentData(c.subContent),
-        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
@@ -260,7 +260,7 @@ export class CertificationsService {
         operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
         category: categoryData(c.category),
         subContent: subContentData(c.subContent),
-        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
@@ -316,7 +316,7 @@ export class CertificationsService {
       updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
       category: categoryData(c.category),
       subContent: subContentData(c.subContent),
-      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null }).operationalUnit ?? null),
+      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
       document: {
         data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
       },

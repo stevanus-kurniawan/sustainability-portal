@@ -49,8 +49,6 @@ type OperationalUnitItem = {
   attributes: {
     name: string;
     slug: string;
-    logoFileKey: string | null;
-    colorClass?: string;
   };
 };
 
@@ -217,7 +215,7 @@ const emptyUnitDetailLoaded: Record<UnitSectionKey, boolean> = {
 };
 
 const rowsPerPage = 6;
-const unitsPerPage = 10;
+const unitsPerPage = 20;
 
 function withPagination(endpoint: string, page: number, pageSize: number) {
   const [path, query = ''] = endpoint.split('?');
@@ -359,14 +357,14 @@ function AttachmentPreviewModal({
   const previewKind = filePreviewKind(file);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal/70 p-4">
-      <div className="flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-surface shadow-xl">
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border-light px-4 py-3">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-charcoal/70 p-0 sm:items-center sm:p-4">
+      <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-xl bg-surface shadow-xl sm:h-[88vh] sm:rounded-xl">
+        <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border-light px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <div className="min-w-0">
             <p className="truncate font-heading text-base font-semibold text-charcoal">{file.title}</p>
             <p className="truncate text-xs text-steel">{file.name}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <a
               href={previewUrl}
               target="_blank"
@@ -417,7 +415,7 @@ function PaginationControls({
 }) {
   if (pageCount <= 1) return null;
   return (
-    <div className="mt-3 flex items-center justify-center gap-3">
+    <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
       <button
         type="button"
         onClick={() => onPageChange(Math.max(0, page - 1))}
@@ -425,7 +423,8 @@ function PaginationControls({
         className="inline-flex items-center gap-2 rounded-md border border-border-light bg-surface px-3 py-2 text-sm font-medium text-charcoal shadow-sm transition-colors hover:bg-light disabled:cursor-not-allowed disabled:opacity-50"
       >
         <ChevronLeft className="h-4 w-4" />
-        Previous
+        <span className="sm:hidden">Prev</span>
+        <span className="hidden sm:inline">Previous</span>
       </button>
       <span className="text-sm text-steel">
         Page {page + 1} of {pageCount}
@@ -445,16 +444,18 @@ function PaginationControls({
 
 function BackTitle({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="relative mb-4 flex items-center justify-center">
+    <div className="mb-4 flex flex-col gap-3 sm:relative sm:flex-row sm:items-center sm:justify-center">
       <button
         type="button"
         onClick={onBack}
-        className="absolute left-0 inline-flex items-center gap-2 rounded-md border border-border-light bg-surface px-3 py-2 text-sm font-medium text-charcoal shadow-sm transition-colors hover:bg-light"
+        className="inline-flex w-fit items-center gap-2 rounded-md border border-border-light bg-surface px-3 py-2 text-sm font-medium text-charcoal shadow-sm transition-colors hover:bg-light sm:absolute sm:left-0"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
       </button>
-      <h2 className="font-heading text-2xl font-bold text-primary sm:text-3xl">{title}</h2>
+      <h2 className="break-words px-0 text-center font-heading text-xl font-bold text-primary sm:px-12 sm:text-2xl lg:text-3xl">
+        {title}
+      </h2>
     </div>
   );
 }
@@ -530,20 +531,26 @@ function DocumentTable({
       : variant === 'updates'
         ? 'grid-cols-[1.25fr_1.5fr_0.75fr_0.75fr]'
       : 'grid-cols-[1.35fr_0.75fr_0.85fr_0.75fr_0.9fr_0.75fr]';
+  const tableMinWidth =
+    variant === 'default' || variant === 'procedure'
+      ? 'min-w-[40rem]'
+      : variant === 'updates'
+        ? 'min-w-[36rem]'
+        : 'min-w-[48rem]';
 
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border-light bg-surface shadow-sm">
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border-light px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-charcoal">{title}</p>
+        <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border-light px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="min-w-0">
+            <p className={`text-sm font-medium ${variant === 'operationalProcedure' ? 'text-primary' : 'text-charcoal'}`}>{title}</p>
             <p className="text-xs text-steel">{subtitle}</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label className="relative block">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <label className="relative block w-full sm:w-52">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
               <input
-                className="input h-9 w-52 pl-9"
+                className="input h-9 w-full pl-9"
                 value={searchTerm}
                 onChange={(event) => {
                   onSearchChange(event.target.value);
@@ -555,26 +562,28 @@ function DocumentTable({
             {filter}
           </div>
         </div>
-        <div className={`grid ${gridClass} gap-3 border-b border-border-light px-4 py-3 text-xs font-semibold uppercase tracking-wide text-steel`}>
-          {columns.map((column) => (
-            <span key={column} className={column === 'Actions' || column === 'Attachment' ? 'text-center' : undefined}>
-              {column}
-            </span>
-          ))}
-        </div>
-        <div className="min-h-0 flex-1">
-          {loading ? (
-            <div className="flex h-full items-center justify-center text-sm text-steel">Loading records…</div>
-          ) : paged.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-steel">{emptyText}</div>
-          ) : (
-            <div className="divide-y divide-border-light">
-              {paged.map((doc) => {
-                const file = fileFromDocument(doc);
-                return (
-                  <div key={doc.id} className={`grid ${gridClass} items-center gap-3 px-4 py-3 text-sm`}>
+        <div className="min-h-0 flex-1 overflow-x-auto">
+          <div className={tableMinWidth}>
+            <div className={`grid ${gridClass} gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4`}>
+              {columns.map((column) => (
+                <span key={column} className={column === 'Actions' || column === 'Attachment' ? 'text-center' : undefined}>
+                  {column}
+                </span>
+              ))}
+            </div>
+            <div>
+              {loading ? (
+                <div className="flex min-h-[12rem] items-center justify-center text-sm text-steel">Loading records…</div>
+              ) : paged.length === 0 ? (
+                <div className="flex min-h-[12rem] items-center justify-center px-4 text-center text-sm text-steel">{emptyText}</div>
+              ) : (
+                <div className="divide-y divide-border-light">
+                  {paged.map((doc) => {
+                    const file = fileFromDocument(doc);
+                    return (
+                      <div key={doc.id} className={`grid ${gridClass} items-center gap-3 px-3 py-3 text-sm sm:px-4`}>
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-charcoal">{doc.attributes.title}</p>
+                      <p className={`truncate font-medium ${variant === 'operationalProcedure' ? 'text-primary' : 'text-charcoal'}`}>{doc.attributes.title}</p>
                     </div>
                     {variant === 'report' ? (
                       <>
@@ -641,6 +650,8 @@ function DocumentTable({
               })}
             </div>
           )}
+            </div>
+          </div>
         </div>
       </div>
       <PaginationControls page={page} pageCount={pageCount} onPageChange={onPageChange} />
@@ -957,26 +968,26 @@ export function UserLandingDashboard() {
   }, [searchParams]);
 
   return (
-    <div className="h-screen overflow-hidden bg-light">
+    <div className="min-h-screen overflow-x-hidden bg-light">
       <div
-        className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-25 grayscale"
+        className="pointer-events-none fixed inset-0 bg-cover bg-center opacity-25 grayscale"
         style={{
           backgroundImage: `url("${dashboardBackground}")`,
           filter: 'grayscale(1) contrast(0.85) brightness(1.12)',
         }}
       />
-      <div className="pointer-events-none absolute inset-0 bg-light/80" />
-      <div className="relative mx-auto flex h-full w-full max-w-7xl flex-col px-4 sm:px-6 lg:px-8">
-        <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-border-light">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Sustainability portal logo" width={36} height={36} className="h-9 w-9 object-contain" unoptimized />
-            <div>
-              <p className="font-heading text-base font-semibold text-charcoal">SLMS</p>
-              <p className="text-xs text-steel">Sustainability Portal</p>
+      <div className="pointer-events-none fixed inset-0 bg-light/80" />
+      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 sm:px-6 lg:px-8">
+        <header className="flex min-h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border-light py-2 sm:py-0">
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <Image src="/logo.png" alt="Sustainability portal logo" width={36} height={36} className="h-9 w-9 shrink-0 object-contain" unoptimized />
+            <div className="min-w-0">
+              <p className="truncate font-heading text-base font-semibold text-charcoal">SLMS</p>
+              <p className="truncate text-xs text-steel">Sustainability Portal</p>
             </div>
           </Link>
 
-          <div className="flex h-16 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="hidden h-10 items-center gap-2 rounded-md border border-border-light bg-surface/95 px-3 shadow-sm sm:flex">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <User className="h-3.5 w-3.5" />
@@ -994,12 +1005,12 @@ export function UserLandingDashboard() {
           </div>
         </header>
 
-        <main className="flex min-h-0 flex-1 flex-col py-4 sm:py-6">
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
           {currentView === 'main' && (
-            <div className="flex min-h-0 flex-1 items-center justify-center">
-              <div className="w-full max-w-6xl text-center">
+            <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:py-0">
+              <div className="w-full max-w-6xl self-center text-center">
                 <p className="mb-2 text-base text-steel sm:text-lg">Welcome, {userName}</p>
-                <h1 className="font-heading text-3xl font-bold text-charcoal sm:text-4xl lg:text-5xl">SLMS Sustainability Portal</h1>
+                <h1 className="font-heading text-2xl font-bold text-charcoal sm:text-4xl lg:text-5xl">SLMS Sustainability Portal</h1>
                 <p className="mx-auto mt-3 max-w-3xl text-sm text-steel sm:text-base lg:text-lg">
                   Transparency &amp; accountability in every step of our sustainability journey.
                 </p>
@@ -1035,8 +1046,8 @@ export function UserLandingDashboard() {
                 router.push('/', { scroll: false });
                 setCurrentView('main');
               }} />
-              <div className="flex min-h-0 flex-1 items-center justify-center">
-                <div className="grid w-full max-w-6xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+              <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:items-center sm:py-0">
+                <div className="grid w-full max-w-6xl grid-cols-1 gap-3 self-center sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                   {SUSTAINABILITY_MENU_CARDS.map((card) => (
                     <MenuCard
                       key={card.title}
@@ -1107,10 +1118,10 @@ export function UserLandingDashboard() {
                 variant="regulation"
                 onPreviewFile={setPreviewFile}
                 filter={
-                  <label className="flex items-center gap-2 text-sm text-steel">
+                  <label className="flex w-full flex-col gap-1 text-sm text-steel sm:w-auto sm:flex-row sm:items-center sm:gap-2">
                     Type
                     <select
-                      className="input h-9 w-40"
+                      className="input h-9 w-full sm:w-40"
                       value={selectedRegulationKind}
                       onChange={(event) => {
                         setSelectedRegulationKind(event.target.value as RegulationKind);
@@ -1134,11 +1145,11 @@ export function UserLandingDashboard() {
                 router.push('/', { scroll: false });
                 setCurrentView('main');
               }} />
-              <div className="mb-3 flex justify-end">
-                <label className="relative block">
+              <div className="mb-3 flex justify-stretch sm:justify-end">
+                <label className="relative block w-full sm:w-64">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
                   <input
-                    className="input h-9 w-64 pl-9"
+                    className="input h-9 w-full pl-9"
                     value={unitSearch}
                     onChange={(event) => {
                       setUnitSearch(event.target.value);
@@ -1148,16 +1159,13 @@ export function UserLandingDashboard() {
                   />
                 </label>
               </div>
-              <div className="relative flex min-h-0 flex-1 items-center justify-center">
-                <div className="grid w-full max-w-6xl grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:gap-4">
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                <div className="grid min-h-0 w-full max-w-7xl flex-1 auto-rows-fr grid-cols-2 gap-2 self-center sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 lg:grid-cols-5 lg:grid-rows-4 lg:gap-3">
                   {unitsLoading ? (
-                    <p className="col-span-full text-center text-sm text-steel">Loading operational units…</p>
+                    <p className="col-span-full row-span-full flex items-center justify-center text-sm text-steel">Loading operational units…</p>
                   ) : pagedUnits.length === 0 ? (
-                    <p className="col-span-full text-center text-sm text-steel">No operational units found.</p>
+                    <p className="col-span-full row-span-full flex items-center justify-center text-sm text-steel">No operational units found.</p>
                   ) : pagedUnits.map((unit) => {
-                    const logoUrl = unit.attributes.logoFileKey
-                      ? `/api/v1/public/files/preview?key=${encodeURIComponent(unit.attributes.logoFileKey)}`
-                      : null;
                     return (
                       <button
                         key={unit.id}
@@ -1173,24 +1181,15 @@ export function UserLandingDashboard() {
                           router.push(dashboardUrl({ view: 'unit-detail', unitId: unit.id }), { scroll: false });
                           setCurrentView('unit-detail');
                         }}
-                        className="group h-full"
+                        className="group flex h-full w-full min-h-0"
                       >
                         <Card
                           hover
-                          className="flex h-full min-h-[10.5rem] border-border-light bg-surface transition-transform duration-200 group-hover:-translate-y-1"
+                          className="grid h-full w-full place-items-center border-border-light bg-surface p-3 text-center transition-transform duration-200 group-hover:-translate-y-0.5"
                         >
-                          <CardContent className="flex h-full flex-col items-center justify-center p-4 text-center">
-                            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-md bg-light">
-                              {logoUrl ? (
-                                <Image src={logoUrl} alt={`${unit.attributes.name} logo`} width={48} height={48} className="h-12 w-12 object-contain" unoptimized />
-                              ) : (
-                                <Building2 className="h-6 w-6 text-steel" />
-                              )}
-                            </div>
-                            <h3 className={`font-heading text-base font-semibold ${unit.attributes.colorClass || 'text-primary'}`}>
-                              {unit.attributes.name}
-                            </h3>
-                          </CardContent>
+                          <h3 className="line-clamp-2 m-0 w-full text-balance text-center font-heading text-xs font-semibold leading-snug text-primary sm:text-sm">
+                            {unit.attributes.name}
+                          </h3>
                         </Card>
                       </button>
                     );
@@ -1207,8 +1206,8 @@ export function UserLandingDashboard() {
                 router.push(dashboardUrl({ view: 'operational-units' }), { scroll: false });
                 setCurrentView('operational-units');
               }} />
-              <div className="flex min-h-0 flex-1 items-center justify-center">
-                <div className="grid w-full max-w-5xl grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:items-center sm:py-0">
+                <div className="grid w-full max-w-5xl grid-cols-1 gap-4 self-center sm:grid-cols-2 lg:grid-cols-3">
                   {unitSections.map((section) => (
                     <button
                       key={section.key}
@@ -1225,13 +1224,13 @@ export function UserLandingDashboard() {
                     >
                       <Card
                         hover
-                        className="flex h-full min-h-[11rem] border-border-light bg-surface transition-transform duration-200 group-hover:-translate-y-1"
+                        className="flex h-full min-h-[10rem] border-border-light bg-surface transition-transform duration-200 group-hover:-translate-y-1 sm:min-h-[11rem]"
                       >
-                        <CardContent className="flex h-full flex-col items-center justify-center p-5 text-center">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <CardContent className="flex h-full flex-col items-center justify-center p-4 text-center sm:p-5">
+                          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-12 sm:w-12">
                             {section.icon}
                           </span>
-                          <h3 className="mt-4 font-heading text-xl font-semibold text-charcoal">{section.title}</h3>
+                          <h3 className="mt-3 font-heading text-lg font-semibold text-primary sm:mt-4 sm:text-xl">{section.title}</h3>
                           <p className="mt-2 text-sm text-steel">{section.description}</p>
                         </CardContent>
                       </Card>
@@ -1248,21 +1247,21 @@ export function UserLandingDashboard() {
                 router.push(dashboardUrl({ view: 'unit-detail', unitId: selectedUnit.id }), { scroll: false });
                 setCurrentView('unit-detail');
               }} />
-              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border-light bg-surface shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-light bg-surface shadow-sm">
+                <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border-light px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       {selectedUnitSectionData.icon}
                     </span>
-                    <div>
-                      <h3 className="font-heading text-base font-semibold text-charcoal">{selectedUnitSectionData.title}</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-heading text-base font-semibold text-primary">{selectedUnitSectionData.title}</h3>
                       <p className="text-xs text-steel">{selectedUnitSectionData.description}</p>
                     </div>
                   </div>
-                  <label className="relative block">
+                  <label className="relative block w-full sm:w-56">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
                     <input
-                      className="input h-9 w-56 pl-9"
+                      className="input h-9 w-full pl-9"
                       value={unitRecordSearch}
                       onChange={(event) => {
                         setUnitRecordSearch(event.target.value);
@@ -1272,11 +1271,11 @@ export function UserLandingDashboard() {
                     />
                   </label>
                 </div>
-                <div className="min-h-0 flex-1">
+                <div className="min-h-0 flex-1 overflow-y-auto">
                   {unitDetailLoading ? (
-                    <div className="flex h-full items-center justify-center text-sm text-steel">Loading records…</div>
+                    <div className="flex min-h-[12rem] items-center justify-center text-sm text-steel">Loading records…</div>
                   ) : filteredUnitRecords.length === 0 ? (
-                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-steel">No records available.</div>
+                    <div className="flex min-h-[12rem] items-center justify-center px-4 text-center text-sm text-steel">No records available.</div>
                   ) : selectedUnitSection === 'procedures' ? (
                     <DocumentTable
                       title={selectedUnitSectionData.title}
@@ -1292,8 +1291,9 @@ export function UserLandingDashboard() {
                       onPreviewFile={setPreviewFile}
                     />
                   ) : selectedUnitSection === 'certifications' ? (
-                    <div>
-                      <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] gap-3 border-b border-border-light px-4 py-3 text-xs font-semibold uppercase tracking-wide text-steel">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[52rem]">
+                      <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
                         <span>Name</span>
                         <span>Issuer</span>
                         <span>Certificate Number</span>
@@ -1306,8 +1306,8 @@ export function UserLandingDashboard() {
                         {pagedUnitCertifications.map((cert) => {
                           const file = cert.attributes.document?.data ? fileFromDocument(cert.attributes.document.data) : null;
                           return (
-                            <div key={cert.id} className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] items-center gap-3 px-4 py-3 text-sm">
-                              <span className="truncate font-medium text-charcoal">{cert.attributes.name}</span>
+                            <div key={cert.id} className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] items-center gap-3 px-3 py-3 text-sm sm:px-4">
+                              <span className="truncate font-medium text-primary">{cert.attributes.name}</span>
                               <span className="truncate text-steel">{cert.attributes.issuer || '-'}</span>
                               <span className="truncate text-steel">{cert.attributes.certificateNo || '-'}</span>
                               <span className="truncate text-steel">{formatDate(cert.attributes.issuedDate)}</span>
@@ -1336,10 +1336,12 @@ export function UserLandingDashboard() {
                         })}
                       </div>
                       <PaginationControls page={unitRecordsPage} pageCount={unitCertificationsPageCount} onPageChange={setUnitRecordsPage} />
+                      </div>
                     </div>
                   ) : (
-                    <div>
-                      <div className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] gap-3 border-b border-border-light px-4 py-3 text-xs font-semibold uppercase tracking-wide text-steel">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[52rem]">
+                      <div className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
                         <span>Name</span>
                         <span>Authority</span>
                         <span>License Number</span>
@@ -1352,8 +1354,8 @@ export function UserLandingDashboard() {
                         {pagedUnitLicenses.map((license) => {
                           const file = license.attributes.document?.data ? fileFromDocument(license.attributes.document.data) : null;
                           return (
-                            <div key={license.id} className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] items-center gap-3 px-4 py-3 text-sm">
-                              <span className="truncate font-medium text-charcoal">{license.attributes.name}</span>
+                            <div key={license.id} className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] items-center gap-3 px-3 py-3 text-sm sm:px-4">
+                              <span className="truncate font-medium text-primary">{license.attributes.name}</span>
                               <span className="truncate text-steel">{license.attributes.authority || '-'}</span>
                               <span className="truncate text-steel">{license.attributes.licenseNo || '-'}</span>
                               <span className="truncate text-steel">{formatDate(license.attributes.issuedDate)}</span>
@@ -1382,6 +1384,7 @@ export function UserLandingDashboard() {
                         })}
                       </div>
                       <PaginationControls page={unitRecordsPage} pageCount={unitLicensesPageCount} onPageChange={setUnitRecordsPage} />
+                      </div>
                     </div>
                   )}
                 </div>

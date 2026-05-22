@@ -57,7 +57,7 @@ export type DocumentWithRelations = {
   deletedById?: string | null;
   deletedAt?: Date | null;
   category: { id: number; name: string; slug: string; isPublic: boolean; displayOrder: number } | null;
-  operationalUnit?: { id: number; name: string; slug: string; logoFileKey: string | null; colorClass: string | null } | null;
+  operationalUnit?: { id: number; name: string; slug: string } | null;
   tags: { tag: { id: number; name: string; slug: string } }[];
   currentVersion: {
     id: number;
@@ -132,8 +132,6 @@ export function mapDocumentToStrapi(
         data: toStrapiLike((doc as DocumentWithRelations).operationalUnit!.id, {
           name: (doc as DocumentWithRelations).operationalUnit!.name,
           slug: (doc as DocumentWithRelations).operationalUnit!.slug,
-          logoFileKey: (doc as DocumentWithRelations).operationalUnit!.logoFileKey,
-          colorClass: (doc as DocumentWithRelations).operationalUnit!.colorClass,
         }),
       },
     }),
