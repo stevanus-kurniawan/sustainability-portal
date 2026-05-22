@@ -9,5 +9,20 @@ if [ -f /etc/alpine-release ]; then
     export PRISMA_QUERY_ENGINE_LIBRARY="$PRISMA_ENGINE_PATH"
   fi
 fi
-npx prisma migrate deploy
+echo "Running database migrations..."
+attempt=1
+max_attempts=30
+while [ "$attempt" -le "$max_attempts" ]; do
+  if npx prisma migrate deploy; then
+    echo "Migrations applied successfully."
+    break
+  fi
+  if [ "$attempt" -eq "$max_attempts" ]; then
+    echo "Error: could not reach database at ${DB_HOST:-postgres}:5432 after $max_attempts attempts."
+    exit 1
+  fi
+  echo "Database not reachable (attempt $attempt/$max_attempts), retrying in 2s..."
+  sleep 2
+  attempt=$((attempt + 1))
+done
 exec node dist/main.js
