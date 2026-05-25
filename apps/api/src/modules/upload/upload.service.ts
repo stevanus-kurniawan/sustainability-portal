@@ -8,6 +8,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   buildStorageFileKey,
+  buildStorageFileName,
   isValidStorageFileKey,
   resolveStorageFolderPath,
   type StorageFolderInput,
@@ -30,8 +31,8 @@ export class UploadService {
   }
 
   /** Generate a storage key under the given folder (or legacy uploads/ prefix). */
-  generateUploadKey(ext: string, folderPath?: string | null): string {
-    const fileName = `${randomUUID()}${ext}`;
+  generateUploadKey(originalName: string, folderPath?: string | null): string {
+    const fileName = buildStorageFileName(originalName, randomUUID());
     if (folderPath) {
       return buildStorageFileKey(folderPath, fileName);
     }

@@ -9,6 +9,7 @@ import {
   parseSustainabilityStorageType,
 } from '@slms/shared';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
+import { UploadStorageBodyDto } from './dto/upload-storage-body.dto';
 import { UploadService } from './upload.service';
 
 /** Max file size for proxy upload (25 MB). */
@@ -30,11 +31,16 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 
-class UploadStorageBodyDto {
-  storageSection?: string;
-  sustainabilityType?: string;
-  procedureScope?: string;
-  operationalUnitFolder?: string;
+function readUploadStorageBody(req: Request): UploadStorageBodyDto {
+  const raw = (req.body ?? {}) as Record<string, unknown>;
+  const asString = (value: unknown): string | undefined =>
+    typeof value === 'string' ? value : undefined;
+  return {
+    storageSection: asString(raw.storageSection),
+    sustainabilityType: asString(raw.sustainabilityType),
+    procedureScope: asString(raw.procedureScope),
+    operationalUnitFolder: asString(raw.operationalUnitFolder),
+  };
 }
 
 @ApiTags('admin/upload')
@@ -85,7 +91,6 @@ export class UploadController {
   async upload(
     @Req() req: Request & { uploadRejectedType?: boolean },
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: UploadStorageBodyDto,
   ): Promise<{ key: string } | { key: null; message: string }> {
     if (!file) {
       if (req.uploadRejectedType) {
@@ -106,15 +111,16 @@ export class UploadController {
       };
     }
 
-    const section = parseStorageSection(body.storageSection);
+    const storageBody = readUploadStorageBody(req);
+    const section = parseStorageSection(storageBody.storageSection);
     let folderPath: string | null = null;
 
     if (section) {
       folderPath = this.uploadService.resolveFolderPath({
         section,
-        sustainabilityType: parseSustainabilityStorageType(body.sustainabilityType) ?? undefined,
-        procedureScope: parseProcedureScope(body.procedureScope) ?? undefined,
-        operationalUnitFolder: body.operationalUnitFolder?.trim() || undefined,
+        sustainabilityType: parseSustainabilityStorageType(storageBody.sustainabilityType) ?? undefined,
+        procedureScope: parseProcedureScope(storageBody.procedureScope) ?? undefined,
+        operationalUnitFolder: storageBody.operationalUnitFolder?.trim() || undefined,
       });
       if (!folderPath) {
         return {
@@ -125,10 +131,7 @@ export class UploadController {
       }
     }
 
-    const ext = file.originalname.includes('.')
-      ? file.originalname.slice(file.originalname.lastIndexOf('.'))
-      : '';
-    const key = this.uploadService.generateUploadKey(ext, folderPath);
+    const key = this.uploadService.generateUploadKey(file.originalname, folderPath);
 
     const result = await this.uploadService.uploadStream(
       key,
