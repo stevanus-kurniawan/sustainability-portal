@@ -24,6 +24,22 @@ export function sanitizeStorageFolderSegment(name: string): string {
   return cleaned.slice(0, 120) || 'unknown';
 }
 
+/** Remove characters unsafe in stored file names (spaces allowed). */
+export function sanitizeStorageFileName(name: string): string {
+  const cleaned = name.trim().replace(UNSAFE_PATH_CHARS, '').replace(/\.\./g, '');
+  return cleaned.slice(0, 180) || 'document';
+}
+
+/** Build stored file name: `{original base} - {uuid}{ext}`. */
+export function buildStorageFileName(originalName: string, fileId: string): string {
+  const trimmed = (originalName || 'document').trim() || 'document';
+  const lastDot = trimmed.lastIndexOf('.');
+  const ext = lastDot > 0 ? trimmed.slice(lastDot) : '';
+  const base = lastDot > 0 ? trimmed.slice(0, lastDot) : trimmed;
+  const safeBase = sanitizeStorageFileName(base);
+  return `${safeBase} - ${fileId}${ext}`;
+}
+
 const SUSTAINABILITY_SUBFOLDER: Record<SustainabilityStorageType, string> = {
   policy: STORAGE_FOLDERS.policy,
   'sustainability-report': STORAGE_FOLDERS.sustainabilityReport,
@@ -73,13 +89,15 @@ export function buildStorageFileKey(folderPath: string, fileName: string): strin
   return `${base}/${fileName}`;
 }
 
+const VALID_FILE_NAME = /^[a-zA-Z0-9._\- ]+$/;
+
 /** Validate file keys used in DB and public preview (legacy uploads/ + Synology layout). */
 export function isValidStorageFileKey(key: string): boolean {
   if (!key || key.includes('..')) return false;
 
-  if (/^uploads\/[a-zA-Z0-9._\-]+$/.test(key)) return true;
+  if (/^uploads\/[a-zA-Z0-9._\- ]+$/.test(key)) return true;
 
-  if (/^Updates\/[a-zA-Z0-9._\-]+$/.test(key)) return true;
+  if (/^Updates\/[a-zA-Z0-9._\- ]+$/.test(key)) return true;
 
   const sectionRoots = [
     STORAGE_FOLDERS.procedure,
@@ -94,7 +112,7 @@ export function isValidStorageFileKey(key: string): boolean {
     const segments = rest.split('/');
     if (segments.length < 2) return false;
     const fileName = segments[segments.length - 1];
-    if (!fileName || !/^[a-zA-Z0-9._\-]+$/.test(fileName)) return false;
+    if (!fileName || !VALID_FILE_NAME.test(fileName)) return false;
     return segments.every((seg) => seg.length > 0 && !seg.includes('..') && !UNSAFE_PATH_CHARS.test(seg));
   }
 

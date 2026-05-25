@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStorageFileKey,
+  buildStorageFileName,
   isValidStorageFileKey,
   resolveStorageFolderPath,
   sanitizeStorageFolderSegment,
+  sanitizeStorageFileName,
 } from './storage-path';
 
 describe('storage-path', () => {
@@ -64,10 +66,26 @@ describe('storage-path', () => {
     );
   });
 
+  it('builds stored file names from original name and uuid', () => {
+    expect(buildStorageFileName('Annual Report.pdf', 'bd700b45-080d-4124-9b10-bdcb7368abe8')).toBe(
+      'Annual Report - bd700b45-080d-4124-9b10-bdcb7368abe8.pdf',
+    );
+    expect(buildStorageFileName('bad/name?.pdf', 'abc')).toBe('badname - abc.pdf');
+  });
+
+  it('sanitizes unsafe file name segments', () => {
+    expect(sanitizeStorageFileName('  report:v1  ')).toBe('reportv1');
+  });
+
   it('validates legacy and synology file keys', () => {
     expect(isValidStorageFileKey('uploads/abc.pdf')).toBe(true);
     expect(isValidStorageFileKey('Updates/abc.pdf')).toBe(true);
     expect(isValidStorageFileKey('Procedure/Holding Company/abc.pdf')).toBe(true);
+    expect(
+      isValidStorageFileKey(
+        'Sustainability/Policy/Annual Report - bd700b45-080d-4124-9b10-bdcb7368abe8.pdf',
+      ),
+    ).toBe(true);
     expect(isValidStorageFileKey('Procedure/Holding Company/../etc/passwd')).toBe(false);
     expect(isValidStorageFileKey('random/path/file.pdf')).toBe(false);
   });
