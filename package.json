@@ -42,7 +42,7 @@
     "db:seed": "pnpm --filter @slms/api prisma:seed",
     "db:studio": "pnpm --filter @slms/api prisma:studio",
     "db:reset": "pnpm --filter @slms/api prisma:reset",
-    "setup": "pnpm install && pnpm build:shared && pnpm setup:env && pnpm dev:infra && node -e \"console.log('Waiting 25s for Postgres/MinIO...');setTimeout(()=>{},25000)\" && pnpm db:migrate && pnpm db:seed"
+    "setup": "pnpm install && pnpm build:shared && pnpm setup:env && pnpm dev:infra && node -e \"console.log('Waiting 25s for Postgres...');setTimeout(()=>{},25000)\" && pnpm db:migrate && pnpm db:seed"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

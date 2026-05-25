@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateLicenseDto {
   @IsOptional()
@@ -25,12 +25,24 @@ export class UpdateLicenseDto {
   expiryDate?: string;
 
   @IsOptional()
+  @IsIn(['ACTIVE', 'EXPIRING', 'EXPIRED', 'PENDING_RENEWAL', 'IN_REVIEW', 'NONE'])
+  status?: 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING_RENEWAL' | 'IN_REVIEW' | 'NONE';
+
+  @IsOptional()
   @IsInt()
   documentId?: number | null;
 
   @IsOptional()
   @IsInt()
   subContentId?: number | null;
+
+  @IsOptional()
+  @IsIn(['V1', 'V2'])
+  contentVersion?: 'V1' | 'V2';
+
+  @IsOptional()
+  @IsInt()
+  operationalUnitId?: number | null;
 
   @IsOptional()
   @IsString()

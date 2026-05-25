@@ -15,6 +15,9 @@ function categoryData(c: { id: number; name: string; slug: string } | null) {
 function subContentData(s: { id: number; title: string; slug: string } | null) {
   return s ? { data: toStrapiLike(s.id, { title: s.title, slug: s.slug }) } : { data: null };
 }
+function operationalUnitData(u: { id: number; name: string; slug: string } | null) {
+  return u ? { data: toStrapiLike(u.id, { name: u.name, slug: u.slug }) } : { data: null };
+}
 
 type CertificationStatusLiteral = 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
 
@@ -45,6 +48,7 @@ export class CertificationsService {
     pageSize?: number;
     status?: string;
     search?: string;
+    operationalUnitId?: number;
   }) {
     const { page, pageSize } = clampPagination(params.page, params.pageSize);
     const and: Array<Record<string, unknown>> = [];
@@ -64,6 +68,8 @@ export class CertificationsService {
       else if (params.status === 'EXPIRING') and.push({ expiryDate: { gte: now, lte: in30 } });
       else if (params.status === 'ACTIVE') and.push({ OR: [{ expiryDate: null }, { expiryDate: { gt: in30 } }] });
     }
+    if (params.operationalUnitId != null) and.push({ operationalUnitId: params.operationalUnitId });
+    and.push({ contentVersion: 'V2' });
     const where = and.length ? { AND: and } : {};
     const [items, total] = await Promise.all([
       this.prisma.certification.findMany({
@@ -72,6 +78,7 @@ export class CertificationsService {
           document: { include: documentInclude },
           category: true,
           subContent: true,
+          operationalUnit: true,
         },
         orderBy: { expiryDate: 'asc' },
         skip: (page - 1) * pageSize,
@@ -90,8 +97,11 @@ export class CertificationsService {
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         categoryId: c.categoryId ?? null,
         subContentId: c.subContentId ?? null,
+        contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+        operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
         category: categoryData(c.category),
         subContent: subContentData(c.subContent),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
@@ -165,8 +175,11 @@ export class CertificationsService {
     pageSize?: number;
     search?: string;
     status?: string;
+    issuer?: string;
     categoryId?: number | null;
     subContentId?: number | null;
+    contentVersion?: string;
+    operationalUnitId?: number;
     /** If set, only non-expired items with expiry within this many days (e.g. 60), ordered by expiry. */
     expiringWithinDays?: number;
   }) {
@@ -181,6 +194,9 @@ export class CertificationsService {
           { certificateNo: { contains: params.search, mode: 'insensitive' } },
         ],
       });
+    }
+    if (params.issuer) {
+      and.push({ issuer: params.issuer });
     }
     if (params.status) {
       const now = new Date();
@@ -199,6 +215,12 @@ export class CertificationsService {
     } else if (params.categoryId != null) {
       and.push({ categoryId: params.categoryId });
     }
+    if (params.contentVersion != null) {
+      and.push({ contentVersion: params.contentVersion });
+    }
+    if (params.operationalUnitId != null) {
+      and.push({ operationalUnitId: params.operationalUnitId });
+    }
     const where = and.length ? { AND: and } : {};
 
     const orderBy =
@@ -215,6 +237,7 @@ export class CertificationsService {
           document: { include: documentInclude },
           category: true,
           subContent: true,
+          operationalUnit: true,
         },
         orderBy,
         skip: (page - 1) * pageSize,
@@ -233,14 +256,35 @@ export class CertificationsService {
         externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
         categoryId: c.categoryId ?? null,
         subContentId: c.subContentId ?? null,
+        contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+        operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
         category: categoryData(c.category),
         subContent: subContentData(c.subContent),
+        operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
         document: {
           data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
         },
       }),
     );
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
+  }
+
+  async findIssuerOptions(params: { contentVersion?: string }) {
+    const rows = await this.prisma.certification.findMany({
+      where: {
+        ...(params.contentVersion ? { contentVersion: params.contentVersion as any } : {}),
+        issuer: { not: null },
+      },
+      distinct: ['issuer'],
+      select: { issuer: true },
+      orderBy: { issuer: 'asc' },
+    });
+    return {
+      data: rows
+        .map((row) => row.issuer?.trim())
+        .filter((issuer): issuer is string => Boolean(issuer))
+        .map((issuer) => ({ issuer })),
+    };
   }
 
   async findOneAdmin(id: number) {
@@ -250,6 +294,7 @@ export class CertificationsService {
         document: { include: documentInclude },
         category: true,
         subContent: true,
+        operationalUnit: true,
       },
     });
     if (!c) throw new NotFoundException('Certification not found');
@@ -263,8 +308,15 @@ export class CertificationsService {
       externalLink: (c as { externalLink?: string | null }).externalLink ?? null,
       categoryId: c.categoryId ?? null,
       subContentId: c.subContentId ?? null,
+      contentVersion: (c as { contentVersion?: string }).contentVersion ?? 'V1',
+      operationalUnitId: (c as { operationalUnitId?: number | null }).operationalUnitId ?? null,
+      createdById: (c as { createdById?: string | null }).createdById ?? null,
+      updatedById: (c as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (c as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (c as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
       category: categoryData(c.category),
       subContent: subContentData(c.subContent),
+      operationalUnit: operationalUnitData((c as { operationalUnit?: { id: number; name: string; slug: string } | null }).operationalUnit ?? null),
       document: {
         data: documentDataForResponse(c.document as unknown as DocumentWithRelations),
       },
@@ -279,10 +331,12 @@ export class CertificationsService {
     expiryDate?: string;
     documentId?: number;
     externalLink?: string;
+    contentVersion?: string;
+    operationalUnitId?: number | null;
     categoryId?: number | null;
     subContentId?: number | null;
     createdById?: string;
-  }) {
+  }, adminId?: string) {
     if (data.subContentId != null && data.categoryId == null) {
       throw new BadRequestException('subContentId requires categoryId');
     }
@@ -304,31 +358,42 @@ export class CertificationsService {
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
         documentId: data.documentId,
         externalLink: data.externalLink,
+        contentVersion: (data.contentVersion ?? 'V1') as any,
+        operationalUnitId: data.operationalUnitId ?? undefined,
         categoryId: data.categoryId ?? undefined,
         subContentId: data.subContentId ?? undefined,
-        createdById: data.createdById,
-        updatedById: data.createdById,
+        createdById: adminId ?? data.createdById,
+        updatedById: adminId ?? data.createdById,
       },
       include: {
         document: { include: documentInclude },
         category: true,
         subContent: true,
+        operationalUnit: true,
       },
     });
+    const certRow = cert as any;
     return toStrapiLike(cert.id, {
-      name: cert.name,
-      issuer: cert.issuer,
-      certificateNo: cert.certificateNo,
-      issuedDate: cert.issuedDate?.toISOString() ?? null,
-      expiryDate: cert.expiryDate?.toISOString() ?? null,
-      status: computeStatus(cert.expiryDate),
-      externalLink: (cert as { externalLink?: string | null }).externalLink ?? null,
-      categoryId: cert.categoryId ?? null,
-      subContentId: cert.subContentId ?? null,
-      category: categoryData(cert.category),
-      subContent: subContentData(cert.subContent),
+      name: certRow.name,
+      issuer: certRow.issuer,
+      certificateNo: certRow.certificateNo,
+      issuedDate: certRow.issuedDate?.toISOString() ?? null,
+      expiryDate: certRow.expiryDate?.toISOString() ?? null,
+      status: computeStatus(certRow.expiryDate),
+      externalLink: certRow.externalLink ?? null,
+      categoryId: certRow.categoryId ?? null,
+      subContentId: certRow.subContentId ?? null,
+      contentVersion: certRow.contentVersion ?? 'V1',
+      operationalUnitId: certRow.operationalUnitId ?? null,
+      createdById: certRow.createdById ?? null,
+      updatedById: certRow.updatedById ?? null,
+      createdAt: certRow.createdAt?.toISOString() ?? null,
+      updatedAt: certRow.updatedAt?.toISOString() ?? null,
+      category: categoryData(certRow.category),
+      subContent: subContentData(certRow.subContent),
+      operationalUnit: operationalUnitData(certRow.operationalUnit ?? null),
       document: {
-        data: documentDataForResponse(cert.document as unknown as DocumentWithRelations),
+        data: documentDataForResponse(certRow.document as unknown as DocumentWithRelations),
       },
     });
   }
@@ -343,10 +408,13 @@ export class CertificationsService {
       expiryDate?: string;
       documentId?: number | null;
       externalLink?: string | null;
+      contentVersion?: string;
+      operationalUnitId?: number | null;
       categoryId?: number | null;
       subContentId?: number | null;
       updatedById?: string;
     },
+    adminId?: string,
   ) {
     const categoryIdForSub = data.categoryId ?? (data.subContentId != null
       ? (await this.prisma.certification.findUnique({ where: { id }, select: { categoryId: true } }))?.categoryId
@@ -369,29 +437,41 @@ export class CertificationsService {
         ...data,
         issuedDate: data.issuedDate ? new Date(data.issuedDate) : undefined,
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
+        contentVersion: data.contentVersion as any,
+        operationalUnitId: data.operationalUnitId ?? undefined,
         categoryId: data.categoryId ?? undefined,
         subContentId: data.subContentId ?? undefined,
+        updatedById: adminId ?? data.updatedById,
       },
       include: {
         document: { include: documentInclude },
         category: true,
         subContent: true,
+        operationalUnit: true,
       },
     });
+    const certRow = cert as any;
     return toStrapiLike(cert.id, {
-      name: cert.name,
-      issuer: cert.issuer,
-      certificateNo: cert.certificateNo,
-      issuedDate: cert.issuedDate?.toISOString() ?? null,
-      expiryDate: cert.expiryDate?.toISOString() ?? null,
-      status: computeStatus(cert.expiryDate),
-      externalLink: (cert as { externalLink?: string | null }).externalLink ?? null,
-      categoryId: cert.categoryId ?? null,
-      subContentId: cert.subContentId ?? null,
-      category: categoryData(cert.category),
-      subContent: subContentData(cert.subContent),
+      name: certRow.name,
+      issuer: certRow.issuer,
+      certificateNo: certRow.certificateNo,
+      issuedDate: certRow.issuedDate?.toISOString() ?? null,
+      expiryDate: certRow.expiryDate?.toISOString() ?? null,
+      status: computeStatus(certRow.expiryDate),
+      externalLink: certRow.externalLink ?? null,
+      categoryId: certRow.categoryId ?? null,
+      subContentId: certRow.subContentId ?? null,
+      contentVersion: certRow.contentVersion ?? 'V1',
+      operationalUnitId: certRow.operationalUnitId ?? null,
+      createdById: certRow.createdById ?? null,
+      updatedById: certRow.updatedById ?? null,
+      createdAt: certRow.createdAt?.toISOString() ?? null,
+      updatedAt: certRow.updatedAt?.toISOString() ?? null,
+      category: categoryData(certRow.category),
+      subContent: subContentData(certRow.subContent),
+      operationalUnit: operationalUnitData(certRow.operationalUnit ?? null),
       document: {
-        data: documentDataForResponse(cert.document as unknown as DocumentWithRelations),
+        data: documentDataForResponse(certRow.document as unknown as DocumentWithRelations),
       },
     });
   }

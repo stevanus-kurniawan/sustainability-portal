@@ -6,8 +6,10 @@ import {
   Patch,
   Param,
   Delete,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -48,8 +50,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Create a new role' })
   @ApiResponse({ status: 201, description: 'Role created' })
   @ApiResponse({ status: 409, description: 'Role already exists' })
-  create(@Body() data: { name: string; description?: string; permissions?: string[] }) {
-    return this.rolesService.create(data);
+  create(
+    @Body() data: { name: string; description?: string; permissions?: string[] },
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.rolesService.create(data, req.user?.id);
   }
 
   @Patch(':id')
@@ -60,8 +65,9 @@ export class RolesController {
   update(
     @Param('id') id: string,
     @Body() data: { name?: string; description?: string; permissions?: string[] },
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.rolesService.update(id, data);
+    return this.rolesService.update(id, data, req.user?.id);
   }
 
   @Delete(':id')

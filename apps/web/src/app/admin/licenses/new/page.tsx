@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
-import { adminSubContentsList, adminCategoriesList, adminDocumentCreate } from '@/lib/admin-api';
+import { adminSubContentsList, adminCategoriesList, adminDocumentCreate, adminOperationalUnitsList } from '@/lib/admin-api';
+import type { OperationalUnitItem } from '@/lib/admin-api';
+import {
+  buildUploadStorageFormFields,
+  uploadAdminFile,
+  uploadStorageContextError,
+} from '@/lib/upload-storage';
 
 const defaultForm = {
   name: '',
@@ -13,8 +19,10 @@ const defaultForm = {
   licenseNo: '',
   issuedDate: '',
   expiryDate: '',
+  status: 'ACTIVE',
   documentId: null as number | null,
   subContentId: null as number | null,
+  operationalUnitId: null as number | null,
   externalLink: '',
   attachment: null as { fileKey: string; fileName: string; mimeType?: string; fileSize?: number } | null,
 };
@@ -37,9 +45,16 @@ export default function AdminLicensesNewPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [subContents, setSubContents] = useState<{ id: number; title: string; slug: string }[]>([]);
+  const [operationalUnits, setOperationalUnits] = useState<OperationalUnitItem[]>([]);
   const [licenseCategoryId, setLicenseCategoryId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    adminOperationalUnitsList()
+      .then((res) => setOperationalUnits(res.data ?? []))
+      .catch(() => setOperationalUnits([]));
+  }, []);
 
   const backHref =
     categoryIdStr && subContentIdStr
@@ -92,19 +107,18 @@ export default function AdminLicensesNewPage() {
     setError(null);
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.set('file', file, file.name);
-      const uploadRes = await fetch('/api/admin/upload/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+      const operationalUnitSlug = form.operationalUnitId
+        ? operationalUnits.find((u) => u.id === form.operationalUnitId)?.attributes.slug
+        : undefined;
+      const storageFields = buildUploadStorageFormFields({
+        kind: 'license',
+        operationalUnitSlug,
       });
-      if (!uploadRes.ok) {
-        const data = await uploadRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Upload failed');
+      if (!storageFields) {
+        setError(uploadStorageContextError({ kind: 'license', operationalUnitSlug }));
+        return;
       }
-      const { key } = await uploadRes.json();
-      if (!key) throw new Error('Upload not configured');
+      const { key } = await uploadAdminFile(file, storageFields);
       update('attachment', {
         fileKey: key,
         fileName: file.name,
@@ -125,12 +139,14 @@ export default function AdminLicensesNewPage() {
     setSaving(true);
     try {
       let documentId: number | undefined = form.documentId ?? undefined;
-      if (form.attachment && licenseCategoryId) {
+      if (form.attachment) {
         const doc = await adminDocumentCreate({
           title: `License attachment: ${form.name.trim() || 'Untitled'}`,
           type: 'GENERAL',
-          categoryId: licenseCategoryId,
-          subContentId: form.subContentId ?? undefined,
+          contentVersion: 'V2',
+          operationalUnitId: form.operationalUnitId,
+          categoryId: undefined,
+          subContentId: null,
           isPublic: false,
           isPublished: false,
           attachment: form.attachment,
@@ -143,8 +159,11 @@ export default function AdminLicensesNewPage() {
         licenseNo: form.licenseNo.trim() || undefined,
         issuedDate: form.issuedDate || undefined,
         expiryDate: form.expiryDate || undefined,
+        status: form.status,
         documentId: documentId ?? form.documentId ?? undefined,
-        subContentId: form.subContentId ?? undefined,
+        contentVersion: 'V2',
+        operationalUnitId: form.operationalUnitId,
+        subContentId: null,
         externalLink: form.externalLink.trim() || undefined,
       };
       const res = await fetch('/api/admin/licenses', {
@@ -204,7 +223,28 @@ export default function AdminLicensesNewPage() {
             className="w-full"
           />
         </div>
-        {effectiveCategoryId != null && subContents.length > 0 && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-charcoal">Operational Unit *</label>
+          <select
+            className="input w-full"
+            value={form.operationalUnitId ?? ''}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                operationalUnitId: e.target.value === '' ? null : parseInt(e.target.value, 10),
+              }))
+            }
+            required
+          >
+            <option value="">— Select operational unit —</option>
+            {operationalUnits.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.attributes.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {false && effectiveCategoryId != null && subContents.length > 0 && (
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">Sub-content *</label>
             <select
@@ -246,6 +286,21 @@ export default function AdminLicensesNewPage() {
               className="w-full"
             />
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-charcoal">Status</label>
+          <select
+            className="input w-full"
+            value={form.status}
+            onChange={(e) => update('status', e.target.value)}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="EXPIRING">Expiring</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="PENDING_RENEWAL">Pending Renewal</option>
+            <option value="IN_REVIEW">In Review</option>
+            <option value="NONE">-</option>
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-charcoal flex items-center gap-2">

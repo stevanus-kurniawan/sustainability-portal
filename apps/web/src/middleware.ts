@@ -12,6 +12,7 @@ const PUBLIC_USER_ROUTES = [
   '/forgot-password',
   '/auth/reset-password',
 ];
+const DASHBOARD_ROUTES = ['/', '/home'];
 const ADMIN_PREFIX = '/admin';
 const ADMIN_LOGIN = '/admin/login';
 
@@ -52,11 +53,15 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(login);
   }
 
+  if (!DASHBOARD_ROUTES.some((r) => pathname === r || pathname === `${r}/`)) {
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|assets|images|api|logo\\.png).*)',
+    '/((?!_next/static|_next/image|favicon.ico|assets|images|backgrounds|banners|api|logo\\.png).*)',
   ],
 };

@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { TraceabilityService } from './traceability.service';
@@ -36,6 +38,7 @@ export class TraceabilityController {
 
   @Post('entities')
   createEntity(
+    @Req() req: Request & { user?: { id?: string } },
     @Body()
     body: {
       entityType: string;
@@ -44,15 +47,16 @@ export class TraceabilityController {
       region?: string;
     },
   ) {
-    return this.service.createEntity(body);
+    return this.service.createEntity(body, req.user?.id);
   }
 
   @Put('entities/:id')
   updateEntity(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { name?: string; code?: string; region?: string },
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.updateEntity(id, body);
+    return this.service.updateEntity(id, body, req.user?.id);
   }
 
   @Delete('entities/:id')
@@ -70,6 +74,7 @@ export class TraceabilityController {
 
   @Post('records')
   createRecord(
+    @Req() req: Request & { user?: { id?: string } },
     @Body()
     body: {
       entityId: number;
@@ -79,7 +84,7 @@ export class TraceabilityController {
       evidenceDocumentId?: number;
     },
   ) {
-    return this.service.createRecord(body);
+    return this.service.createRecord(body, req.user?.id);
   }
 
   @Delete('records/:id')

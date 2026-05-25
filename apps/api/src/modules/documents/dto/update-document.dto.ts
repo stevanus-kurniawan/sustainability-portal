@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AttachmentDto } from './create-document.dto';
 
@@ -28,6 +28,26 @@ export class UpdateDocumentDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  @IsOptional()
+  @IsIn(['V1', 'V2'])
+  contentVersion?: 'V1' | 'V2';
+
+  @IsOptional()
+  @IsIn(['SOP', 'FORM'])
+  policyKind?: 'SOP' | 'FORM' | null;
+
+  @IsOptional()
+  @IsIn(['NATIONAL', 'INTERNATIONAL'])
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
+
+  @IsOptional()
+  @IsIn(['SUSTAINABILITY', 'OPERATIONAL_UNIT'])
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+
+  @IsOptional()
+  @IsInt()
+  operationalUnitId?: number | null;
 
   @IsOptional()
   @IsInt()

@@ -6,7 +6,7 @@ import { toStrapiLike } from '../../common/response';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(wherePublic?: boolean) {
+  async findAll(wherePublic?: boolean, options: { includeAudit?: boolean } = {}) {
     const list = await this.prisma.category.findMany({
       where: wherePublic ? { isPublic: true } : undefined,
       orderBy: { displayOrder: 'asc' },
@@ -18,6 +18,9 @@ export class CategoriesService {
         mode: true,
         isPublic: true,
         displayOrder: true,
+        createdAt: true,
+        updatedAt: true,
+        ...(options.includeAudit ? { createdById: true, updatedById: true } : {}),
       },
     });
     return list.map((c: {
@@ -28,6 +31,10 @@ export class CategoriesService {
       mode: string;
       isPublic: boolean;
       displayOrder: number;
+      createdById?: string | null;
+      updatedById?: string | null;
+      createdAt: Date;
+      updatedAt: Date;
     }) =>
       toStrapiLike(c.id, {
         name: c.name,
@@ -36,6 +43,12 @@ export class CategoriesService {
         mode: c.mode,
         isPublic: c.isPublic,
         displayOrder: c.displayOrder,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        ...(options.includeAudit && {
+          createdById: c.createdById ?? null,
+          updatedById: c.updatedById ?? null,
+        }),
       }),
     );
   }
@@ -67,9 +80,14 @@ export class CategoriesService {
     mode?: 'DIRECT' | 'WITH_SUBCONTENT';
     isPublic?: boolean;
     displayOrder?: number;
-  }) {
+  }, adminId?: string) {
     return this.prisma.category.create({
-      data: { ...data, mode: data.mode ?? 'DIRECT' },
+      data: {
+        ...data,
+        mode: data.mode ?? 'DIRECT',
+        createdById: adminId ?? undefined,
+        updatedById: adminId ?? undefined,
+      },
     });
   }
 
@@ -83,8 +101,12 @@ export class CategoriesService {
       isPublic?: boolean;
       displayOrder?: number;
     },
+    adminId?: string,
   ) {
-    return this.prisma.category.update({ where: { id }, data });
+    return this.prisma.category.update({
+      where: { id },
+      data: { ...data, updatedById: adminId ?? undefined },
+    });
   }
 
   async remove(id: number) {

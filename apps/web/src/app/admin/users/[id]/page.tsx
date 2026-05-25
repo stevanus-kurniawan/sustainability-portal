@@ -11,6 +11,7 @@ import {
   adminUserUpdateRole,
   adminUserUpdateStatus,
   adminUserUpdateEmailVerification,
+  adminUserUpdatePassword,
   type AdminUserDetail,
   type UserStatus,
 } from '@/lib/admin-api';
@@ -38,6 +39,8 @@ export default function AdminUserDetailPage() {
   const [name, setName] = useState('');
   const [status, setStatus] = useState<UserStatus>('ACTIVE');
   const [role, setRole] = useState('USER');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const fetchUser = useCallback(async () => {
     if (!id) return;
@@ -132,6 +135,31 @@ export default function AdminUserDetailPage() {
       showToast('success', emailVerified ? 'Email marked as verified.' : 'Email marked as unverified.');
     } catch (e) {
       showToast('error', e instanceof Error ? e.message : 'Email verification update failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (newPassword.length < 8) {
+      showToast('error', 'Password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('error', 'Password confirmation does not match.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await adminUserUpdatePassword(id, newPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('success', 'Password updated. Existing visitor sessions were revoked.');
+    } catch (e) {
+      showToast('error', e instanceof Error ? e.message : 'Password update failed.');
     } finally {
       setSaving(false);
     }
@@ -258,6 +286,47 @@ export default function AdminUserDetailPage() {
               {saving ? 'Saving…' : 'Save changes'}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm text-steel">New password</label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                minLength={8}
+                placeholder="Minimum 8 characters"
+                disabled={saving}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-steel">Confirm new password</label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={8}
+                placeholder="Re-enter new password"
+                disabled={saving}
+              />
+            </div>
+            <p className="text-xs text-steel">
+              Changing the password revokes existing visitor refresh sessions for this user.
+            </p>
+            <Button
+              type="submit"
+              disabled={saving || !newPassword || !confirmPassword}
+            >
+              {saving ? 'Updating…' : 'Update password'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

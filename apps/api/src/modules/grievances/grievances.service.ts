@@ -66,6 +66,10 @@ export class GrievancesService {
         receivedDate: g.receivedDate.toISOString(),
         publicSummary: g.publicSummary,
         externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+        createdById: (g as { createdById?: string | null }).createdById ?? null,
+        updatedById: (g as { updatedById?: string | null }).updatedById ?? null,
+        createdAt: (g as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+        updatedAt: (g as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
       }),
     );
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
@@ -81,6 +85,10 @@ export class GrievancesService {
       receivedDate: g.receivedDate.toISOString(),
       publicSummary: g.publicSummary,
       externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+      createdById: (g as { createdById?: string | null }).createdById ?? null,
+      updatedById: (g as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (g as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (g as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 
@@ -93,7 +101,7 @@ export class GrievancesService {
     evidenceDocumentId?: number;
     externalLink?: string;
     createdById?: string;
-  }) {
+  }, adminId?: string) {
     const g = await this.prisma.grievanceCase.create({
       data: {
         caseNo: data.caseNo,
@@ -103,8 +111,8 @@ export class GrievancesService {
         publicSummary: data.publicSummary,
         evidenceDocumentId: data.evidenceDocumentId,
         externalLink: data.externalLink,
-        createdById: data.createdById,
-        updatedById: data.createdById,
+        createdById: adminId ?? data.createdById,
+        updatedById: adminId ?? data.createdById,
       },
     });
     return toStrapiLike(g.id, {
@@ -114,6 +122,10 @@ export class GrievancesService {
       receivedDate: g.receivedDate.toISOString(),
       publicSummary: g.publicSummary,
       externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+      createdById: (g as { createdById?: string | null }).createdById ?? null,
+      updatedById: (g as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (g as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (g as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 
@@ -127,12 +139,14 @@ export class GrievancesService {
       externalLink?: string | null;
       updatedById?: string;
     },
+    adminId?: string,
   ) {
     const g = await this.prisma.grievanceCase.update({
       where: { id },
       data: {
         ...data,
         status: data.status as 'OPEN' | 'IN_REVIEW' | 'CLOSED' | undefined,
+        updatedById: adminId ?? data.updatedById,
       },
     });
     return toStrapiLike(g.id, {
@@ -142,6 +156,10 @@ export class GrievancesService {
       receivedDate: g.receivedDate.toISOString(),
       publicSummary: g.publicSummary,
       externalLink: (g as { externalLink?: string | null }).externalLink ?? null,
+      createdById: (g as { createdById?: string | null }).createdById ?? null,
+      updatedById: (g as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (g as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (g as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 

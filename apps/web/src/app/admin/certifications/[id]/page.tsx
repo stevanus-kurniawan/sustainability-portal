@@ -31,6 +31,7 @@ interface CertificationResponse {
     };
     categoryId?: number | null;
     subContentId?: number | null;
+    operationalUnitId?: number | null;
     externalLink?: string | null;
   };
 }
@@ -92,6 +93,7 @@ export default function EditCertificationPage() {
         externalLink: cert.attributes.externalLink ?? '',
         categoryId: cert.attributes.categoryId ?? null,
         subContentId: cert.attributes.subContentId ?? null,
+        operationalUnitId: cert.attributes.operationalUnitId ?? null,
         currentFileUrl: fileUrl,
         // No attachment selected by default when editing
         attachment: null,

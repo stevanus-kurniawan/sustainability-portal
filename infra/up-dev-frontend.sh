@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
-# Run dev frontend (Next.js) with the correct env file.
+# Run DEVELOPMENT frontend (Next.js) with the correct env file.
+# Compose: docker-compose.dev.frontend.yml (project: slms-dev-frontend).
+# Production: ./infra/up-prod-frontend.sh (docker-compose.prod.frontend.yml).
+#
 # Usage (from repo root or infra/):
 #   ./infra/up-dev-frontend.sh up -d --build web
 #   ./infra/up-dev-frontend.sh up -d web

@@ -18,6 +18,8 @@ export class SubContentsService {
       order: number;
       description: string | null;
       parentCategoryId: number;
+      createdById: string | null;
+      updatedById: string | null;
       createdAt: Date;
       updatedAt: Date;
     }) =>
@@ -27,6 +29,8 @@ export class SubContentsService {
         order: s.order,
         description: s.description,
         parentCategoryId: s.parentCategoryId,
+        createdById: s.createdById,
+        updatedById: s.updatedById,
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
       }),
@@ -93,7 +97,7 @@ export class SubContentsService {
     });
   }
 
-  async create(categoryId: number, data: { title: string; slug: string; order?: number; description?: string | null }) {
+  async create(categoryId: number, data: { title: string; slug: string; order?: number; description?: string | null }, adminId?: string) {
     const slug = data.slug.trim().toLowerCase().replace(/\s+/g, '-');
     const order = data.order ?? 0;
     try {
@@ -104,6 +108,8 @@ export class SubContentsService {
           slug,
           order,
           description: data.description?.trim() || null,
+          createdById: adminId ?? undefined,
+          updatedById: adminId ?? undefined,
         },
       });
       return toStrapiLike(sub.id, {
@@ -112,6 +118,8 @@ export class SubContentsService {
         order: sub.order,
         description: sub.description,
         parentCategoryId: sub.parentCategoryId,
+        createdById: sub.createdById,
+        updatedById: sub.updatedById,
         createdAt: sub.createdAt.toISOString(),
         updatedAt: sub.updatedAt.toISOString(),
       });
@@ -123,14 +131,21 @@ export class SubContentsService {
     }
   }
 
-  async update(id: number, data: { title?: string; slug?: string; order?: number; description?: string | null }) {
+  async update(id: number, data: { title?: string; slug?: string; order?: number; description?: string | null }, adminId?: string) {
     const existing = await this.prisma.subContent.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Sub-content not found');
-    const payload: { title?: string; slug?: string; order?: number; description?: string | null } = {};
+    const payload: {
+      title?: string;
+      slug?: string;
+      order?: number;
+      description?: string | null;
+      updatedById?: string;
+    } = {};
     if (data.title !== undefined) payload.title = data.title.trim();
     if (data.slug !== undefined) payload.slug = data.slug.trim().toLowerCase().replace(/\s+/g, '-');
     if (data.order !== undefined) payload.order = data.order;
     if (data.description !== undefined) payload.description = data.description?.trim() || null;
+    if (adminId !== undefined) payload.updatedById = adminId;
     const sub = await this.prisma.subContent.update({
       where: { id },
       data: payload,
@@ -141,6 +156,8 @@ export class SubContentsService {
       order: sub.order,
       description: sub.description,
       parentCategoryId: sub.parentCategoryId,
+      createdById: sub.createdById,
+      updatedById: sub.updatedById,
       createdAt: sub.createdAt.toISOString(),
       updatedAt: sub.updatedAt.toISOString(),
     });

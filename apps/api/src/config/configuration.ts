@@ -1,8 +1,6 @@
 const DEFAULT_USER_JWT_SECRET = 'super-secret-key-change-in-production';
 const DEFAULT_REFRESH_JWT_SECRET = 'refresh-secret-key-change-in-production';
 const DEFAULT_ADMIN_JWT_SECRET = 'admin-secret-key-change-in-production';
-const DEFAULT_MINIO_ACCESS_KEY = 'minioadmin';
-const DEFAULT_MINIO_SECRET_KEY = 'minioadmin';
 
 export default () => {
   const nodeEnv = process.env.NODE_ENV || 'development';
@@ -11,24 +9,23 @@ export default () => {
   const jwtSecret = process.env.JWT_SECRET || DEFAULT_USER_JWT_SECRET;
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || DEFAULT_REFRESH_JWT_SECRET;
   const jwtAdminSecret = process.env.JWT_ADMIN_SECRET || DEFAULT_ADMIN_JWT_SECRET;
-
-  const minioAccessKey = process.env.MINIO_ACCESS_KEY || DEFAULT_MINIO_ACCESS_KEY;
-  const minioSecretKey = process.env.MINIO_SECRET_KEY || DEFAULT_MINIO_SECRET_KEY;
+  const storageRootPath = process.env.STORAGE_ROOT_PATH || '/app/storage';
 
   const weakRefreshSecrets = [DEFAULT_REFRESH_JWT_SECRET, 'refresh-secret-change-in-production'];
   const weakAdminSecrets = [DEFAULT_ADMIN_JWT_SECRET, 'admin-secret-change-in-production'];
 
-  if (
-    isProdLike &&
-    (jwtSecret === DEFAULT_USER_JWT_SECRET ||
+  if (isProdLike) {
+    const jwtWeak =
+      jwtSecret === DEFAULT_USER_JWT_SECRET ||
       weakRefreshSecrets.includes(jwtRefreshSecret) ||
-      weakAdminSecrets.includes(jwtAdminSecret) ||
-      minioAccessKey === DEFAULT_MINIO_ACCESS_KEY ||
-      minioSecretKey === DEFAULT_MINIO_SECRET_KEY)
-  ) {
-    throw new Error(
-      'Security error: In production/UAT environments, JWT and MinIO secrets must be set and must not use default placeholder values.',
-    );
+      weakAdminSecrets.includes(jwtAdminSecret);
+    const filesystemMissing = !process.env.STORAGE_ROOT_PATH;
+
+    if (jwtWeak || filesystemMissing) {
+      throw new Error(
+        'Security error: In production/UAT environments, JWT secrets must be set and STORAGE_ROOT_PATH must be configured.',
+      );
+    }
   }
 
   return {
@@ -76,15 +73,9 @@ export default () => {
         'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:1337',
     },
 
-    // MinIO (document storage)
-    minio: {
-      endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-      port: parseInt(process.env.MINIO_PORT || '9000', 10),
-      useSSL: process.env.MINIO_USE_SSL === 'true',
-      accessKey: minioAccessKey,
-      secretKey: minioSecretKey,
-      bucket: process.env.MINIO_BUCKET || 'slms-docs',
-      publicUrl: process.env.MINIO_PUBLIC_URL || 'http://localhost:9000/slms-docs',
+    // Document storage (Synology NFS/SMB mount or local bind mount)
+    storage: {
+      rootPath: storageRootPath,
     },
 
     // Swagger

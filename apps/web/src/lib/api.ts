@@ -150,10 +150,18 @@ export interface Document {
     type: string;
     description: string;
     externalLink?: string | null;
+    code?: string | null;
+    documentType?: string | null;
+    versionLabel?: string | null;
+    effectiveDate?: string | null;
     isPublic: boolean;
     isPublished: boolean;
     publishedAt: string;
     createdAt: string;
+    policyKind?: 'SOP' | 'FORM' | null;
+    regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
+    procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+    operationalUnitId?: number | null;
     category: { data: Category | null };
     tags: { data: Tag[] };
     currentVersion: { data: DocumentVersion | null };
@@ -169,6 +177,8 @@ export interface Certification {
     issuedDate: string;
     expiryDate: string;
     status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+    externalLink?: string | null;
+    operationalUnitId?: number | null;
     document: { data: Document | null };
   };
 }
@@ -181,7 +191,9 @@ export interface License {
     licenseNo: string;
     issuedDate: string;
     expiryDate: string;
-    status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+    status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING_RENEWAL' | 'IN_REVIEW' | 'NONE';
+    externalLink?: string | null;
+    operationalUnitId?: number | null;
     document: { data: Document | null };
   };
 }
@@ -215,6 +227,14 @@ export interface TraceabilityRecord {
     isPublic: boolean;
     entity: { data: TraceabilityEntity };
     evidenceDocument: { data: Document | null };
+  };
+}
+
+export interface OperationalUnit {
+  id: number;
+  attributes: {
+    name: string;
+    slug: string;
   };
 }
 
@@ -323,15 +343,24 @@ export async function getTags(): Promise<Tag[]> {
   return response.data || [];
 }
 
+export async function getOperationalUnits(): Promise<ApiResponse<OperationalUnit[]>> {
+  return fetchApi<OperationalUnit[]>('/public/operational-units', {
+    revalidate: 300,
+    tags: ['operational-units'],
+  });
+}
+
 export async function getPolicies(params?: {
   page?: number;
   pageSize?: number;
   search?: string;
+  policyKind?: 'SOP' | 'FORM';
 }): Promise<ApiResponse<Document[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.policyKind) searchParams.set('policyKind', params.policyKind);
 
   const query = searchParams.toString();
   return fetchApi<Document[]>(`/public/policies${query ? `?${query}` : ''}`, {
@@ -340,17 +369,57 @@ export async function getPolicies(params?: {
   });
 }
 
+export async function getRegulations(params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL';
+}): Promise<ApiResponse<Document[]>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.regulationKind) searchParams.set('regulationKind', params.regulationKind);
+  const query = searchParams.toString();
+  return fetchApi<Document[]>(`/public/regulations${query ? `?${query}` : ''}`, {
+    revalidate: 300,
+    tags: ['regulations'],
+  });
+}
+
+export async function getProcedures(params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT';
+  operationalUnitId?: number;
+}): Promise<ApiResponse<Document[]>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.procedureScope) searchParams.set('procedureScope', params.procedureScope);
+  if (params?.operationalUnitId != null) searchParams.set('operationalUnitId', String(params.operationalUnitId));
+  const query = searchParams.toString();
+  return fetchApi<Document[]>(`/public/procedures${query ? `?${query}` : ''}`, {
+    revalidate: 300,
+    tags: ['procedures'],
+  });
+}
+
 export async function getCertifications(params?: {
   page?: number;
   pageSize?: number;
   status?: string;
   search?: string;
+  operationalUnitId?: number;
 }): Promise<ApiResponse<Certification[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
   if (params?.status) searchParams.set('status', params.status);
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.operationalUnitId != null) searchParams.set('operationalUnitId', String(params.operationalUnitId));
 
   const query = searchParams.toString();
   return fetchApi<Certification[]>(`/public/certifications${query ? `?${query}` : ''}`, {
@@ -364,12 +433,14 @@ export async function getLicenses(params?: {
   pageSize?: number;
   status?: string;
   search?: string;
+  operationalUnitId?: number;
 }): Promise<ApiResponse<License[]>> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
   if (params?.status) searchParams.set('status', params.status);
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.operationalUnitId != null) searchParams.set('operationalUnitId', String(params.operationalUnitId));
 
   const query = searchParams.toString();
   return fetchApi<License[]>(`/public/licenses${query ? `?${query}` : ''}`, {

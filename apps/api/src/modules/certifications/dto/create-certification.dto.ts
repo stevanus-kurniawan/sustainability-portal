@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateCertificationDto {
   @IsString()
@@ -32,6 +32,14 @@ export class CreateCertificationDto {
   @IsString()
   @MaxLength(1024)
   externalLink?: string;
+
+  @IsOptional()
+  @IsIn(['V1', 'V2'])
+  contentVersion?: 'V1' | 'V2';
+
+  @IsOptional()
+  @IsInt()
+  operationalUnitId?: number | null;
 
   @IsOptional()
   @IsInt()

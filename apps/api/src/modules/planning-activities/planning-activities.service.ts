@@ -58,6 +58,8 @@ export class PlanningActivitiesService {
     assigneeAdminId: string | null;
     assigneeAdmin: { name: string | null; email: string } | null;
     progressPercent: number;
+    createdById?: string | null;
+    updatedById?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }) {
@@ -69,6 +71,8 @@ export class PlanningActivitiesService {
       assignee: assigneeLabel(row.assigneeAdmin),
       assigneeAdminId: row.assigneeAdminId,
       progressPercent: row.progressPercent,
+      createdById: row.createdById ?? null,
+      updatedById: row.updatedById ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     });
@@ -122,7 +126,7 @@ export class PlanningActivitiesService {
     status?: PlanningActivityStatus;
     assigneeAdminId?: string | null;
     progressPercent?: number;
-  }) {
+  }, adminId?: string) {
     const { startDate, endDate } = this.parseDates(data.startDate, data.endDate);
     let assigneeAdminId: string | null = null;
     if (data.assigneeAdminId != null && String(data.assigneeAdminId).trim() !== '') {
@@ -136,6 +140,8 @@ export class PlanningActivitiesService {
         status: data.status ?? PlanningActivityStatus.PENDING,
         assigneeAdminId,
         progressPercent: data.progressPercent ?? 0,
+        createdById: adminId ?? undefined,
+        updatedById: adminId ?? undefined,
       },
       include: { assigneeAdmin: { select: { name: true, email: true } } },
     });
@@ -152,6 +158,7 @@ export class PlanningActivitiesService {
       assigneeAdminId?: string | null;
       progressPercent?: number;
     },
+    adminId?: string,
   ) {
     const existing = await this.prisma.adminPlanningActivity.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Planning activity not found');
@@ -184,6 +191,7 @@ export class PlanningActivitiesService {
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(assigneeAdminId !== undefined ? { assigneeAdminId } : {}),
         ...(data.progressPercent !== undefined ? { progressPercent: data.progressPercent } : {}),
+        updatedById: adminId ?? undefined,
       },
       include: { assigneeAdmin: { select: { name: true, email: true } } },
     });

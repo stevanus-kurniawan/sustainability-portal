@@ -1,10 +1,13 @@
 #!/usr/bin/env sh
-# Run dev backend stack (Postgres, Redis, MinIO, API) with the correct env file.
+# Run DEVELOPMENT backend stack (Postgres, Redis, API) with the correct env file.
+# Compose file: docker-compose.dev.backend.yml (project name: slms-dev-backend).
+# Production backend: ./infra/up-prod-backend.sh (docker-compose.prod.backend.yml).
+#
 # Usage (from repo root or infra/):
 #   ./infra/up-dev-backend.sh up -d
 #   ./infra/up-dev-backend.sh build api --no-cache && ./infra/up-dev-backend.sh up -d
 #   ./infra/up-dev-backend.sh down
-# Optional: run ./infra/clean-dev-cache.sh first if the server is low on space.
+# Optional: run ./infra/clean-dev-cache.sh first if the server is low on space (applies to prod builds too).
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { TagsService } from './tags.service';
@@ -12,7 +13,7 @@ export class TagsController {
 
   @Get()
   findAll() {
-    return this.service.findAll();
+    return this.service.findAll({ includeAudit: true });
   }
 
   @Get(':id')
@@ -21,13 +22,17 @@ export class TagsController {
   }
 
   @Post()
-  create(@Body() body: { name: string; slug: string }) {
-    return this.service.create(body);
+  create(@Body() body: { name: string; slug: string }, @Req() req: Request & { user?: { id?: string } }) {
+    return this.service.create(body, req.user?.id);
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; slug?: string }) {
-    return this.service.update(id, body);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { name?: string; slug?: string },
+    @Req() req: Request & { user?: { id?: string } },
+  ) {
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

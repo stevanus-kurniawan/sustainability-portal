@@ -20,8 +20,10 @@ import {
 import {
   adminDocumentsList,
   adminDocumentDelete,
+  adminOperationalUnitsList,
   type DocumentItem,
   type ListResponse,
+  type OperationalUnitItem,
 } from '@/lib/admin-api';
 
 interface DocumentListPageProps {
@@ -31,6 +33,14 @@ interface DocumentListPageProps {
   categorySlug?: string;
   categoryId?: number;
   subContentId?: number;
+  contentVersion?: 'V1' | 'V2';
+  policyKind?: 'SOP' | 'FORM';
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL';
+  regulationOnly?: boolean;
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT';
+  procedureOnly?: boolean;
+  updateOnly?: boolean;
+  operationalUnitId?: number;
   createHref: string;
   editHref: (id: number) => string;
   listKey?: string;
@@ -45,6 +55,14 @@ export function DocumentListPage({
   categorySlug,
   categoryId: categoryIdProp,
   subContentId: subContentIdProp,
+  contentVersion,
+  policyKind,
+  regulationKind,
+  regulationOnly,
+  procedureScope,
+  procedureOnly,
+  updateOnly,
+  operationalUnitId,
   createHref,
   editHref,
   listKey = 'documents',
@@ -57,9 +75,12 @@ export function DocumentListPage({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [procedureTypeFilter, setProcedureTypeFilter] = useState(searchParams.get('documentType') || '');
+  const [operationalUnitFilter, setOperationalUnitFilter] = useState(searchParams.get('operationalUnitId') || '');
   const [categoryId, setCategoryId] = useState<number | undefined>(categoryIdProp);
   const [categories, setCategories] = useState<{ id: number; slug: string; mode?: string }[]>([]);
   const [categoriesFetched, setCategoriesFetched] = useState(false);
+  const [operationalUnits, setOperationalUnits] = useState<OperationalUnitItem[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
@@ -111,6 +132,15 @@ export function DocumentListPage({
         search: search || undefined,
         categoryId: categoryId ?? categoryIdProp ?? undefined,
         subContentId: subContentIdProp,
+        contentVersion,
+        policyKind,
+        regulationKind,
+        documentType: procedureOnly && procedureTypeFilter ? procedureTypeFilter : undefined,
+        regulationOnly,
+        procedureScope,
+        procedureOnly,
+        updateOnly,
+        operationalUnitId: operationalUnitFilter ? parseInt(operationalUnitFilter, 10) : operationalUnitId,
       };
       if (statusFilter === 'published') params.isPublished = true;
       if (statusFilter === 'draft') params.isPublished = false;
@@ -126,7 +156,7 @@ export function DocumentListPage({
     } finally {
       setLoading(false);
     }
-  }, [page, type, search, statusFilter, categoryId, categoryIdProp, subContentIdProp, router]);
+  }, [page, type, search, statusFilter, categoryId, categoryIdProp, subContentIdProp, contentVersion, policyKind, regulationKind, procedureTypeFilter, regulationOnly, procedureScope, procedureOnly, updateOnly, operationalUnitId, operationalUnitFilter, router]);
 
   useEffect(() => {
     if (type === 'GENERAL' && (categorySlug || categoryIdProp != null)) {
@@ -147,11 +177,28 @@ export function DocumentListPage({
     fetchList();
   }, [fetchList, shouldFetchList]);
 
+  useEffect(() => {
+    if (!procedureOnly) return;
+    let cancelled = false;
+    adminOperationalUnitsList()
+      .then((data) => {
+        if (!cancelled) setOperationalUnits(data.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setOperationalUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [procedureOnly]);
+
   const applyFilters = () => {
     const params = new URLSearchParams();
     params.set('page', '1');
     if (search) params.set('search', search);
     if (statusFilter) params.set('status', statusFilter);
+    if (procedureOnly && procedureTypeFilter) params.set('documentType', procedureTypeFilter);
+    if (procedureOnly && operationalUnitFilter) params.set('operationalUnitId', operationalUnitFilter);
     router.push(`?${params.toString()}`);
   };
 
@@ -189,9 +236,29 @@ export function DocumentListPage({
 
   const showList = type !== 'GENERAL' || !categorySlug || effectiveCategoryId != null;
 
+  const normalizedCategorySlug = categorySlug?.toLowerCase() ?? '';
   const isPolicy = type === 'POLICY';
   const isSop = type === 'GENERAL' && categorySlug === 'sop';
-  const showPolicySopColumns = isPolicy || isSop;
+  const showUpdateColumns = Boolean(updateOnly);
+  const showProcedurePlantColumn = Boolean(procedureOnly);
+  const showMappedColumns =
+    isPolicy ||
+    isSop ||
+    procedureOnly ||
+    regulationOnly ||
+    type === 'GRIEVANCE' ||
+    ['sustainability-report', 'standard'].includes(normalizedCategorySlug);
+  const mappedColumnLabels =
+    type === 'GRIEVANCE'
+      ? ['Reference Number', 'Status', null, 'Submitted Date']
+      : normalizedCategorySlug === 'sustainability-report'
+        ? ['Period', 'Scope', 'Version', 'Publish Date']
+        : regulationOnly
+          ? ['Code', 'Jurisdiction', 'Version', 'Effective Date']
+          : normalizedCategorySlug === 'standard'
+            ? ['Code', 'Body', 'Version', 'Effective Date']
+            : ['Code', 'Type', 'Version', 'Effective Date'];
+  const showPolicySopColumns = showMappedColumns;
   const showViewToggle = Boolean(viewModeStorageKey && showPolicySopColumns);
 
   return (
@@ -235,6 +302,38 @@ export function DocumentListPage({
                 <option value="draft">Draft</option>
               </select>
             </div>
+            {procedureOnly && (
+              <>
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Type</label>
+                  <select
+                    className="input min-w-[140px] rounded-md border border-border-light px-3 py-2 text-sm"
+                    value={procedureTypeFilter}
+                    onChange={(e) => setProcedureTypeFilter(e.target.value)}
+                  >
+                    <option value="">All</option>
+                    <option value="SOP">SOP</option>
+                    <option value="FORM">Form</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm text-steel">Operational Unit</label>
+                  <select
+                    className="input min-w-[180px] rounded-md border border-border-light px-3 py-2 text-sm"
+                    value={operationalUnitFilter}
+                    onChange={(e) => setOperationalUnitFilter(e.target.value)}
+                    disabled={operationalUnitId != null}
+                  >
+                    <option value="">All</option>
+                    {operationalUnits.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {unit.attributes.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             <Button variant="secondary" onClick={applyFilters}>
               Apply
             </Button>
@@ -310,19 +409,26 @@ export function DocumentListPage({
                       <th className={showViewToggle ? 'py-3 px-4 font-semibold text-charcoal' : 'pb-3 pr-4 font-medium'}>
                         Title
                       </th>
-                      {showPolicySopColumns && showViewToggle ? (
+                      {showUpdateColumns ? (
                         <>
-                          <th className="py-3 px-4 font-semibold text-charcoal">Code</th>
-                          <th className="py-3 px-4 font-semibold text-charcoal">Type</th>
-                          <th className="py-3 px-4 font-semibold text-charcoal">Version</th>
-                          <th className="py-3 px-4 font-semibold text-charcoal">Effective Date</th>
+                          <th className="pb-3 pr-4 font-medium">Description</th>
+                          <th className="pb-3 pr-4 font-medium">Date</th>
+                        </>
+                      ) : showPolicySopColumns && showViewToggle ? (
+                        <>
+                          <th className="py-3 px-4 font-semibold text-charcoal">{mappedColumnLabels[0]}</th>
+                          <th className="py-3 px-4 font-semibold text-charcoal">{mappedColumnLabels[1]}</th>
+                          {showProcedurePlantColumn && <th className="py-3 px-4 font-semibold text-charcoal">Plant</th>}
+                          {mappedColumnLabels[2] && <th className="py-3 px-4 font-semibold text-charcoal">{mappedColumnLabels[2]}</th>}
+                          <th className="py-3 px-4 font-semibold text-charcoal">{mappedColumnLabels[3]}</th>
                         </>
                       ) : showPolicySopColumns ? (
                         <>
-                          <th className="pb-3 pr-4 font-medium">Code</th>
-                          <th className="pb-3 pr-4 font-medium">Type</th>
-                          <th className="pb-3 pr-4 font-medium">Version</th>
-                          <th className="pb-3 pr-4 font-medium">Effective Date</th>
+                          <th className="pb-3 pr-4 font-medium">{mappedColumnLabels[0]}</th>
+                          <th className="pb-3 pr-4 font-medium">{mappedColumnLabels[1]}</th>
+                          {showProcedurePlantColumn && <th className="pb-3 pr-4 font-medium">Plant</th>}
+                          {mappedColumnLabels[2] && <th className="pb-3 pr-4 font-medium">{mappedColumnLabels[2]}</th>}
+                          <th className="pb-3 pr-4 font-medium">{mappedColumnLabels[3]}</th>
                         </>
                       ) : (
                         showSubContentColumn && <th className="pb-3 pr-4 font-medium">Sub-content</th>
@@ -346,6 +452,9 @@ export function DocumentListPage({
                         documentType?: string | null;
                         versionLabel?: string | null;
                         effectiveDate?: string | null;
+                        policyKind?: string | null;
+                        regulationKind?: string | null;
+                        procedureScope?: string | null;
                       };
                       const currentVersion = (doc.attributes.currentVersion as {
                         data?: { attributes?: { versionNo?: number | null; validFrom?: string | null } } | null;
@@ -353,10 +462,14 @@ export function DocumentListPage({
                       const versionNo = currentVersion?.attributes?.versionNo ?? null;
                       const effectiveFrom = currentVersion?.attributes?.validFrom ?? null;
                       const displayCode = extended.code ?? '—';
-                      const displayType = extended.documentType ?? doc.attributes.type ?? '—';
+                      const displayType =
+                        showMappedColumns
+                          ? (extended.documentType ?? '—')
+                          : (extended.policyKind ?? extended.regulationKind ?? extended.procedureScope ?? extended.documentType ?? doc.attributes.type ?? '—');
                       const displayVersion =
                         extended.versionLabel ?? (versionNo != null ? String(versionNo) : '—');
                       const displayEffectiveDate = formatDate(extended.effectiveDate ?? effectiveFrom ?? null);
+                      const displayPlant = doc.attributes.operationalUnit?.data?.attributes?.name ?? '—';
                       return (
                         <tr
                           key={doc.id}
@@ -369,17 +482,35 @@ export function DocumentListPage({
                           <td className={showViewToggle ? 'py-3 px-4 font-medium text-charcoal' : 'py-3 pr-4 font-medium text-charcoal'}>
                             {doc.attributes.title || '—'}
                           </td>
-                          {showPolicySopColumns ? (
+                          {showUpdateColumns ? (
+                            <>
+                              <td className="py-3 pr-4 text-steel">
+                                <span className="line-clamp-2">{doc.attributes.description || '—'}</span>
+                              </td>
+                              <td className="py-3 pr-4 text-steel">{displayEffectiveDate}</td>
+                            </>
+                          ) : showPolicySopColumns ? (
                             <>
                               <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
                                 {displayCode}
                               </td>
                               <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
-                                {displayType}
+                                {type === 'GRIEVANCE' ? (
+                                  <StatusBadge status={displayType} />
+                                ) : (
+                                  displayType
+                                )}
                               </td>
-                              <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
-                                {displayVersion}
-                              </td>
+                              {showProcedurePlantColumn && (
+                                <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
+                                  {displayPlant}
+                                </td>
+                              )}
+                              {mappedColumnLabels[2] && (
+                                <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
+                                  {displayVersion}
+                                </td>
+                              )}
                               <td className={showViewToggle ? 'py-3 px-4 text-steel' : 'py-3 pr-4 text-steel'}>
                                 {displayEffectiveDate}
                               </td>
@@ -453,6 +584,9 @@ function SopDocCard({
     documentType?: string | null;
     versionLabel?: string | null;
     effectiveDate?: string | null;
+    policyKind?: string | null;
+    regulationKind?: string | null;
+    procedureScope?: string | null;
   };
   const currentVersion = (doc.attributes.currentVersion as {
     data?: { attributes?: { versionNo?: number | null; validFrom?: string | null } } | null;
@@ -460,7 +594,7 @@ function SopDocCard({
   const versionNo = currentVersion?.attributes?.versionNo ?? null;
   const effectiveFrom = currentVersion?.attributes?.validFrom ?? null;
   const displayCode = extended.code ?? '—';
-  const displayType = extended.documentType ?? doc.attributes.type ?? '—';
+  const displayType = extended.policyKind ?? extended.regulationKind ?? extended.procedureScope ?? extended.documentType ?? doc.attributes.type ?? '—';
   const displayVersion = extended.versionLabel ?? (versionNo != null ? String(versionNo) : '—');
   const displayEffectiveDate = formatDate(extended.effectiveDate ?? effectiveFrom ?? null);
 

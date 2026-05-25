@@ -106,6 +106,8 @@ export class AdminUsersService {
       name: u.name,
       status: u.status,
       emailVerified: u.emailVerified,
+      createdById: (u as { createdById?: string | null }).createdById ?? null,
+      updatedById: (u as { updatedById?: string | null }).updatedById ?? null,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
       roles: u.userRoles.map((ur) => ur.role.name),
@@ -123,6 +125,8 @@ export class AdminUsersService {
       status: user.status,
       emailVerified: user.emailVerified,
       emailVerifiedAt: user.emailVerifiedAt,
+      createdById: (user as { createdById?: string | null }).createdById ?? null,
+      updatedById: (user as { updatedById?: string | null }).updatedById ?? null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       roles: user.userRoles.map((ur) => ur.role.name),
@@ -169,6 +173,8 @@ export class AdminUsersService {
         status,
         emailVerified,
         emailVerifiedAt: emailVerified ? new Date() : null,
+        createdById: actor.adminId,
+        updatedById: actor.adminId,
       } as any,
     });
 
@@ -218,7 +224,7 @@ export class AdminUsersService {
       );
     }
 
-    await this.usersService.update(id, dto as UpdateUserDto);
+    await this.usersService.update(id, { ...dto, updatedById: actor.adminId } as UpdateUserDto);
     const updated = await this.usersService.findById(id);
     const after = this.snapshotUser(updated);
 
@@ -258,7 +264,7 @@ export class AdminUsersService {
     const existing = await this.usersService.findById(id);
     const before = this.snapshotUser(existing);
 
-    await this.usersService.update(id, { roles: [role] });
+    await this.usersService.update(id, { roles: [role], updatedById: actor.adminId } as UpdateUserDto);
     const updated = await this.usersService.findById(id);
     const after = this.snapshotUser(updated);
 
@@ -288,7 +294,7 @@ export class AdminUsersService {
     const existing = await this.usersService.findById(id);
     const before = this.snapshotUser(existing);
 
-    await this.usersService.update(id, { status } as UpdateUserDto);
+    await this.usersService.update(id, { status, updatedById: actor.adminId } as UpdateUserDto);
     const updated = await this.usersService.findById(id);
     const after = this.snapshotUser(updated);
 
@@ -323,6 +329,7 @@ export class AdminUsersService {
       data: {
         emailVerified,
         emailVerifiedAt: emailVerified ? new Date() : null,
+        updatedById: actor.adminId,
       },
     });
     const updated = await this.usersService.findById(id);
@@ -337,6 +344,50 @@ export class AdminUsersService {
       beforeJson: before,
       afterJson: after,
       metadata: { emailVerified },
+      ip,
+      userAgent,
+    });
+
+    return this.getById(id);
+  }
+
+  async updatePassword(
+    id: string,
+    newPassword: string,
+    actor: AuditActor,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    if (newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+
+    const existing = await this.usersService.findById(id);
+    const before = this.snapshotUser(existing);
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { passwordHash, updatedById: actor.adminId },
+      }),
+      this.prisma.refreshToken.deleteMany({
+        where: { userId: id },
+      }),
+    ]);
+
+    const updated = await this.usersService.findById(id);
+    const after = this.snapshotUser(updated);
+
+    await this.auditLogs.createAdminAudit({
+      userEmail: actor.adminEmail,
+      actorAdminId: actor.adminId,
+      action: 'UPDATE_PASSWORD',
+      entityType: 'user',
+      entityId: id,
+      beforeJson: before,
+      afterJson: after,
+      metadata: { refreshTokensRevoked: true },
       ip,
       userAgent,
     });

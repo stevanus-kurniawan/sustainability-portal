@@ -1,3 +1,9 @@
+# Local all-in-one stack (Postgres, Redis, Mailhog, API, Web) — laptop / CI.
+# Split servers: infra/docker-compose.dev.backend.yml + docker-compose.dev.frontend.yml
+# Production single host: infra/docker-compose.prod.yml
+
+name: slms-local
+
 services:
   # PostgreSQL Database
   postgres:
@@ -24,7 +30,7 @@ services:
     container_name: slms-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -33,42 +39,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # MinIO Object Storage (S3-compatible)
-  minio:
-    image: minio/minio:latest
-    container_name: slms-minio
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-
-  # MinIO bucket initialization
-  minio-init:
-    image: minio/mc:latest
-    container_name: slms-minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set slms http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
-      mc mb slms/${MINIO_BUCKET:-slms-docs} --ignore-existing;
-      mc anonymous set public slms/${MINIO_BUCKET:-slms-docs};
-      echo 'Bucket ${MINIO_BUCKET:-slms-docs} created with public read/write access';
-      exit 0;
-      "
 
   # Mailhog for email testing
   mailhog:
@@ -105,12 +75,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:-your-admin-jwt-secret-replace-in-production}
       JWT_ADMIN_EXPIRES_IN: ${JWT_ADMIN_EXPIRES_IN:-8h}
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: 9000
-      MINIO_USE_SSL: "false"
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-slms-docs}
+      STORAGE_ROOT_PATH: ${STORAGE_ROOT_PATH:-/app/storage}
       # SMTP configuration (defaults to Mailhog but can be overridden via infra/.env)
       SMTP_HOST: ${SMTP_HOST:-mailhog}
       SMTP_PORT: ${SMTP_PORT:-1025}
@@ -119,6 +84,8 @@ services:
       SMTP_PASS: ${SMTP_PASS:-""}
       SMTP_FROM: ${SMTP_FROM:-SLMS Notifications <noreply@slms.local>}
       WEB_URL: http://localhost:3000
+    volumes:
+      - ${STORAGE_HOST_PATH:-./data/storage}:/app/storage:rw
     depends_on:
       postgres:
         condition: service_healthy
@@ -162,9 +129,3 @@ volumes:
     driver: local
   redis_data:
     driver: local
-  minio_data:
-    driver: local
-
-networks:
-  default:
-    name: slms-network

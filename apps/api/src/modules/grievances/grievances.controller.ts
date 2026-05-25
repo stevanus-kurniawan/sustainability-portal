@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { GrievancesService } from './grievances.service';
@@ -46,16 +48,18 @@ export class GrievancesController {
   @Post()
   create(
     @Body() body: CreateGrievanceDto,
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.create(body);
+    return this.service.create(body, req.user?.id);
   }
 
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateGrievanceDto,
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

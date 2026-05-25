@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { SubContentsService } from './sub-contents.service';
@@ -27,16 +28,18 @@ export class SubContentsController {
   create(
     @Param('categoryId', ParseIntPipe) categoryId: number,
     @Body() body: { title: string; slug: string; order?: number; description?: string | null },
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.create(categoryId, body);
+    return this.service.create(categoryId, body, req.user?.id);
   }
 
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { title?: string; slug?: string; order?: number; description?: string | null },
+    @Req() req: Request & { user?: { id?: string } },
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, body, req.user?.id);
   }
 
   @Delete(':id')

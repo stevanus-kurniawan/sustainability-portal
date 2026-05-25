@@ -53,6 +53,10 @@ export class TraceabilityService {
         name: e.name,
         code: e.code,
         region: e.region,
+        createdById: (e as { createdById?: string | null }).createdById ?? null,
+        updatedById: (e as { updatedById?: string | null }).updatedById ?? null,
+        createdAt: (e as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+        updatedAt: (e as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
       }),
     );
     return wrapPaginated(data, paginationMeta(total, page, pageSize));
@@ -109,6 +113,9 @@ export class TraceabilityService {
         recordType: r.recordType,
         recordDate: r.recordDate.toISOString(),
         isPublic: r.isPublic,
+        createdById: (r as { createdById?: string | null }).createdById ?? null,
+        createdAt: (r as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+        updatedAt: (r as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
         entity: {
           data: toStrapiLike(r.entity.id, {
             entityType: r.entity.entityType,
@@ -160,6 +167,10 @@ export class TraceabilityService {
       name: e.name,
       code: e.code,
       region: e.region,
+      createdById: (e as { createdById?: string | null }).createdById ?? null,
+      updatedById: (e as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (e as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (e as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 
@@ -169,15 +180,15 @@ export class TraceabilityService {
     code?: string;
     region?: string;
     createdById?: string;
-  }) {
+  }, adminId?: string) {
     const e = await this.prisma.traceabilityEntity.create({
       data: {
         entityType: data.entityType as 'FACTORY' | 'SUPPLIER' | 'SITE',
         name: data.name,
         code: data.code,
         region: data.region,
-        createdById: data.createdById,
-        updatedById: data.createdById,
+        createdById: adminId ?? data.createdById,
+        updatedById: adminId ?? data.createdById,
       },
     });
     return toStrapiLike(e.id, {
@@ -185,22 +196,31 @@ export class TraceabilityService {
       name: e.name,
       code: e.code,
       region: e.region,
+      createdById: (e as { createdById?: string | null }).createdById ?? null,
+      updatedById: (e as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (e as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (e as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 
   async updateEntity(
     id: number,
     data: { name?: string; code?: string; region?: string; updatedById?: string },
+    adminId?: string,
   ) {
     const e = await this.prisma.traceabilityEntity.update({
       where: { id },
-      data,
+      data: { ...data, updatedById: adminId ?? data.updatedById },
     });
     return toStrapiLike(e.id, {
       entityType: e.entityType,
       name: e.name,
       code: e.code,
       region: e.region,
+      createdById: (e as { createdById?: string | null }).createdById ?? null,
+      updatedById: (e as { updatedById?: string | null }).updatedById ?? null,
+      createdAt: (e as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (e as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
     });
   }
 
@@ -255,7 +275,7 @@ export class TraceabilityService {
     isPublic?: boolean;
     evidenceDocumentId?: number;
     createdById?: string;
-  }) {
+  }, adminId?: string) {
     const r = await this.prisma.traceabilityRecord.create({
       data: {
         entityId: data.entityId,
@@ -263,7 +283,7 @@ export class TraceabilityService {
         recordDate: new Date(data.recordDate),
         isPublic: data.isPublic ?? true,
         evidenceDocumentId: data.evidenceDocumentId,
-        createdById: data.createdById,
+        createdById: adminId ?? data.createdById,
       },
       include: { entity: true, evidenceDocument: { include: documentInclude } },
     });
@@ -271,6 +291,9 @@ export class TraceabilityService {
       recordType: r.recordType,
       recordDate: r.recordDate.toISOString(),
       isPublic: r.isPublic,
+      createdById: (r as { createdById?: string | null }).createdById ?? null,
+      createdAt: (r as { createdAt?: Date }).createdAt?.toISOString() ?? null,
+      updatedAt: (r as { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
       entity: {
         data: toStrapiLike(r.entity.id, {
           entityType: r.entity.entityType,

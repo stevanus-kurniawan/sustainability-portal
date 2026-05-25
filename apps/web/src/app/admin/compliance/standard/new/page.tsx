@@ -7,6 +7,7 @@ export default function AdminComplianceStandardNewPage() {
     <DocumentForm
       type="GENERAL"
       categorySlug="standard"
+      hideCategoryPicker
       backHref="/admin/compliance/standard"
       title="New Standard Compliance"
     />

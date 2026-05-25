@@ -101,8 +101,7 @@ jobs:
           JWT_SECRET: dummy_jwt_secret_for_ci_only_change_in_prod
           JWT_REFRESH_SECRET: dummy_refresh_secret_for_ci_only_change_in_prod
           JWT_ADMIN_SECRET: dummy_admin_jwt_secret_for_ci_only_change_in_prod
-          MINIO_ACCESS_KEY: ci_minio_access
-          MINIO_SECRET_KEY: ci_minio_secret
+          STORAGE_ROOT_PATH: /app/storage
           DATABASE_URL: postgresql://slms:slms@localhost:5432/slms_test?schema=public
         run: |
           # Ensure configuration/env validation do not reject production-like config

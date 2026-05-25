@@ -29,6 +29,12 @@ export interface DocumentItem {
     subContent?: { data: { id: number; attributes: { title: string; slug: string } } | null };
     tags: { data: Array<{ id: number; attributes: { name: string; slug: string } }> };
     currentVersion: { data: unknown } | null;
+    contentVersion?: 'V1' | 'V2';
+    policyKind?: 'SOP' | 'FORM' | null;
+    regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
+    procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+    operationalUnitId?: number | null;
+    operationalUnit?: { data: { id: number; attributes: { name: string; slug: string } } | null };
   };
 }
 
@@ -72,6 +78,15 @@ export async function adminDocumentsList(params: {
   isPublished?: boolean;
   categoryId?: number;
   subContentId?: number;
+  contentVersion?: 'V1' | 'V2';
+  policyKind?: 'SOP' | 'FORM';
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL';
+  documentType?: string;
+  regulationOnly?: boolean;
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT';
+  procedureOnly?: boolean;
+  updateOnly?: boolean;
+  operationalUnitId?: number;
 }): Promise<ListResponse<DocumentItem>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
@@ -81,6 +96,15 @@ export async function adminDocumentsList(params: {
   if (params.subContentId != null) sp.set('subContentId', String(params.subContentId));
   if (params.isPublished !== undefined) sp.set('isPublished', String(params.isPublished));
   if (params.categoryId != null) sp.set('categoryId', String(params.categoryId));
+  if (params.contentVersion) sp.set('contentVersion', params.contentVersion);
+  if (params.policyKind) sp.set('policyKind', params.policyKind);
+  if (params.regulationKind) sp.set('regulationKind', params.regulationKind);
+  if (params.documentType) sp.set('documentType', params.documentType);
+  if (params.regulationOnly) sp.set('regulationOnly', 'true');
+  if (params.procedureScope) sp.set('procedureScope', params.procedureScope);
+  if (params.procedureOnly) sp.set('procedureOnly', 'true');
+  if (params.updateOnly) sp.set('updateOnly', 'true');
+  if (params.operationalUnitId != null) sp.set('operationalUnitId', String(params.operationalUnitId));
   const res = await adminFetch(`/api/admin/documents?${sp.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -102,6 +126,11 @@ export async function adminDocumentCreate(body: {
   isPublished?: boolean;
   categoryId?: number;
   subContentId?: number | null;
+  contentVersion?: 'V1' | 'V2';
+  policyKind?: 'SOP' | 'FORM' | null;
+  regulationKind?: 'NATIONAL' | 'INTERNATIONAL' | null;
+  procedureScope?: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+  operationalUnitId?: number | null;
   tagIds?: number[];
   code?: string;
   documentType?: string;
@@ -128,6 +157,11 @@ export async function adminDocumentUpdate(
     isPublished: boolean;
     categoryId: number | null;
     subContentId: number | null;
+    contentVersion: 'V1' | 'V2';
+    policyKind: 'SOP' | 'FORM' | null;
+    regulationKind: 'NATIONAL' | 'INTERNATIONAL' | null;
+    procedureScope: 'SUSTAINABILITY' | 'OPERATIONAL_UNIT' | null;
+    operationalUnitId: number | null;
     tagIds: number[];
     code: string;
     documentType: string;
@@ -246,6 +280,8 @@ export async function adminCertificationsList(params: {
   status?: string;
   /** Non-expired items with expiry on or before this many days from now (e.g. 60). */
   expiringWithinDays?: number;
+  contentVersion?: 'V1' | 'V2';
+  operationalUnitId?: number;
 }): Promise<ListResponse<unknown>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
@@ -253,6 +289,8 @@ export async function adminCertificationsList(params: {
   if (params.search) sp.set('search', params.search);
   if (params.status) sp.set('status', params.status);
   if (params.expiringWithinDays != null) sp.set('expiringWithinDays', String(params.expiringWithinDays));
+  if (params.contentVersion) sp.set('contentVersion', params.contentVersion);
+  if (params.operationalUnitId != null) sp.set('operationalUnitId', String(params.operationalUnitId));
   const res = await adminFetch(`/api/admin/certifications?${sp.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -264,6 +302,9 @@ export async function adminLicensesList(params: {
   search?: string;
   status?: string;
   expiringWithinDays?: number;
+  expiredByDate?: boolean;
+  contentVersion?: 'V1' | 'V2';
+  operationalUnitId?: number;
 }): Promise<ListResponse<unknown>> {
   const sp = new URLSearchParams();
   if (params.page != null) sp.set('page', String(params.page));
@@ -271,6 +312,9 @@ export async function adminLicensesList(params: {
   if (params.search) sp.set('search', params.search);
   if (params.status) sp.set('status', params.status);
   if (params.expiringWithinDays != null) sp.set('expiringWithinDays', String(params.expiringWithinDays));
+  if (params.expiredByDate) sp.set('expiredByDate', 'true');
+  if (params.contentVersion) sp.set('contentVersion', params.contentVersion);
+  if (params.operationalUnitId != null) sp.set('operationalUnitId', String(params.operationalUnitId));
   const res = await adminFetch(`/api/admin/licenses?${sp.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -402,6 +446,18 @@ export async function adminUserUpdateEmailVerification(
   const res = await adminFetch(`/api/admin/users/${id}/email-verification`, {
     method: 'PATCH',
     body: JSON.stringify({ emailVerified }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminUserUpdatePassword(
+  id: string,
+  newPassword: string
+): Promise<AdminUserDetail> {
+  const res = await adminFetch(`/api/admin/users/${id}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ newPassword }),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
@@ -546,4 +602,52 @@ export async function adminAdminUpdate(
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
   return res.json();
+}
+
+// ========== Operational Units ==========
+
+export interface OperationalUnitItem {
+  id: number;
+  attributes: {
+    name: string;
+    slug: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+export async function adminOperationalUnitsList(): Promise<{ data: OperationalUnitItem[] }> {
+  const res = await adminFetch('/api/admin/operational-units', { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminOperationalUnitCreate(body: {
+  name: string;
+}): Promise<OperationalUnitItem> {
+  const res = await adminFetch('/api/admin/operational-units', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminOperationalUnitUpdate(
+  id: number,
+  body: { name?: string }
+): Promise<OperationalUnitItem> {
+  const res = await adminFetch(`/api/admin/operational-units/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  return res.json();
+}
+
+export async function adminOperationalUnitDelete(id: number): Promise<void> {
+  const res = await adminFetch(`/api/admin/operational-units/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 204) {
+    throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
+  }
 }

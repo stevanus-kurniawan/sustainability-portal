@@ -3,6 +3,11 @@ import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Readable } from 'stream';
+import {
+  parseProcedureScope,
+  parseStorageSection,
+  parseSustainabilityStorageType,
+} from '@slms/shared';
 import { AdminAuthGuard } from '../admin-auth/guards/admin-auth.guard';
 import { UploadService } from './upload.service';
 
@@ -17,13 +22,20 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/gif',
   'image/webp',
   'image/svg+xml',
-  'application/msword', // .doc
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.ms-excel', // .xls
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-  'application/vnd.ms-powerpoint', // .ppt
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
+
+class UploadStorageBodyDto {
+  storageSection?: string;
+  sustainabilityType?: string;
+  procedureScope?: string;
+  operationalUnitFolder?: string;
+}
 
 @ApiTags('admin/upload')
 @Controller('admin/upload')
@@ -43,11 +55,6 @@ export class UploadController {
     return result.then((r) => r ?? { url: null, key: null });
   }
 
-  /**
-   * Proxy upload: accept file and stream it to MinIO. Use this when the client cannot
-   * reach MinIO directly (e.g. presigned URL would use internal host minio:9000).
-     * Limits: 25 MB max; allowed types: PDF, images, Word, Excel, PowerPoint.
-   */
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -63,10 +70,22 @@ export class UploadController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        storageSection: { type: 'string' },
+        sustainabilityType: { type: 'string' },
+        procedureScope: { type: 'string' },
+        operationalUnitFolder: { type: 'string' },
+      },
+    },
+  })
   async upload(
     @Req() req: Request & { uploadRejectedType?: boolean },
     @UploadedFile() file: Express.Multer.File,
+    @Body() body: UploadStorageBodyDto,
   ): Promise<{ key: string } | { key: null; message: string }> {
     if (!file) {
       if (req.uploadRejectedType) {
@@ -78,13 +97,39 @@ export class UploadController {
       }
       return { key: null, message: 'No file provided' };
     }
+
+    if (!this.uploadService.isStorageConfigured()) {
+      return {
+        key: null,
+        message:
+          'Storage is not configured. Set STORAGE_ROOT_PATH and ensure the storage mount is writable.',
+      };
+    }
+
+    const section = parseStorageSection(body.storageSection);
+    let folderPath: string | null = null;
+
+    if (section) {
+      folderPath = this.uploadService.resolveFolderPath({
+        section,
+        sustainabilityType: parseSustainabilityStorageType(body.sustainabilityType) ?? undefined,
+        procedureScope: parseProcedureScope(body.procedureScope) ?? undefined,
+        operationalUnitFolder: body.operationalUnitFolder?.trim() || undefined,
+      });
+      if (!folderPath) {
+        return {
+          key: null,
+          message:
+            'Invalid storage folder context. Select required fields (e.g. operational unit, procedure source) before uploading.',
+        };
+      }
+    }
+
     const ext = file.originalname.includes('.')
       ? file.originalname.slice(file.originalname.lastIndexOf('.'))
       : '';
-    const key = this.uploadService.generateUploadKey(ext);
-    if (!this.uploadService.isStorageConfigured()) {
-      return { key: null, message: 'Storage (MinIO) is not configured. Set MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY and ensure MinIO is running.' };
-    }
+    const key = this.uploadService.generateUploadKey(ext, folderPath);
+
     const result = await this.uploadService.uploadStream(
       key,
       Readable.from(file.buffer),
@@ -92,7 +137,10 @@ export class UploadController {
       file.mimetype,
     );
     if (!result) {
-      return { key: null, message: 'Upload to storage failed. Check MINIO_* env and that MinIO is reachable from the API (e.g. docker compose up minio).' };
+      return {
+        key: null,
+        message: 'Upload to storage failed. Check storage configuration and folder permissions.',
+      };
     }
     return { key: result };
   }

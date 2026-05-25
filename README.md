@@ -21,7 +21,6 @@ slms/
 | **Web Portal** | http://localhost:3000 | Public and admin sustainability portal |
 | **API Swagger** | http://localhost:3001/docs | API documentation |
 | **API Endpoint** | http://localhost:3001/api/v1 | REST API |
-| **MinIO Console** | http://localhost:9001 | Object storage UI |
 | **Mailhog** | http://localhost:8025 | Email testing UI |
 
 ## 📋 Prerequisites
@@ -68,7 +67,7 @@ cp apps/web/env.example apps/web/.env.local
 pnpm dev:infra
 ```
 
-This starts **only** Postgres, Redis, MinIO, and Mailhog (API and Web run locally in the next step). Wait ~30 seconds, then verify:
+This starts **only** Postgres, Redis, and Mailhog (API and Web run locally in the next step). Document files are stored under `./data/storage` when using Docker API, or set `STORAGE_ROOT_PATH` for local API. Wait ~30 seconds, then verify:
 
 ```bash
 docker ps
@@ -91,7 +90,7 @@ For other environments, use dedicated files (for example):
 
 Each environment **must** have:
 
-- Its own `DATABASE_URL` and MinIO credentials (no sharing between local/dev/uat/prod).
+- Its own `DATABASE_URL` and `STORAGE_ROOT_PATH` (no sharing between local/dev/uat/prod).
 - Strong, unique `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `JWT_ADMIN_SECRET` (do not reuse `env.example` placeholders).
 
 ### 6. Start Development
@@ -122,7 +121,7 @@ This starts:
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev:infra` | Start infra only (postgres, redis, minio, mailhog) for local dev |
+| `pnpm dev:infra` | Start infra only (postgres, redis, mailhog) for local dev |
 | `pnpm dev:infra:full` | Start infra + API + Web in Docker |
 | `pnpm dev:infra:logs` | View infrastructure logs |
 | `pnpm dev:infra:down` | Stop infrastructure |
@@ -159,8 +158,7 @@ This starts:
 |---------|------|-------------|
 | PostgreSQL | 5544 | user: `slms`, password: `slms`, db: `slms` |
 | Redis | 6379 | (no auth) |
-| MinIO API | 9000 | access: `minioadmin`, secret: `minioadmin` |
-| MinIO Console | 9001 | access: `minioadmin`, secret: `minioadmin` |
+| Document storage | `./data/storage` | Bind mount when API runs in Docker |
 | Mailhog SMTP | 1025 | (no auth) |
 | Mailhog UI | 8025 | (no auth) |
 
@@ -171,16 +169,14 @@ This starts:
 PORT=3001
 DATABASE_URL="postgresql://slms:slms@localhost:5544/slms?schema=public"
 JWT_SECRET=your-secret-key
-MINIO_ENDPOINT=http://localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_BUCKET=slms-docs
+STORAGE_ROOT_PATH=./data/storage
+API_PUBLIC_BASE_URL=http://localhost:3001/api/v1
 ```
 
 In `NODE_ENV=production` or `NODE_ENV=uat`, the API will **refuse to start** if:
 
 - Any JWT secret (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ADMIN_SECRET`) is missing or still uses the default placeholder.
-- MinIO credentials (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`) are missing or still use `minioadmin`.
+- `STORAGE_ROOT_PATH` is not set.
 
 `infra/env.example` is intended for **local Docker-only** usage and must **not** be reused for UAT or production secrets.
 
@@ -287,17 +283,14 @@ Strapi CMS is no longer used. All content and admin features are served by the s
    # Should return: PONG
    ```
 
-### MinIO Issues
+### File upload issues
 
-1. **Bucket not created:**
-   - Visit http://localhost:9001
-   - Login with `minioadmin` / `minioadmin`
-   - Create bucket named `slms-docs` manually
-   - Set bucket policy to "public" for read access
+1. **Upload fails in admin:**
+   - Ensure `STORAGE_ROOT_PATH` exists and is writable (local: `./data/storage`)
+   - When API runs in Docker, verify the `./data/storage` bind mount in `infra/docker-compose.yml`
 
-2. **File uploads failing:**
-   - Check Strapi logs for S3 errors
-   - Verify MinIO credentials in `apps/cms/.env`
+2. **Download/preview fails:**
+   - Set `API_PUBLIC_BASE_URL` to the URL the browser uses to reach the API (e.g. `http://localhost:3001/api/v1`)
 
 ### Common Fixes
 

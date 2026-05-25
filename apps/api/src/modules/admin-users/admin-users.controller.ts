@@ -22,6 +22,7 @@ import { AdminCreateUserDto } from './dto/admin-create-user.dto';
 import { AdminUserRoleDto } from './dto/admin-user-role.dto';
 import { AdminUserStatusDto } from './dto/admin-user-status.dto';
 import { AdminUserEmailVerificationDto } from './dto/admin-user-email-verification.dto';
+import { AdminUserPasswordDto } from './dto/admin-user-password.dto';
 import { UserStatus } from '@prisma/client';
 
 function getActor(req: Request & { user?: { id: string; email: string; role: string } }): AuditActor {
@@ -162,6 +163,23 @@ export class AdminUsersController {
     return this.service.updateEmailVerification(
       id,
       dto.emailVerified,
+      getActor(req as any),
+      getIp(req),
+      getUserAgent(req),
+    );
+  }
+
+  @Patch(':id/password')
+  @ApiOperation({ summary: 'Change visitor user password' })
+  @ApiResponse({ status: 200, description: 'Password changed' })
+  async updatePassword(
+    @Param('id') id: string,
+    @Body() dto: AdminUserPasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.service.updatePassword(
+      id,
+      dto.newPassword,
       getActor(req as any),
       getIp(req),
       getUserAgent(req),
