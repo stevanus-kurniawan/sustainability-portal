@@ -94,14 +94,10 @@ class EnvironmentVariables {
   @IsString()
   JWT_ADMIN_SECRET: string;
 
-  // MinIO (document storage) – optional with defaults for local dev
+  // Document storage (filesystem mount)
   @IsString()
   @IsOptional()
-  MINIO_ACCESS_KEY: string = 'minioadmin';
-
-  @IsString()
-  @IsOptional()
-  MINIO_SECRET_KEY: string = 'minioadmin';
+  STORAGE_ROOT_PATH: string = '/app/storage';
 
   // Throttling (rate limiting)
   @IsNumber()

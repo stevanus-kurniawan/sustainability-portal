@@ -1,5 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { isValidStorageFileKey } from '@slms/shared';
 import { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CategoriesService } from '../categories/categories.service';
@@ -48,11 +49,7 @@ export class PublicController {
       return res.status(400).json({ message: 'Invalid file key format' });
     }
 
-    // Enforce that only document uploads can be accessed via this public endpoint.
-    // Keys must be under the "uploads/" prefix and contain only safe characters.
-    // Example valid key: uploads/uuid-v4.pdf
-    const safeKeyPattern = /^uploads\/[a-zA-Z0-9._\-\/]+$/;
-    if (!safeKeyPattern.test(key)) {
+    if (!isValidStorageFileKey(key)) {
       return res.status(400).json({ message: 'Invalid file key format' });
     }
 

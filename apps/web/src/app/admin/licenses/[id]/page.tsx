@@ -7,6 +7,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
 import { adminSubContentsList, adminCategoriesList, adminDocumentCreate, adminOperationalUnitsList } from '@/lib/admin-api';
 import type { OperationalUnitItem } from '@/lib/admin-api';
+import {
+  buildUploadStorageFormFields,
+  uploadAdminFile,
+  uploadStorageContextError,
+} from '@/lib/upload-storage';
 
 function toFormValue(date: string | null): string {
   if (!date) return '';
@@ -124,19 +129,18 @@ export default function AdminLicensesEditPage() {
     setError(null);
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.set('file', file, file.name);
-      const uploadRes = await fetch('/api/admin/upload/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+      const operationalUnitSlug = form.operationalUnitId
+        ? operationalUnits.find((u) => u.id === form.operationalUnitId)?.attributes.slug
+        : undefined;
+      const storageFields = buildUploadStorageFormFields({
+        kind: 'license',
+        operationalUnitSlug,
       });
-      if (!uploadRes.ok) {
-        const data = await uploadRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Upload failed');
+      if (!storageFields) {
+        setError(uploadStorageContextError({ kind: 'license', operationalUnitSlug }));
+        return;
       }
-      const { key } = await uploadRes.json();
-      if (!key) throw new Error('Upload not configured');
+      const { key } = await uploadAdminFile(file, storageFields);
       update('attachment', {
         fileKey: key,
         fileName: file.name,

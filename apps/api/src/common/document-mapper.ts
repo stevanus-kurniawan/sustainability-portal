@@ -22,11 +22,7 @@ function getFileUrlForResponse(fileKey: string | null, apiBaseOverride?: string)
 }
 
 export function getFileBaseUrl(): string {
-  return (
-    process.env.MINIO_PUBLIC_URL ||
-    process.env.MINIO_ENDPOINT ||
-    'http://localhost:9000/slms-docs'
-  );
+  return process.env.API_PUBLIC_BASE_URL || '';
 }
 
 export type DocumentWithRelations = {

@@ -3,6 +3,13 @@ import { getInternalApiBase } from '@/lib/internal-api';
 
 const COOKIE_NAME = 'admin_access_token';
 
+const STORAGE_FIELD_NAMES = [
+  'storageSection',
+  'sustainabilityType',
+  'procedureScope',
+  'operationalUnitFolder',
+] as const;
+
 function getToken(request: NextRequest): string | undefined {
   return request.cookies.get(COOKIE_NAME)?.value;
 }
@@ -26,6 +33,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = new FormData();
     body.set('file', file, file instanceof File ? file.name : 'file');
+    for (const name of STORAGE_FIELD_NAMES) {
+      const value = formData.get(name);
+      if (typeof value === 'string' && value.trim()) {
+        body.set(name, value.trim());
+      }
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -41,7 +54,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { message: err instanceof Error ? err.message : 'Backend request failed' },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

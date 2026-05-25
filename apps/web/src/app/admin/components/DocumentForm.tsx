@@ -7,6 +7,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Button, Input, Alert } from '@/components/ui';
 import { adminDocumentGet, adminDocumentCreate, adminDocumentUpdate, adminCategoriesList, adminSubContentsList, adminOperationalUnitsList } from '@/lib/admin-api';
 import type { DocumentItem, OperationalUnitItem } from '@/lib/admin-api';
+import {
+  buildUploadStorageFormFields,
+  uploadAdminFile,
+  uploadStorageContextError,
+} from '@/lib/upload-storage';
 
 interface DocumentFormProps {
   id?: number;
@@ -280,19 +285,34 @@ export function DocumentForm({
     setError(null);
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.set('file', file, file.name);
-      const uploadRes = await fetch('/api/admin/upload/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+      const operationalUnitSlug =
+        typeof form.operationalUnitId === 'number'
+          ? operationalUnits.find((u) => u.id === form.operationalUnitId)?.attributes.slug
+          : undefined;
+      const storageFields = buildUploadStorageFormFields({
+        type,
+        updatesMode,
+        procedureUnified,
+        procedureScope: form.procedureScope || undefined,
+        operationalUnitSlug,
+        categorySlug,
+        regulationKind: form.regulationKind || regulationKind,
       });
-      if (!uploadRes.ok) {
-        const data = await uploadRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Upload failed');
+      if (!storageFields) {
+        setError(
+          uploadStorageContextError({
+            type,
+            updatesMode,
+            procedureUnified,
+            procedureScope: form.procedureScope || undefined,
+            operationalUnitSlug,
+            categorySlug,
+            regulationKind: form.regulationKind || regulationKind,
+          }),
+        );
+        return;
       }
-      const { key } = await uploadRes.json();
-      if (!key) throw new Error('Upload not configured');
+      const { key } = await uploadAdminFile(file, storageFields);
       setForm((prev) => ({
         ...prev,
         attachment: {

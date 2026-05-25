@@ -1,122 +1,130 @@
+import { createWriteStream, createReadStream, existsSync } from 'fs';
+import { mkdir, access, constants as fsConstants } from 'fs/promises';
 import { randomUUID } from 'crypto';
+import { dirname, resolve, sep } from 'path';
 import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Minio from 'minio';
+import {
+  buildStorageFileKey,
+  isValidStorageFileKey,
+  resolveStorageFolderPath,
+  type StorageFolderInput,
+} from '@slms/shared';
+
+export type { StorageFolderInput };
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
-  private client: Minio.Client | null = null;
-  private bucket: string = 'slms-docs';
+  private readonly storageRoot: string;
 
   constructor(private config: ConfigService) {
-    const endPoint = this.config.get<string>('minio.endPoint');
-    const port = this.config.get<number>('minio.port');
-    const useSSL = this.config.get<boolean>('minio.useSSL');
-    const accessKey = this.config.get<string>('minio.accessKey');
-    const secretKey = this.config.get<string>('minio.secretKey');
-    this.bucket = this.config.get<string>('minio.bucket') ?? 'slms-docs';
-    if (endPoint && accessKey && secretKey) {
-      this.client = new Minio.Client({
-        endPoint,
-        port: port ?? 9000,
-        useSSL: useSSL ?? false,
-        accessKey,
-        secretKey,
-      });
-    } else {
-      this.logger.warn('MinIO not configured; upload presigning disabled');
-    }
+    this.storageRoot = this.config.get<string>('storage.rootPath') ?? '/app/storage';
+    this.logger.log(`Filesystem storage at ${this.storageRoot}`);
   }
 
-  /** Whether MinIO client was initialized (storage is configured). */
   isStorageConfigured(): boolean {
-    return this.client !== null;
+    return Boolean(this.storageRoot);
   }
 
-  /** Generate a unique key for uploads (uploads/${uuid}${ext}). */
-  generateUploadKey(ext: string): string {
-    return `uploads/${randomUUID()}${ext}`;
-  }
-
-  async getPresignedPutUrl(fileName: string, contentType?: string): Promise<{ url: string; key: string } | null> {
-    if (!this.client) return null;
-    const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '';
-    const key = this.generateUploadKey(ext);
-    try {
-      const url = await this.client.presignedPutObject(this.bucket, key, 60 * 15);
-      return { url, key };
-    } catch (err) {
-      this.logger.error('MinIO presign failed', err);
-      return null;
+  /** Generate a storage key under the given folder (or legacy uploads/ prefix). */
+  generateUploadKey(ext: string, folderPath?: string | null): string {
+    const fileName = `${randomUUID()}${ext}`;
+    if (folderPath) {
+      return buildStorageFileKey(folderPath, fileName);
     }
+    return buildStorageFileKey('uploads', fileName);
   }
 
-  /**
-   * Upload a file stream to MinIO. Use this when the client cannot reach MinIO directly
-   * (e.g. presigned URL uses internal host like minio:9000). Returns the object key or null.
-   */
+  resolveFolderPath(input: StorageFolderInput): string | null {
+    return resolveStorageFolderPath(input);
+  }
+
+  async getPresignedPutUrl(_fileName: string, _contentType?: string): Promise<{ url: string; key: string } | null> {
+    return null;
+  }
+
   async uploadStream(
     key: string,
     stream: Readable,
-    size: number,
-    contentType?: string,
+    _size: number,
+    _contentType?: string,
   ): Promise<string | null> {
-    if (!this.client) return null;
+    if (!isValidStorageFileKey(key)) {
+      this.logger.error(`Invalid storage key rejected: ${key}`);
+      return null;
+    }
+    return this.uploadStreamFilesystem(key, stream);
+  }
+
+  private resolveFullPath(key: string): string | null {
+    const root = resolve(this.storageRoot);
+    const full = resolve(root, key);
+    if (full !== root && !full.startsWith(root + sep)) {
+      return null;
+    }
+    return full;
+  }
+
+  private async uploadStreamFilesystem(key: string, stream: Readable): Promise<string | null> {
+    const fullPath = this.resolveFullPath(key);
+    if (!fullPath) {
+      this.logger.error(`Path traversal blocked for key: ${key}`);
+      return null;
+    }
     try {
-      const meta: Record<string, string> = {};
-      if (contentType) meta['Content-Type'] = contentType;
-      await this.client.putObject(this.bucket, key, stream, size, meta);
+      await mkdir(dirname(fullPath), { recursive: true });
+      await pipeline(stream, createWriteStream(fullPath));
       return key;
     } catch (err) {
-      this.logger.error('MinIO putObject failed', err);
+      this.logger.error('Filesystem upload failed', err);
       return null;
     }
   }
 
-  async getPresignedGetUrl(key: string, expirySeconds = 3600): Promise<string | null> {
-    if (!this.client) return null;
-    try {
-      return await this.client.presignedGetObject(this.bucket, key, expirySeconds);
-    } catch (err) {
-      this.logger.error('MinIO presigned GET failed', err);
-      return null;
-    }
+  async getPresignedGetUrl(_key: string, _expirySeconds = 3600): Promise<string | null> {
+    return null;
   }
 
-  /**
-   * Stream object from MinIO for inline preview. Returns { stream, contentType } or null.
-   * Caller should pipe stream to response with Content-Disposition: inline.
-   */
   async getObjectStream(key: string): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
-    if (!this.client) return null;
+    if (!isValidStorageFileKey(key)) {
+      this.logger.error(`Invalid storage key for read: ${key}`);
+      return null;
+    }
+    return this.getObjectStreamFilesystem(key);
+  }
+
+  private async getObjectStreamFilesystem(
+    key: string,
+  ): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
+    const fullPath = this.resolveFullPath(key);
+    if (!fullPath || !existsSync(fullPath)) {
+      this.logger.error(`File not found for key: ${key}`);
+      return null;
+    }
     try {
-      const stream = await this.client.getObject(this.bucket, key);
-      let contentType = 'application/octet-stream';
-      try {
-        const stat = await this.client.statObject(this.bucket, key);
-        const ct = stat.metaData?.['content-type'] ?? stat.metaData?.['Content-Type'];
-        if (ct) {
-          contentType = String(ct);
-        } else if (key.toLowerCase().endsWith('.pdf')) {
-          contentType = 'application/pdf';
-        } else if (key.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
-          const ext = key.toLowerCase().slice(key.lastIndexOf('.'));
-          contentType = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-        }
-      } catch {
-        if (key.toLowerCase().endsWith('.pdf')) contentType = 'application/pdf';
-      }
-      return { stream, contentType };
+      await access(fullPath, fsConstants.R_OK);
+      return { stream: createReadStream(fullPath), contentType: this.inferContentType(key) };
     } catch (err) {
-      this.logger.error('MinIO getObject failed', err);
+      this.logger.error('Filesystem read failed', err);
       return null;
     }
   }
 
-  getPublicUrl(key: string): string {
-    const base = this.config.get<string>('minio.publicUrl') || `http://localhost:9000/${this.bucket}`;
-    return base.endsWith('/') ? `${base}${key}` : `${base}/${key}`;
+  private inferContentType(key: string): string {
+    const lower = key.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    return 'application/octet-stream';
+  }
+
+  getPublicUrl(_key: string): string {
+    return '';
   }
 }

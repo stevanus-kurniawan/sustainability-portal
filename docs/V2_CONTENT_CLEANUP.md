@@ -17,7 +17,7 @@ Use this only after admins finish re-inputting and re-uploading v2 content, and 
    - related `document_versions`, `document_tags`, and audit records as needed
 2. Confirm v2 record counts and file previews with business users.
 3. Delete or hide v1 rows only after archive approval.
-4. Identify MinIO object keys that are referenced only by v1 `document_versions`.
-5. Delete old MinIO objects only after confirming no v2 row references the same key.
+4. Identify storage file keys that are referenced only by v1 `document_versions`.
+5. Delete old storage files only after confirming no v2 row references the same key.
 
 Do not delete storage objects before deleting/checking database references. The database is the source of truth for which uploaded keys are still in use.

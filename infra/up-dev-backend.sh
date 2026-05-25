@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Run DEVELOPMENT backend stack (Postgres, Redis, MinIO, API) with the correct env file.
+# Run DEVELOPMENT backend stack (Postgres, Redis, API) with the correct env file.
 # Compose file: docker-compose.dev.backend.yml (project name: slms-dev-backend).
 # Production backend: ./infra/up-prod-backend.sh (docker-compose.prod.backend.yml).
 #
