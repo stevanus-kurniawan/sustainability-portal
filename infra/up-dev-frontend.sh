@@ -7,7 +7,10 @@
 #   ./infra/up-dev-frontend.sh up -d --build web
 #   ./infra/up-dev-frontend.sh up -d web
 #   ./infra/up-dev-frontend.sh down
-# Optional: run ./infra/clean-dev-cache.sh first if the server is low on space (reduces cache before build).
+#
+# Routine deploy: use up -d --build web (Docker reuses cached layers when possible).
+# Use build --no-cache only when troubleshooting stale cache or dependency issues.
+# If the server is low on space, run ./infra/clean-dev-cache.sh first.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

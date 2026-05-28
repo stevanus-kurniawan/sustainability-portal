@@ -3,11 +3,10 @@
 #
 # Create infra/env.prod.backend from env.example.backend and set all required variables.
 # Recommended (loads infra/env.prod.backend):
-#   ./infra/up-prod-backend.sh up -d --build
 #   ./infra/up-prod-backend.sh up -d --build api
 #
-# Or manually from project root:
-#   docker compose --env-file infra/env.prod.backend -f infra/docker-compose.prod.backend.yml up -d --build
+# Routine deploy uses Docker layer cache. Use build --no-cache only when troubleshooting.
+# If disk is low: ./infra/clean-dev-cache.sh
 #
 # Ports: DB host 5000, API host 8001. See env.example.backend for required variables.
 # Project name isolates volumes from dev on the same host.

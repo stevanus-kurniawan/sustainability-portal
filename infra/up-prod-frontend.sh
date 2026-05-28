@@ -4,8 +4,13 @@
 # Development: ./infra/up-dev-frontend.sh (docker-compose.dev.frontend.yml).
 #
 # Usage (from repo root):
-#   ./infra/up-prod-frontend.sh up -d --build
 #   ./infra/up-prod-frontend.sh up -d --build web
+#   ./infra/up-prod-frontend.sh up -d --build
+#   ./infra/up-prod-frontend.sh down
+#
+# Routine deploy: use up -d --build (Docker reuses cached layers when possible).
+# Use build --no-cache only when troubleshooting stale cache or dependency issues.
+# If disk is low: ./infra/clean-dev-cache.sh
 # The script resolves infra/env.prod.frontend relative to this script so Compose always loads it.
 
 set -e

@@ -14,9 +14,12 @@ the server may **hang** (become unresponsive) during the build. This has happene
 
 The **docker-compose.dev.frontend.yml** and **apps/web/Dockerfile** are tuned for low-memory builds:
 
+- **Selective copy** — Dockerfile installs/builds only `apps/web` + `packages/shared` (not the whole monorepo), so backend changes do not bust the frontend cache.
+- **Standalone runner** — Final image runs `node apps/web/server.js` without shipping full `node_modules` or pnpm.
+- **pnpm store cache** — BuildKit cache mount speeds up repeat `pnpm install` on dev and prod.
 - **NODE_OPTIONS=--max-old-space-size=1536** — Caps Node.js heap at 1.5GB during build so the process doesn’t grab 2–2.5GB and hang the server. Override in `.env.fe.dev` (e.g. `NODE_OPTIONS=--max-old-space-size=1024`) for stricter cap.
 - **BUILD_LOW_MEMORY=1** — Disables webpack cache during build to reduce peak RAM.
-- **Backend** (`docker-compose.dev.backend.yml`): Postgres and API limits reduced to 768M each so more memory is free for the system and for frontend builds.
+- **Backend** (`docker-compose.dev.backend.yml`): API Dockerfile uses the same pnpm store cache; Postgres and API limits reduced to 768M each so more memory is free for frontend builds.
 
 If the build still OOMs or the server is still tight, use Option 1 (build elsewhere) or Option 2 (add swap) below.
 
@@ -26,9 +29,10 @@ If the build still OOMs or the server is still tight, use Option 1 (build elsewh
 
 The **build** of the web image does:
 
-1. `pnpm install` for the whole monorepo
+1. `pnpm install` for **web + shared** workspace packages (with pnpm store cache on repeat builds)
 2. `pnpm --filter @slms/shared build`
 3. `pnpm --filter @slms/web build` → **Next.js production build** (TypeScript, bundling, minification)
+4. Copies a **standalone** runtime bundle (no full monorepo in the final image)
 
 The Next.js step alone often needs **about 1.5–2.5 GB RAM**. That is **build-time** usage; the `memory: 512M` limit in the compose file applies only to the **running** container, not to the build.
 

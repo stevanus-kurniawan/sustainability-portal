@@ -40,15 +40,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Mailhog for email testing
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: slms-mailhog
-    restart: unless-stopped
-    ports:
-      - "${MAILHOG_UI_PORT:-8025}:8025"
-      - "${MAILHOG_SMTP_PORT:-1025}:1025"
-
   # SLMS API (NestJS)
   api:
     build:

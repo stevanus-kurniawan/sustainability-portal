@@ -1,5 +1,6 @@
 # Build from monorepo root: docker build -f apps/api/Dockerfile .
 # All stages use Debian (node:20-slim) so native modules (bcrypt, Prisma) are built for glibc and run correctly.
+# syntax=docker/dockerfile:1
 FROM node:20-slim AS base
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
@@ -10,7 +11,8 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Build shared then API (prisma generate must run before API build so @prisma/client has enums like UserStatus)
 FROM base AS builder

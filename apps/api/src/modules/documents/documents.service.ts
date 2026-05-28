@@ -75,6 +75,7 @@ export class DocumentsService {
       pageSize,
       search,
       regulationKind,
+      regulationOnly: true,
       type: 'GENERAL',
     });
   }
@@ -88,6 +89,7 @@ export class DocumentsService {
   }) {
     return this.findV2DocumentsPublic({
       ...params,
+      procedureOnly: true,
       type: 'GENERAL',
     });
   }
@@ -109,6 +111,7 @@ export class DocumentsService {
     type?: string;
     policyKind?: string;
     regulationKind?: string;
+    regulationOnly?: boolean;
     procedureScope?: string;
     procedureOnly?: boolean;
     updateOnly?: boolean;
@@ -123,6 +126,7 @@ export class DocumentsService {
     };
     if (params.type) where.type = params.type;
     if (params.policyKind) where.policyKind = params.policyKind;
+    if (params.regulationOnly) where.regulationKind = { in: ['NATIONAL', 'INTERNATIONAL'] };
     if (params.regulationKind) where.regulationKind = params.regulationKind;
     if (params.procedureScope) where.procedureScope = params.procedureScope;
     if (params.updateOnly) where.documentType = 'UPDATE';

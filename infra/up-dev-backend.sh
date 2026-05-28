@@ -4,10 +4,13 @@
 # Production backend: ./infra/up-prod-backend.sh (docker-compose.prod.backend.yml).
 #
 # Usage (from repo root or infra/):
+#   ./infra/up-dev-backend.sh up -d --build api
 #   ./infra/up-dev-backend.sh up -d
-#   ./infra/up-dev-backend.sh build api --no-cache && ./infra/up-dev-backend.sh up -d
 #   ./infra/up-dev-backend.sh down
-# Optional: run ./infra/clean-dev-cache.sh first if the server is low on space (applies to prod builds too).
+#
+# Routine deploy: use up -d --build api (Docker reuses cached layers when possible).
+# Use build --no-cache only when troubleshooting stale cache or dependency issues.
+# If the server is low on space, run ./infra/clean-dev-cache.sh first.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

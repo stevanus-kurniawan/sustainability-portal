@@ -1,7 +1,12 @@
 # Frontend server only — DEVELOPMENT (Next.js web).
 # Production equivalent: docker-compose.prod.frontend.yml + ./infra/up-prod-frontend.sh
 #
-# Usage: docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
+# Recommended:
+#   ./infra/up-dev-frontend.sh up -d --build web
+#
+# Routine deploy uses Docker layer cache (web Dockerfile: web+shared only, standalone runner, pnpm store cache).
+# Use build --no-cache only when troubleshooting stale cache or dependency issues.
+# If disk is low: ./infra/clean-dev-cache.sh
 #
 # Optimized for 8GB servers: NODE_OPTIONS and BUILD_LOW_MEMORY cap build RAM so the server
 # doesn't hang. If build still OOMs, add swap (see docs/DEPLOY-DEV-FRONTEND-BUILD.md) or
