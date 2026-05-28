@@ -404,6 +404,34 @@ function AttachmentPreviewModal({
   );
 }
 
+const VISITOR_RECORD_TABLE_MIN_WIDTH = 'min-w-[52rem]';
+
+function VisitorTableScroll({
+  header,
+  children,
+  page,
+  pageCount,
+  onPageChange,
+  minWidth = VISITOR_RECORD_TABLE_MIN_WIDTH,
+}: {
+  header: React.ReactNode;
+  children: React.ReactNode;
+  page: number;
+  pageCount: number;
+  onPageChange: (page: number) => void;
+  minWidth?: string;
+}) {
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-auto">
+      <div className={`${minWidth} flex h-full min-h-0 w-full flex-1 flex-col`}>
+        <div className="flex-shrink-0">{header}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <PaginationControls page={page} pageCount={pageCount} onPageChange={onPageChange} />
+      </div>
+    </div>
+  );
+}
+
 function PaginationControls({
   page,
   pageCount,
@@ -415,7 +443,7 @@ function PaginationControls({
 }) {
   if (pageCount <= 1) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+    <div className="mt-auto flex flex-shrink-0 flex-wrap items-center justify-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
       <button
         type="button"
         onClick={() => onPageChange(Math.max(0, page - 1))}
@@ -494,6 +522,7 @@ function DocumentTable({
   searchTerm,
   onSearchChange,
   onPreviewFile,
+  hideHeader = false,
 }: {
   title: string;
   subtitle: string;
@@ -507,6 +536,7 @@ function DocumentTable({
   searchTerm: string;
   onSearchChange: (value: string) => void;
   onPreviewFile: (file: PreviewFile) => void;
+  hideHeader?: boolean;
 }) {
   const filteredDocuments = documents.filter((doc) => matchesDocumentSearch(doc, searchTerm));
   const pageCount = Math.max(1, Math.ceil(filteredDocuments.length / rowsPerPage));
@@ -532,46 +562,49 @@ function DocumentTable({
         ? 'grid-cols-[1.25fr_1.5fr_0.75fr_0.75fr]'
       : 'grid-cols-[1.35fr_0.75fr_0.85fr_0.75fr_0.9fr_0.75fr]';
   const tableMinWidth =
-    variant === 'default' || variant === 'procedure'
-      ? 'min-w-[40rem]'
-      : variant === 'updates'
-        ? 'min-w-[36rem]'
-        : 'min-w-[48rem]';
+    variant === 'operationalProcedure'
+      ? VISITOR_RECORD_TABLE_MIN_WIDTH
+      : variant === 'default' || variant === 'procedure'
+        ? 'min-w-[40rem]'
+        : variant === 'updates'
+          ? 'min-w-[36rem]'
+          : VISITOR_RECORD_TABLE_MIN_WIDTH;
 
   return (
-    <>
-      <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border-light bg-surface shadow-sm">
-        <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border-light px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <div className="min-w-0">
-            <p className={`text-sm font-medium ${variant === 'operationalProcedure' ? 'text-primary' : 'text-charcoal'}`}>{title}</p>
-            <p className="text-xs text-steel">{subtitle}</p>
+    <div className={`flex min-h-0 flex-1 flex-col ${hideHeader ? '' : 'rounded-xl border border-border-light bg-surface shadow-sm'}`}>
+        {!hideHeader && (
+          <div className="flex flex-shrink-0 flex-col gap-3 border-b border-border-light px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-charcoal">{title}</p>
+              <p className="text-xs text-steel">{subtitle}</p>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <label className="relative block w-full sm:w-52">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
+                <input
+                  className="input h-9 w-full pl-9"
+                  value={searchTerm}
+                  onChange={(event) => {
+                    onSearchChange(event.target.value);
+                    onPageChange(0);
+                  }}
+                  placeholder="Search"
+                />
+              </label>
+              {filter}
+            </div>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <label className="relative block w-full sm:w-52">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
-              <input
-                className="input h-9 w-full pl-9"
-                value={searchTerm}
-                onChange={(event) => {
-                  onSearchChange(event.target.value);
-                  onPageChange(0);
-                }}
-                placeholder="Search"
-              />
-            </label>
-            {filter}
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-x-auto">
-          <div className={tableMinWidth}>
-            <div className={`grid ${gridClass} gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4`}>
+        )}
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-x-auto">
+          <div className={`${tableMinWidth} flex h-full min-h-0 flex-1 flex-col`}>
+            <div className={`grid ${gridClass} flex-shrink-0 gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4`}>
               {columns.map((column) => (
                 <span key={column} className={column === 'Actions' || column === 'Attachment' ? 'text-center' : undefined}>
                   {column}
                 </span>
               ))}
             </div>
-            <div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
               {loading ? (
                 <div className="flex min-h-[12rem] items-center justify-center text-sm text-steel">Loading records…</div>
               ) : paged.length === 0 ? (
@@ -583,7 +616,7 @@ function DocumentTable({
                     return (
                       <div key={doc.id} className={`grid ${gridClass} items-center gap-3 px-3 py-3 text-sm sm:px-4`}>
                     <div className="min-w-0">
-                      <p className={`truncate font-medium ${variant === 'operationalProcedure' ? 'text-primary' : 'text-charcoal'}`}>{doc.attributes.title}</p>
+                      <p className="truncate font-medium text-charcoal">{doc.attributes.title}</p>
                     </div>
                     {variant === 'report' ? (
                       <>
@@ -651,11 +684,10 @@ function DocumentTable({
             </div>
           )}
             </div>
+            <PaginationControls page={page} pageCount={pageCount} onPageChange={onPageChange} />
           </div>
         </div>
       </div>
-      <PaginationControls page={page} pageCount={pageCount} onPageChange={onPageChange} />
-    </>
   );
 }
 
@@ -1005,9 +1037,9 @@ export function UserLandingDashboard() {
           </div>
         </header>
 
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto py-4 sm:py-6">
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden py-4 sm:py-6">
           {currentView === 'main' && (
-            <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:py-0">
+            <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto py-2 sm:py-0">
               <div className="w-full max-w-6xl self-center text-center">
                 <p className="mb-2 text-base text-steel sm:text-lg">Welcome, {userName}</p>
                 <h1 className="font-heading text-2xl font-bold text-charcoal sm:text-4xl lg:text-5xl">SLMS Sustainability Portal</h1>
@@ -1041,12 +1073,12 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'sustainability' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title="Sustainability" onBack={() => {
                 router.push('/', { scroll: false });
                 setCurrentView('main');
               }} />
-              <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:items-center sm:py-0">
+              <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto py-2 sm:items-center sm:py-0">
                 <div className="grid w-full max-w-6xl grid-cols-1 gap-3 self-center sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                   {SUSTAINABILITY_MENU_CARDS.map((card) => (
                     <MenuCard
@@ -1073,7 +1105,7 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'documents' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title={contentConfig.title} onBack={() => {
                 if (activeContent === 'updates') {
                   router.push('/', { scroll: false });
@@ -1100,7 +1132,7 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'regulations' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title="Regulation" onBack={() => {
                 router.push(dashboardUrl({ view: 'sustainability' }), { scroll: false });
                 setCurrentView('sustainability');
@@ -1140,7 +1172,7 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'operational-units' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title="Operational Unit" onBack={() => {
                 router.push('/', { scroll: false });
                 setCurrentView('main');
@@ -1159,7 +1191,7 @@ export function UserLandingDashboard() {
                   />
                 </label>
               </div>
-              <div className="relative flex min-h-0 flex-1 flex-col">
+              <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
                 <div className="grid min-h-0 w-full max-w-7xl flex-1 auto-rows-fr grid-cols-2 gap-2 self-center sm:grid-cols-3 sm:gap-2.5 md:grid-cols-4 lg:grid-cols-5 lg:grid-rows-4 lg:gap-3">
                   {unitsLoading ? (
                     <p className="col-span-full row-span-full flex items-center justify-center text-sm text-steel">Loading operational units…</p>
@@ -1187,7 +1219,7 @@ export function UserLandingDashboard() {
                           hover
                           className="grid h-full w-full place-items-center border-border-light bg-surface p-3 text-center transition-transform duration-200 group-hover:-translate-y-0.5"
                         >
-                          <h3 className="line-clamp-2 m-0 w-full text-balance text-center font-heading text-xs font-semibold leading-snug text-primary sm:text-sm">
+                          <h3 className="line-clamp-2 m-0 w-full text-balance text-center font-heading text-xs font-semibold leading-snug text-charcoal sm:text-sm">
                             {unit.attributes.name}
                           </h3>
                         </Card>
@@ -1201,12 +1233,12 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'unit-detail' && selectedUnit && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title={selectedUnit.attributes.name} onBack={() => {
                 router.push(dashboardUrl({ view: 'operational-units' }), { scroll: false });
                 setCurrentView('operational-units');
               }} />
-              <div className="flex min-h-0 flex-1 flex-col justify-center py-2 sm:items-center sm:py-0">
+              <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto py-2 sm:items-center sm:py-0">
                 <div className="grid w-full max-w-5xl grid-cols-1 gap-4 self-center sm:grid-cols-2 lg:grid-cols-3">
                   {unitSections.map((section) => (
                     <button
@@ -1230,7 +1262,7 @@ export function UserLandingDashboard() {
                           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-12 sm:w-12">
                             {section.icon}
                           </span>
-                          <h3 className="mt-3 font-heading text-lg font-semibold text-primary sm:mt-4 sm:text-xl">{section.title}</h3>
+                          <h3 className="mt-3 font-heading text-lg font-semibold text-charcoal sm:mt-4 sm:text-xl">{section.title}</h3>
                           <p className="mt-2 text-sm text-steel">{section.description}</p>
                         </CardContent>
                       </Card>
@@ -1242,7 +1274,7 @@ export function UserLandingDashboard() {
           )}
 
           {currentView === 'unit-records' && selectedUnit && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <BackTitle title={`${selectedUnit.attributes.name} ${selectedUnitSectionData.title}`} onBack={() => {
                 router.push(dashboardUrl({ view: 'unit-detail', unitId: selectedUnit.id }), { scroll: false });
                 setCurrentView('unit-detail');
@@ -1254,7 +1286,7 @@ export function UserLandingDashboard() {
                       {selectedUnitSectionData.icon}
                     </span>
                     <div className="min-w-0">
-                      <h3 className="font-heading text-base font-semibold text-primary">{selectedUnitSectionData.title}</h3>
+                      <h3 className="font-heading text-base font-semibold text-charcoal">{selectedUnitSectionData.title}</h3>
                       <p className="text-xs text-steel">{selectedUnitSectionData.description}</p>
                     </div>
                   </div>
@@ -1271,11 +1303,11 @@ export function UserLandingDashboard() {
                     />
                   </label>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                   {unitDetailLoading ? (
-                    <div className="flex min-h-[12rem] items-center justify-center text-sm text-steel">Loading records…</div>
+                    <div className="flex flex-1 items-center justify-center text-sm text-steel">Loading records…</div>
                   ) : filteredUnitRecords.length === 0 ? (
-                    <div className="flex min-h-[12rem] items-center justify-center px-4 text-center text-sm text-steel">No records available.</div>
+                    <div className="flex flex-1 items-center justify-center px-4 text-center text-sm text-steel">No records available.</div>
                   ) : selectedUnitSection === 'procedures' ? (
                     <DocumentTable
                       title={selectedUnitSectionData.title}
@@ -1289,25 +1321,31 @@ export function UserLandingDashboard() {
                       searchTerm={unitRecordSearch}
                       onSearchChange={setUnitRecordSearch}
                       onPreviewFile={setPreviewFile}
+                      hideHeader
                     />
                   ) : selectedUnitSection === 'certifications' ? (
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[52rem]">
-                      <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
-                        <span>Name</span>
-                        <span>Issuer</span>
-                        <span>Certificate Number</span>
-                        <span>Issued</span>
-                        <span>Expires</span>
-                        <span>Status</span>
-                        <span className="text-center">Actions</span>
-                      </div>
+                    <VisitorTableScroll
+                      page={unitRecordsPage}
+                      pageCount={unitCertificationsPageCount}
+                      onPageChange={setUnitRecordsPage}
+                      header={
+                        <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
+                          <span>Name</span>
+                          <span>Issuer</span>
+                          <span>Certificate Number</span>
+                          <span>Issued</span>
+                          <span>Expires</span>
+                          <span>Status</span>
+                          <span className="text-center">Actions</span>
+                        </div>
+                      }
+                    >
                       <div className="divide-y divide-border-light">
                         {pagedUnitCertifications.map((cert) => {
                           const file = cert.attributes.document?.data ? fileFromDocument(cert.attributes.document.data) : null;
                           return (
                             <div key={cert.id} className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.65fr_0.65fr_0.65fr_0.7fr] items-center gap-3 px-3 py-3 text-sm sm:px-4">
-                              <span className="truncate font-medium text-primary">{cert.attributes.name}</span>
+                              <span className="truncate font-medium text-charcoal">{cert.attributes.name}</span>
                               <span className="truncate text-steel">{cert.attributes.issuer || '-'}</span>
                               <span className="truncate text-steel">{cert.attributes.certificateNo || '-'}</span>
                               <span className="truncate text-steel">{formatDate(cert.attributes.issuedDate)}</span>
@@ -1335,27 +1373,30 @@ export function UserLandingDashboard() {
                           );
                         })}
                       </div>
-                      <PaginationControls page={unitRecordsPage} pageCount={unitCertificationsPageCount} onPageChange={setUnitRecordsPage} />
-                      </div>
-                    </div>
+                    </VisitorTableScroll>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[52rem]">
-                      <div className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
-                        <span>Name</span>
-                        <span>Authority</span>
-                        <span>License Number</span>
-                        <span>Issued</span>
-                        <span>Expires</span>
-                        <span>Status</span>
-                        <span className="text-center">Actions</span>
-                      </div>
+                    <VisitorTableScroll
+                      page={unitRecordsPage}
+                      pageCount={unitLicensesPageCount}
+                      onPageChange={setUnitRecordsPage}
+                      header={
+                        <div className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] gap-3 border-b border-border-light px-3 py-3 text-xs font-semibold uppercase tracking-wide text-steel sm:px-4">
+                          <span>Name</span>
+                          <span>Authority</span>
+                          <span>License Number</span>
+                          <span>Issued</span>
+                          <span>Expires</span>
+                          <span>Status</span>
+                          <span className="text-center">Actions</span>
+                        </div>
+                      }
+                    >
                       <div className="divide-y divide-border-light">
                         {pagedUnitLicenses.map((license) => {
                           const file = license.attributes.document?.data ? fileFromDocument(license.attributes.document.data) : null;
                           return (
                             <div key={license.id} className="grid grid-cols-[1.2fr_0.85fr_0.85fr_0.7fr_0.7fr_0.65fr_0.75fr] items-center gap-3 px-3 py-3 text-sm sm:px-4">
-                              <span className="truncate font-medium text-primary">{license.attributes.name}</span>
+                              <span className="truncate font-medium text-charcoal">{license.attributes.name}</span>
                               <span className="truncate text-steel">{license.attributes.authority || '-'}</span>
                               <span className="truncate text-steel">{license.attributes.licenseNo || '-'}</span>
                               <span className="truncate text-steel">{formatDate(license.attributes.issuedDate)}</span>
@@ -1383,9 +1424,7 @@ export function UserLandingDashboard() {
                           );
                         })}
                       </div>
-                      <PaginationControls page={unitRecordsPage} pageCount={unitLicensesPageCount} onPageChange={setUnitRecordsPage} />
-                      </div>
-                    </div>
+                    </VisitorTableScroll>
                   )}
                 </div>
               </div>

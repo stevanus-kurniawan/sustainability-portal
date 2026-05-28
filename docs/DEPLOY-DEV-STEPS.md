@@ -32,15 +32,15 @@ Rebuilding the API image ensures the new migration files and code are inside the
 **Option A – using the dev script (recommended):**
 
 ```bash
-./infra/up-dev-backend.sh build api --no-cache
-./infra/up-dev-backend.sh up -d
+./infra/up-dev-backend.sh up -d --build api
 ```
+
+Use `build --no-cache api` only when troubleshooting stale cache or dependency issues.
 
 **Option B – raw compose (ensure `infra/.env` or `infra/.env.be.dev` exists):**
 
 ```bash
-docker compose --env-file infra/.env -f infra/docker-compose.dev.backend.yml build api --no-cache
-docker compose --env-file infra/.env -f infra/docker-compose.dev.backend.yml up -d
+docker compose --env-file infra/.env -f infra/docker-compose.dev.backend.yml up -d --build api
 ```
 
 - **First time or no existing DB:** Postgres/Redis/MinIO start; then the API starts and runs `prisma migrate deploy` (all migrations, including the new ones), then the app listens.
@@ -117,7 +117,7 @@ git pull origin dev
 docker compose --env-file infra/.env.fe.dev -f infra/docker-compose.dev.frontend.yml up -d --build web
 ```
 
-`--build` forces a new image with the latest web code (e.g. login, license page, forgot-password, admin users). On memory‑constrained servers, run `./infra/clean-dev-cache.sh` first to free Docker build cache and reduce the chance of the server hanging during the build.
+`--build` rebuilds only changed Docker layers (lockfile, api/shared source). On memory‑constrained servers, run `./infra/clean-dev-cache.sh` first if disk is low.
 
 ### 2.3 Check the web container
 
@@ -136,14 +136,34 @@ Web should be listening on port 3000.
 |------|--------|------------------|
 | 0 | Either (if low on space) | `./infra/clean-dev-cache.sh` to free Docker cache |
 | 1 | Backend | `git pull origin dev` |
-| 2 | Backend | `./infra/up-dev-backend.sh build api --no-cache` |
-| 3 | Backend | `./infra/up-dev-backend.sh up -d` |
-| 4 | Backend | `./infra/up-dev-backend.sh logs api` → confirm migrations + app started |
-| 5 | Backend | (optional) `./infra/up-dev-backend.sh exec api npx prisma db seed` |
-| 6 | Backend | `curl -s http://localhost:3001/api/v1/health` → 200 OK |
-| 7 | Frontend | `git pull origin dev` |
-| 8 | Frontend | `./infra/up-dev-frontend.sh up -d --build web` |
-| 9 | Browser | Open `http://<frontend-public-ip>:3000` and test login, forgot-password, license page |
+| 2 | Backend | `./infra/up-dev-backend.sh up -d --build api` |
+| 3 | Backend | `./infra/up-dev-backend.sh logs api` → confirm migrations + app started |
+| 4 | Backend | (optional) `./infra/up-dev-backend.sh exec api npx prisma db seed` |
+| 5 | Backend | `curl -s http://localhost:3001/api/v1/health` → 200 OK |
+| 6 | Frontend | `git pull origin dev` |
+| 7 | Frontend | `./infra/up-dev-frontend.sh up -d --build web` |
+| 8 | Browser | Open `http://<frontend-public-ip>:3000` and test login, forgot-password, license page |
+
+---
+
+## 3.1 Routine deploy vs troubleshooting
+
+**Routine deploy (after `git pull`):**
+
+```bash
+./infra/up-dev-backend.sh up -d --build api
+./infra/up-dev-frontend.sh up -d --build web
+```
+
+**Only when troubleshooting** (stale cache, dependency weirdness):
+
+```bash
+./infra/up-dev-backend.sh build --no-cache api
+./infra/up-dev-backend.sh up -d api
+
+./infra/up-dev-frontend.sh build --no-cache web
+./infra/up-dev-frontend.sh up -d web
+```
 
 ---
 

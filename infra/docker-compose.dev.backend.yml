@@ -2,8 +2,10 @@
 # Production equivalent: docker-compose.prod.backend.yml + ./infra/up-prod-backend.sh
 #
 # Usage (from repo root):
-#   ./infra/up-dev-backend.sh up -d
-#   ./infra/up-dev-backend.sh build api --no-cache && ./infra/up-dev-backend.sh up -d
+#   ./infra/up-dev-backend.sh up -d --build api
+#
+# Routine deploy uses Docker layer cache. Use build --no-cache only when troubleshooting.
+# If disk is low: ./infra/clean-dev-cache.sh
 # Env: infra/.env.be.dev or infra/.env (DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, CORS_ORIGIN, …).
 # Document files: bind mount STORAGE_HOST_PATH → /app/storage (see STORAGE_ROOT_PATH).
 # Project name isolates volumes from prod on the same host.

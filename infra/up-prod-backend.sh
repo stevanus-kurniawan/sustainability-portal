@@ -7,7 +7,9 @@
 #   ./infra/up-prod-backend.sh up -d --build
 #   ./infra/up-prod-backend.sh up -d --build api
 #   ./infra/up-prod-backend.sh down
-# The script resolves infra/env.prod.backend relative to this script so Compose always loads it.
+#
+# Routine deploy: use up -d --build (Docker reuses cached layers when possible).
+# Use build --no-cache only when troubleshooting stale cache or dependency issues.
 # If builds fail with "No space left on device", run ./infra/clean-dev-cache.sh on the server first.
 
 set -e

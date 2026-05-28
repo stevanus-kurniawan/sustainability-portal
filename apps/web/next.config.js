@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   // Low-memory build: disable webpack cache to reduce peak RAM (used in Docker on 8GB servers).
   ...(process.env.BUILD_LOW_MEMORY === '1' && {
     webpack: (config, { dev }) => {

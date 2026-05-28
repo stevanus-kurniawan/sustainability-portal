@@ -247,18 +247,13 @@ Go to the project root and run compose (paths assume project is in `~/sustainabi
 
 ```bash
 cd ~/sustainability-portal
-docker compose -f infra/docker-compose.prod.backend.yml build --no-cache
+chmod +x infra/up-prod-backend.sh
+./infra/up-prod-backend.sh up -d --build
 ```
 
-**You should see:** Long build output (Node, npm/pnpm, Prisma, etc.). Wait until it finishes without errors (can take 5–10 minutes the first time).
+**You should see:** Build output (reuses Docker cache on later deploys). Wait until it finishes without errors. First build can take several minutes; routine deploys are faster.
 
-Then start the stack:
-
-```bash
-docker compose -f infra/docker-compose.prod.backend.yml up -d
-```
-
-**You should see:** Lines like “Creating slms-postgres-prod … done”, “Creating slms-redis-prod … done”, “Creating slms-api-prod … done”.
+Use `build --no-cache` only when troubleshooting stale cache or dependency issues.
 
 Wait about 60 seconds for the API to run migrations and start.
 
@@ -490,8 +485,8 @@ nano .env
 # Edit: DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET, JWT_ADMIN_SECRET, CORS_ORIGIN (http://FRONTEND_IP:8000), MINIO_ACCESS_KEY, MINIO_SECRET_KEY. Save: Ctrl+O, Enter, Ctrl+X.
 
 cd ~/sustainability-portal
-docker compose -f infra/docker-compose.prod.backend.yml build --no-cache
-docker compose -f infra/docker-compose.prod.backend.yml up -d
+chmod +x infra/up-prod-backend.sh
+./infra/up-prod-backend.sh up -d --build
 # Wait ~60s then:
 docker compose -f infra/docker-compose.prod.backend.yml logs api --tail 50
 curl -s http://localhost:8001/api/v1/health
@@ -529,7 +524,7 @@ docker compose -f infra/docker-compose.prod.frontend.yml logs web --tail 30
 | **`docker: command not found`** | Install Docker (see A3); then log out and back in. |
 | **API container exits** | Run `docker compose -f infra/docker-compose.prod.backend.yml logs api` and fix the reported error (often wrong DB/REDIS/JWT/MINIO in `.env`). |
 | **`curl localhost:8001` connection refused** | Wait longer; API may still be starting or running migrations. Check `logs api` again. |
-| **Frontend build fails** | Ensure you have enough disk and memory. Run `docker compose -f infra/docker-compose.prod.frontend.yml build --no-cache` and read the last error lines. |
+| **Frontend build fails** | Ensure enough disk and memory. Run `./infra/up-prod-frontend.sh up -d --build web` (cached). If still failing, try `build --no-cache web` and read the last error lines. Run `./infra/clean-dev-cache.sh` if disk is full. |
 | **Browser: “This site can’t be reached”** | Open port 8000 on the frontend (B7) and confirm you use `http://FRONTEND_IP:8000`. |
 | **Login works but no redirect** | Set `API_BACKEND_URL=http://BACKEND_IP:8001` in frontend `infra/.env`, then `docker compose -f infra/docker-compose.prod.frontend.yml up -d --build`. |
 | **CORS error in browser** | Set backend `CORS_ORIGIN=http://FRONTEND_IP:8000` (same as the URL in the address bar, no trailing slash). |
@@ -543,9 +538,9 @@ docker compose -f infra/docker-compose.prod.frontend.yml logs web --tail 30
 ```bash
 cd ~/sustainability-portal
 git pull origin BRANCH
-docker compose -f infra/docker-compose.prod.backend.yml build api --no-cache
-docker compose -f infra/docker-compose.prod.backend.yml up -d
-docker compose -f infra/docker-compose.prod.backend.yml logs api --tail 30
+chmod +x infra/up-prod-backend.sh
+./infra/up-prod-backend.sh up -d --build api
+./infra/up-prod-backend.sh logs api --tail 30
 ```
 
 **Frontend:**
@@ -553,8 +548,9 @@ docker compose -f infra/docker-compose.prod.backend.yml logs api --tail 30
 ```bash
 cd ~/sustainability-portal
 git pull origin BRANCH
-docker compose -f infra/docker-compose.prod.frontend.yml up -d --build
-docker compose -f infra/docker-compose.prod.frontend.yml logs web --tail 20
+chmod +x infra/up-prod-frontend.sh
+./infra/up-prod-frontend.sh up -d --build web
+./infra/up-prod-frontend.sh logs web --tail 20
 ```
 
 You do **not** need to recreate `.env` when updating; only change it when you change IPs, ports, or secrets.

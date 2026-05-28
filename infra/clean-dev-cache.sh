@@ -30,4 +30,4 @@ echo ""
 echo "=== Docker disk usage (after) ==="
 docker system df
 echo ""
-echo "Done. Run 'docker compose -f infra/docker-compose.dev.*.yml up -d' as needed."
+echo "Done. Run './infra/up-dev-backend.sh up -d --build api' or './infra/up-prod-backend.sh up -d --build' as needed."

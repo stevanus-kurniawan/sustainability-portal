@@ -157,9 +157,11 @@ From the **project root** (one level above `infra`):
 
 ```bash
 cd /path/to/sustainability-portal
-docker compose -f infra/docker-compose.prod.backend.yml build --no-cache
-docker compose -f infra/docker-compose.prod.backend.yml up -d
+chmod +x infra/up-prod-backend.sh
+./infra/up-prod-backend.sh up -d --build
 ```
+
+Use `build --no-cache` only when troubleshooting stale cache or dependency issues.
 
 Wait 30–60 seconds for Postgres, Redis, MinIO, and API to become healthy.
 
@@ -350,9 +352,34 @@ cd /path/to/sustainability-portal
 cp infra/env.example.frontend infra/env.prod.frontend
 # Edit infra/env.prod.frontend (API_URL, API_BACKEND_URL with correct IPs)
 chmod +x infra/up-prod-frontend.sh
-./infra/up-prod-frontend.sh up -d --build
+./infra/up-prod-frontend.sh up -d --build web
 ./infra/up-prod-frontend.sh logs web --tail 30
 ```
+
+---
+
+## Routine deploy vs troubleshooting
+
+**Routine deploy (after `git pull`)** — uses Docker layer cache; much faster and lighter on disk/bandwidth:
+
+```bash
+./infra/up-prod-backend.sh up -d --build api
+./infra/up-prod-frontend.sh up -d --build web
+```
+
+**Only when troubleshooting** (stale cache, dependency weirdness):
+
+```bash
+./infra/up-prod-backend.sh build --no-cache api
+./infra/up-prod-backend.sh up -d api
+
+./infra/up-prod-frontend.sh build --no-cache web
+./infra/up-prod-frontend.sh up -d web
+```
+
+**Low disk on server:** `./infra/clean-dev-cache.sh` (or `--aggressive` to remove unused images).
+
+**Low RAM during frontend build:** set `BUILD_LOW_MEMORY=1` in `infra/env.prod.frontend` (optional `NODE_OPTIONS=--max-old-space-size=1024`).
 
 ---
 
