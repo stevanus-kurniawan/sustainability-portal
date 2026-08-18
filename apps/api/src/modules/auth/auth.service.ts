@@ -49,6 +49,20 @@ const SALT_ROUNDS = 10;
 const EMAIL_VERIFICATION_EXPIRES_IN = '15m';
 const PASSWORD_RESET_EXPIRY_HOURS = 1;
 
+const USER_WITH_ROLES = {
+  userRoles: {
+    include: {
+      role: {
+        include: {
+          rolePermissions: {
+            include: { permission: true },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 type EmailVerificationPayload = {
   user_id: string;
   email: string;
@@ -180,6 +194,110 @@ export class AuthService {
     }
 
     return { message: 'Verification email sent. Link expires in 15 minutes.' };
+  }
+
+  /**
+   * Map a verified DWS Hub id_token to a local user and issue our JWT session.
+   * Identity key is `sub` (oidcSub); email is a display attribute and may change.
+   */
+  async loginWithOidcClaims(claims: {
+    sub?: string;
+    email?: string;
+    name?: string;
+    preferred_username?: string;
+  }): Promise<TokenResponse> {
+    const sub = claims.sub ? String(claims.sub).trim() : '';
+    if (!sub) {
+      throw new BadRequestException('Invalid token payload (no subject)');
+    }
+    if (sub.length > 255) {
+      throw new BadRequestException('Invalid token payload');
+    }
+
+    const email = (claims.email || '').trim().toLowerCase();
+    const displayName = (
+      claims.name ||
+      claims.preferred_username ||
+      (email ? email.split('@')[0] : '') ||
+      'User'
+    )
+      .toString()
+      .trim();
+
+    let user = (await this.prisma.user.findUnique({
+      where: { oidcSub: sub } as any,
+      include: USER_WITH_ROLES,
+    })) as any;
+
+    if (!user && email) {
+      const byEmail = (await this.prisma.user.findUnique({
+        where: { email },
+        include: USER_WITH_ROLES,
+      })) as any;
+      if (byEmail) {
+        if (byEmail.oidcSub && byEmail.oidcSub !== sub) {
+          throw new UnauthorizedException(
+            'This email is already linked to another SSO identity',
+          );
+        }
+        user = (await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: {
+            oidcSub: sub,
+            emailVerified: true,
+            emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+            ...(byEmail.status === 'SUSPENDED' || byEmail.status === 'INACTIVE'
+              ? {}
+              : { status: 'ACTIVE' as any }),
+          } as any,
+          include: USER_WITH_ROLES,
+        })) as any;
+      }
+    }
+
+    if (!user) {
+      if (!email) {
+        throw new BadRequestException('Invalid token payload (no email)');
+      }
+      user = (await this.prisma.user.create({
+        data: {
+          email,
+          name: displayName,
+          oidcSub: sub,
+          passwordHash: null,
+          status: 'ACTIVE' as any,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+        } as any,
+        include: USER_WITH_ROLES,
+      })) as any;
+
+      const publicReaderRole = await this.prisma.role.findUnique({
+        where: { name: 'PublicReader' },
+      });
+      if (publicReaderRole) {
+        await this.prisma.userRole.create({
+          data: { userId: user.id, roleId: publicReaderRole.id },
+        });
+        user = await this.usersService.findById(user.id);
+      }
+    } else if (email && email !== user.email) {
+      const taken = await this.prisma.user.findUnique({ where: { email } });
+      if (!taken) {
+        user = (await this.prisma.user.update({
+          where: { id: user.id },
+          data: { email } as any,
+          include: USER_WITH_ROLES,
+        })) as any;
+      }
+    }
+
+    if (user.status === 'SUSPENDED' || user.status === 'INACTIVE') {
+      throw new UnauthorizedException('Account is not active');
+    }
+
+    await this.logAudit(user.email, 'OIDC_LOGIN', 'User', user.id);
+    return this.generateTokens(user);
   }
 
   /**

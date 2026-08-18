@@ -21,6 +21,8 @@ model User {
   email        String     @unique
   name         String
   passwordHash String?    @map("password_hash")
+  /// Stable DWS Hub OIDC subject. Use this as the SSO identity key, not email.
+  oidcSub      String?    @unique @map("oidc_sub") @db.VarChar(255)
   status       UserStatus @default(ACTIVE)
   emailVerified   Boolean   @default(false) @map("email_verified")
   emailVerifiedAt DateTime? @map("email_verified_at")

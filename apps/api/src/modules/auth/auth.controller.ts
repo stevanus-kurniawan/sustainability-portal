@@ -13,7 +13,6 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Response } from 'express';
-import * as crypto from 'crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -21,6 +20,10 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import {
+  clearUserSessionCookies,
+  setUserSessionCookies,
+} from './auth-cookies';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { LoginDto } from './dto/login.dto';
@@ -31,9 +34,6 @@ import { ChangeEmailDto } from './dto/change-email.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from './decorators/public.decorator';
-
-const USER_ACCESS_TOKEN_COOKIE = 'user_access_token';
-const CSRF_COOKIE_NAME = 'csrf_token';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -90,9 +90,9 @@ export class AuthController {
     try {
       const result = await this.authService.login(loginDto.email, loginDto.password);
       try {
-        this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+        setUserSessionCookies(res, result.accessToken, result.expiresIn, req);
       } catch (cookieErr: any) {
-        this.logger.error(`setUserCookie failed: ${cookieErr?.message ?? cookieErr}`, cookieErr?.stack);
+        this.logger.error(`setUserSessionCookies failed: ${cookieErr?.message ?? cookieErr}`, cookieErr?.stack);
         throw new InternalServerErrorException(
           'Login temporarily unavailable. Please try again or check API logs.',
         );
@@ -122,7 +122,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.refreshTokens(refreshDto.refreshToken);
-    this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+    setUserSessionCookies(res, result.accessToken, result.expiresIn, req);
     return { user: result.user, expiresIn: result.expiresIn };
   }
 
@@ -138,7 +138,7 @@ export class AuthController {
     @Body() body: { refreshToken?: string },
   ) {
     await this.authService.logout(req.user.id, body?.refreshToken);
-    this.clearUserCookie(res, req);
+    clearUserSessionCookies(res, req);
     return { message: 'Logged out successfully' };
   }
 
@@ -182,7 +182,7 @@ export class AuthController {
   ) {
     const result = await this.authService.verifyEmail(token);
     if (result && 'accessToken' in result && result.accessToken) {
-      this.setUserCookie(res, result.accessToken, result.expiresIn, req);
+      setUserSessionCookies(res, result.accessToken, result.expiresIn, req);
     }
     return result;
   }
@@ -230,57 +230,4 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
-  private getCookieOptions(req?: any): import('express').CookieOptions {
-    const nodeEnv = process.env.NODE_ENV || 'development';
-    const isProd = nodeEnv === 'production';
-    const forwardedProto = req?.headers?.['x-forwarded-proto'];
-    const reqSecure = !!req?.secure;
-
-    const appearsSecure = reqSecure || forwardedProto === 'https';
-    const secure = isProd ? true : appearsSecure;
-
-    const sameSite: boolean | 'lax' | 'strict' | 'none' =
-      (process.env.COOKIE_SAMESITE as any) || 'lax';
-
-    const domain = process.env.COOKIE_DOMAIN || undefined;
-
-    return {
-      httpOnly: true,
-      secure,
-      sameSite,
-      domain,
-      path: '/',
-    };
-  }
-
-  private setUserCookie(
-    res: Response,
-    token: string,
-    expiresInSeconds: number,
-    req?: any,
-  ): void {
-    const baseOptions = this.getCookieOptions(req);
-    const csrfToken = crypto.randomBytes(32).toString('hex');
-
-    res.cookie(USER_ACCESS_TOKEN_COOKIE, token, {
-      ...baseOptions,
-      maxAge: expiresInSeconds * 1000,
-    });
-
-    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
-      ...baseOptions,
-      httpOnly: false,
-      maxAge: expiresInSeconds * 1000,
-    });
-  }
-
-  private clearUserCookie(res: Response, req?: any): void {
-    const baseOptions = this.getCookieOptions(req);
-
-    res.clearCookie(USER_ACCESS_TOKEN_COOKIE, baseOptions);
-    res.clearCookie(CSRF_COOKIE_NAME, {
-      ...baseOptions,
-      httpOnly: false,
-    });
-  }
 }

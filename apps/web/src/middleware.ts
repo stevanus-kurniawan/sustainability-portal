@@ -38,6 +38,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // DWS Hub OIDC: login start + callback must be reachable without a session cookie
+  if (pathname.startsWith('/auth/oidc')) {
+    return NextResponse.next();
+  }
+
   // Public user routes: allow without cookie; if authenticated, redirect to landing
   if (PUBLIC_USER_ROUTES.some((r) => pathname === r || pathname === r + '/')) {
     if (hasUserCookie(req)) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'missing-fields': 'Please enter email and password.',
   'network': 'Cannot reach the server. Please try again.',
   'invalid-request': 'Invalid request. Please try again.',
+  'sso-failed': 'Sign-in with DWS Hub failed. Please try again.',
 };
 
 export default function LoginPage() {
@@ -23,6 +24,22 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/auth/oidc/enabled', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { enabled: false }))
+      .then((data) => {
+        if (!cancelled && data?.enabled) setSsoEnabled(true);
+      })
+      .catch(() => {
+        /* Hub SSO is optional; email/password still works */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,7 +85,11 @@ export default function LoginPage() {
         <Card className="p-6">
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
-            <p className="text-sm text-steel mt-1">Enter your email and password.</p>
+            <p className="text-sm text-steel mt-1">
+              {ssoEnabled
+                ? 'Sign in with DWS Hub or use your email and password.'
+                : 'Enter your email and password.'}
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -110,6 +131,24 @@ export default function LoginPage() {
                 Login
               </Button>
             </form>
+            {ssoEnabled && (
+              <div className="mt-4">
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-steel">or</span>
+                  </div>
+                </div>
+                <a
+                  href="/auth/oidc/login"
+                  className="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-charcoal hover:bg-gray-50"
+                >
+                  Sign in with DWS Hub
+                </a>
+              </div>
+            )}
             <p className="mt-3 text-sm text-steel text-center">
               <Link
                 href="/forgot-password"
