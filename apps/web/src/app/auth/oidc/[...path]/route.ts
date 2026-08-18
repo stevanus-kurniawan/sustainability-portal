@@ -95,9 +95,27 @@ async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<
     if (!location) {
       return NextResponse.json({ message: 'SSO redirect missing Location' }, { status: 502 });
     }
-    const response = NextResponse.redirect(location, upstream.status as 301 | 302 | 303 | 307 | 308);
-    applyBackendCookies(response, upstream, requestIsHttps);
-    return response;
+
+    const setCookies = getSetCookiesFromResponse(upstream);
+
+    // If there are cookies to set (e.g. oidc_pkce on login-start), use an HTML page so the
+    // browser commits the cookies before following the redirect. NextResponse.redirect() can
+    // silently drop Set-Cookie headers in some Next.js configurations.
+    if (setCookies.length > 0) {
+      const safeUrl = JSON.stringify(location);
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>window.location.replace(${safeUrl})</script><noscript><meta http-equiv="refresh" content="0;url=${location.replace(/"/g, '&quot;')}"></noscript></head><body></body></html>`;
+      const response = new NextResponse(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+      setCookies.forEach((c) => {
+        response.headers.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
+      });
+      return response;
+    }
+
+    // No cookies — plain redirect is safe.
+    return NextResponse.redirect(location, upstream.status as 301 | 302 | 303 | 307 | 308);
   }
 
   const body = await upstream.text();
