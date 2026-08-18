@@ -2,7 +2,12 @@ import {
   buildAuthorizeUrl,
   buildTokenRequestBody,
   createPkcePair,
+  defaultOidcCallbackPath,
+  firstOrigin,
+  isLoopbackHost,
   isPlaceholderHost,
+  originFromUrl,
+  publicCallbackUrl,
   requireSingleUrl,
 } from './oidc.util';
 
@@ -61,5 +66,33 @@ describe('oidc.util', () => {
       code_verifier: 'verifier',
     });
     expect(JSON.stringify(body)).not.toContain('grant_type=authorization_code');
+  });
+
+  it('reconstructs the public callback URL Hub redirected to', () => {
+    expect(
+      publicCallbackUrl({
+        headers: {
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'sustainability.kpndomain.com',
+        },
+        originalUrl:
+          '/api/v1/auth/oidc/callback?code=abc&state=st&code_verifier=ver',
+      }),
+    ).toBe('https://sustainability.kpndomain.com/api/v1/auth/oidc/callback');
+  });
+
+  it('treats localhost FRONTEND_URL as loopback and picks /api/v1 callback on public hosts', () => {
+    expect(isLoopbackHost('http://localhost:3000')).toBe(true);
+    expect(isLoopbackHost('https://sustainability.kpndomain.com')).toBe(false);
+    expect(defaultOidcCallbackPath('http://localhost:3000')).toBe('/auth/oidc/callback');
+    expect(defaultOidcCallbackPath('https://sustainability.kpndomain.com')).toBe(
+      '/api/v1/auth/oidc/callback',
+    );
+    expect(firstOrigin('https://a.example.com,https://b.example.com')).toBe(
+      'https://a.example.com',
+    );
+    expect(
+      originFromUrl('https://sustainability.kpndomain.com/api/v1/auth/oidc/callback'),
+    ).toBe('https://sustainability.kpndomain.com');
   });
 });

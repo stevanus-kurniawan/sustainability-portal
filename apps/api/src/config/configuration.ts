@@ -89,11 +89,6 @@ export default () => {
       clientId: process.env.OIDC_CLIENT_ID || '',
       redirectUri: process.env.OIDC_REDIRECT_URI || '',
       scopes: process.env.OIDC_SCOPES || 'openid email profile',
-      frontendUrl:
-        process.env.FRONTEND_URL ||
-        process.env.APP_BASE_URL ||
-        process.env.WEB_URL ||
-        'http://localhost:3000',
     },
   };
 };

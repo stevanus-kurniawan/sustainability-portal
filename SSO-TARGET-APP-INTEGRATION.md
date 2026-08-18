@@ -27,7 +27,7 @@ Register in **Hub → Admin → Applications**:
 |---|---|
 | Client type | Public / PKCE |
 | `client_id` | `sustainability-portal` (whatever the Hub assigns) |
-| Redirect URI | `https://sustainability.kpndomain.com/auth/oidc/callback` |
+| Redirect URI | `https://sustainability.kpndomain.com/api/v1/auth/oidc/callback` (must match Hub exactly) |
 | Discovery | `https://<hub-host>/api/sso/.well-known/openid-configuration` |
 
 App env (single values only — never comma-join):
@@ -35,22 +35,21 @@ App env (single values only — never comma-join):
 ```ini
 OIDC_DISCOVERY_URL=https://<hub-host>/api/sso/.well-known/openid-configuration
 OIDC_CLIENT_ID=sustainability-portal
-OIDC_REDIRECT_URI=https://sustainability.kpndomain.com/auth/oidc/callback
+OIDC_REDIRECT_URI=https://sustainability.kpndomain.com/api/v1/auth/oidc/callback
 OIDC_SCOPES=openid email profile
-FRONTEND_URL=https://sustainability.kpndomain.com
 SESSION_COOKIE_SAMESITE=Lax
 SESSION_COOKIE_SECURE=true
 ```
 
-Local HTTP: `OIDC_REDIRECT_URI=http://localhost:3000/auth/oidc/callback`, `FRONTEND_URL=http://localhost:3000`, `SESSION_COOKIE_SECURE=false`.
+Local HTTP: `OIDC_REDIRECT_URI=http://localhost:3000/auth/oidc/callback`, `SESSION_COOKIE_SECURE=false`. After login the app sends the browser to the **origin** of `OIDC_REDIRECT_URI` (no separate `FRONTEND_URL`).
 
 Routes:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/auth/oidc/enabled` | `{ enabled: true }` when the three Hub vars are set |
+| GET | `/auth/oidc/enabled` or `/api/v1/auth/oidc/enabled` | `{ enabled: true }` when Hub vars are set on the API |
 | GET | `/auth/oidc/login` | SP-initiated start |
-| GET | `/auth/oidc/callback` | SP- and IdP-initiated callback |
+| GET | `/auth/oidc/callback` or `/api/v1/auth/oidc/callback` | SP- and IdP-initiated callback |
 
 After a verified `id_token`, the portal maps `sub` → `users.oidc_sub`, JIT-provisions with `PublicReader` if needed, then sets the existing `user_access_token` cookie (not a Hub session). Email/password login remains available. Admin portal SSO is out of scope.
 

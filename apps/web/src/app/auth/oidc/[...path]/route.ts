@@ -56,8 +56,15 @@ async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<
   const headers: Record<string, string> = {};
   const cookie = request.headers.get('cookie');
   if (cookie) headers.cookie = cookie;
+  const proto =
+    request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (proto) headers['x-forwarded-proto'] = proto;
+  if (host) headers['x-forwarded-host'] = host;
 
-  const requestIsHttps = request.nextUrl.protocol === 'https:';
+  const requestIsHttps =
+    request.headers.get('x-forwarded-proto') === 'https' ||
+    request.nextUrl.protocol === 'https:';
 
   const doFetch = (url: string) =>
     fetch(url, {

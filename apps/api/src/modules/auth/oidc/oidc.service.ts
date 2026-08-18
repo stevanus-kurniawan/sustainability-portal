@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
@@ -7,7 +7,12 @@ import {
   buildAuthorizeUrl,
   buildTokenRequestBody,
   createPkcePair,
+  defaultOidcCallbackPath,
+  isLoopbackHost,
   isPlaceholderHost,
+  originFromUrl,
+  publicCallbackUrl,
+  publicOrigin,
   randomUrlSafe,
   requireSingleUrl,
 } from './oidc.util';
@@ -38,7 +43,8 @@ const PKCE_JWT_EXPIRES = '10m';
 const HUB_TIMEOUT_MS = 10_000;
 
 @Injectable()
-export class OidcService {
+export class OidcService implements OnModuleInit {
+  private readonly logger = new Logger(OidcService.name);
   private metadata: OidcMetadata | null = null;
   private metadataFetchedAt = 0;
   private jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
@@ -49,39 +55,92 @@ export class OidcService {
     private readonly jwtService: JwtService,
   ) {}
 
+  onModuleInit() {
+    if (this.isConfigured()) {
+      this.logger.log('DWS Hub OIDC is enabled');
+    } else {
+      this.logger.warn(
+        'DWS Hub OIDC is disabled: set OIDC_DISCOVERY_URL, OIDC_CLIENT_ID, and OIDC_REDIRECT_URI on the API, then recreate the container',
+      );
+    }
+  }
+
   isConfigured(): boolean {
     const discoveryUrl = this.getDiscoveryUrl();
     const clientId = this.getClientId();
-    return Boolean(discoveryUrl && clientId && !isPlaceholderHost(discoveryUrl));
+    const redirectUri = this.getConfiguredRedirectUri();
+    return Boolean(
+      discoveryUrl &&
+        clientId &&
+        redirectUri &&
+        !isPlaceholderHost(discoveryUrl) &&
+        !isPlaceholderHost(redirectUri),
+    );
   }
 
-  getFrontendUrl(): string {
-    const raw =
-      this.configService.get<string>('oidc.frontendUrl') ||
-      this.configService.get<string>('FRONTEND_URL') ||
-      this.configService.get<string>('APP_BASE_URL') ||
-      this.configService.get<string>('WEB_URL') ||
-      'http://localhost:3000';
-    return requireSingleUrl(raw, 'FRONTEND_URL');
+  /** Post-login send-to URL: origin of OIDC_REDIRECT_URI (no separate FRONTEND_URL). */
+  getFrontendUrl(req?: any): string {
+    const redirectUri = this.getConfiguredRedirectUri();
+    if (redirectUri) {
+      return originFromUrl(redirectUri);
+    }
+    const fromReq = req ? publicOrigin(req) : null;
+    if (fromReq) {
+      return fromReq;
+    }
+    return 'http://localhost:3000';
   }
 
-  getRedirectUri(): string {
-    const configured = (
+  getRedirectUri(req?: any): string {
+    const configured = this.getConfiguredRedirectUri();
+    if (configured) {
+      return requireSingleUrl(configured, 'OIDC_REDIRECT_URI');
+    }
+    const frontend = this.getFrontendUrl(req);
+    return requireSingleUrl(
+      `${frontend}${defaultOidcCallbackPath(frontend)}`,
+      'OIDC_REDIRECT_URI',
+    );
+  }
+
+  /**
+   * Token-exchange redirect_uri must match Hub's registered URI.
+   * OIDC_REDIRECT_URI is the source of truth; the live callback URL is the fallback.
+   */
+  getTokenRedirectUri(req?: any): string {
+    const configured = this.getConfiguredRedirectUri();
+    if (configured && !isLoopbackHost(configured)) {
+      return requireSingleUrl(configured, 'OIDC_REDIRECT_URI');
+    }
+    if (req) {
+      try {
+        const url = publicCallbackUrl(req);
+        if (!isLoopbackHost(url)) {
+          return url;
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return this.getRedirectUri(req);
+  }
+
+  private getConfiguredRedirectUri(): string {
+    return (
       this.configService.get<string>('oidc.redirectUri') ||
       this.configService.get<string>('OIDC_REDIRECT_URI') ||
       ''
     ).trim();
-    const uri = configured || `${this.getFrontendUrl()}/auth/oidc/callback`;
-    return requireSingleUrl(uri, 'OIDC_REDIRECT_URI');
   }
 
-  async startLogin(): Promise<{ url: string; pkceToken: string }> {
+  async startLogin(req?: any): Promise<{ url: string; pkceToken: string }> {
     const meta = await this.loadMetadata();
     const { codeVerifier, codeChallenge } = createPkcePair();
     const state = randomUrlSafe(24);
     const nonce = randomUrlSafe(24);
     const clientId = this.getClientId();
-    const redirectUri = this.getRedirectUri();
+    const redirectUri = this.getRedirectUri(req);
+    this.logger.log(`OIDC authorize redirect_uri=${redirectUri}`);
     const scope = this.getScopes();
 
     const url = buildAuthorizeUrl(meta.authorization_endpoint, {
@@ -112,6 +171,7 @@ export class OidcService {
     code: string,
     state: string | undefined,
     pkceJwt: string | undefined,
+    req?: any,
   ): Promise<OidcClaims> {
     if (!pkceJwt) {
       throw new Error('missing PKCE session (start login from /auth/oidc/login)');
@@ -120,15 +180,19 @@ export class OidcService {
     if (!state || state !== pkce.state) {
       throw new Error('mismatching_state');
     }
-    const claims = await this.exchangeAndVerify(code, pkce.codeVerifier);
+    const claims = await this.exchangeAndVerify(code, pkce.codeVerifier, req);
     if (claims.nonce && claims.nonce !== pkce.nonce) {
       throw new Error('mismatching_nonce');
     }
     return claims;
   }
 
-  async exchangeIdpInitiated(code: string, codeVerifier: string): Promise<OidcClaims> {
-    return this.exchangeAndVerify(code, codeVerifier);
+  async exchangeIdpInitiated(
+    code: string,
+    codeVerifier: string,
+    req?: any,
+  ): Promise<OidcClaims> {
+    return this.exchangeAndVerify(code, codeVerifier, req);
   }
 
   private readPkceCookie(token: string): PkceCookiePayload {
@@ -139,11 +203,17 @@ export class OidcService {
     return payload;
   }
 
-  private async exchangeAndVerify(code: string, codeVerifier: string): Promise<OidcClaims> {
+  private async exchangeAndVerify(
+    code: string,
+    codeVerifier: string,
+    req?: any,
+  ): Promise<OidcClaims> {
     const meta = await this.loadMetadata();
+    const redirectUri = this.getTokenRedirectUri(req);
+    this.logger.log(`OIDC token redirect_uri=${redirectUri}`);
     const body = buildTokenRequestBody({
       code,
-      redirectUri: this.getRedirectUri(),
+      redirectUri,
       clientId: this.getClientId(),
       codeVerifier,
     });

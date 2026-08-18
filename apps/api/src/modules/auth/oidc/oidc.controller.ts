@@ -40,7 +40,7 @@ export class OidcController {
   @ApiOperation({ summary: 'Start DWS Hub OIDC login (SP-initiated)' })
   async login(@Req() req: any, @Res() res: Response) {
     this.assertConfigured();
-    const { url, pkceToken } = await this.oidcService.startLogin();
+    const { url, pkceToken } = await this.oidcService.startLogin(req);
     setOidcPkceCookie(res, pkceToken, req);
     return res.redirect(302, url);
   }
@@ -56,7 +56,7 @@ export class OidcController {
     @Query('error') hubError?: string,
   ) {
     this.assertConfigured();
-    const frontend = this.oidcService.getFrontendUrl();
+    const frontend = this.oidcService.getFrontendUrl(req);
     const failUrl = `${frontend}/login?error=sso-failed`;
 
     try {
@@ -72,11 +72,12 @@ export class OidcController {
 
       // IdP-initiated (Hub tile): Hub sends code_verifier because we never ran /login.
       const claims = codeVerifier
-        ? await this.oidcService.exchangeIdpInitiated(code, codeVerifier)
+        ? await this.oidcService.exchangeIdpInitiated(code, codeVerifier, req)
         : await this.oidcService.exchangeSpInitiated(
             code,
             state,
             req.cookies?.[OIDC_PKCE_COOKIE],
+            req,
           );
 
       const tokens = await this.authService.loginWithOidcClaims(claims);
@@ -95,7 +96,9 @@ export class OidcController {
 
   private assertConfigured(): void {
     if (!this.oidcService.isConfigured()) {
-      throw new NotFoundException();
+      throw new NotFoundException(
+        'DWS Hub SSO is not configured. Set OIDC_DISCOVERY_URL, OIDC_CLIENT_ID, and OIDC_REDIRECT_URI on the API service and recreate the container.',
+      );
     }
   }
 }

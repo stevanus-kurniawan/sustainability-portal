@@ -34,12 +34,40 @@ describe('OidcService.isConfigured', () => {
     expect(service.isConfigured()).toBe(false);
   });
 
-  it('is true when discovery URL and client id are set', async () => {
+  it('is true when discovery URL, client id, and redirect URI are set', async () => {
+    const service = await createService({
+      'oidc.discoveryUrl':
+        'https://hub.example.com/api/sso/.well-known/openid-configuration',
+      'oidc.clientId': 'sustainability-portal',
+      'oidc.redirectUri':
+        'https://sustainability.kpndomain.com/api/v1/auth/oidc/callback',
+    });
+    expect(service.isConfigured()).toBe(true);
+  });
+
+  it('is false when redirect URI is missing', async () => {
     const service = await createService({
       'oidc.discoveryUrl':
         'https://hub.example.com/api/sso/.well-known/openid-configuration',
       'oidc.clientId': 'sustainability-portal',
     });
-    expect(service.isConfigured()).toBe(true);
+    expect(service.isConfigured()).toBe(false);
+  });
+
+  it('derives the post-login origin from OIDC_REDIRECT_URI (no FRONTEND_URL)', async () => {
+    const service = await createService({
+      'oidc.discoveryUrl':
+        'https://hub.example.com/api/sso/.well-known/openid-configuration',
+      'oidc.clientId': 'sustainability-portal',
+      'oidc.redirectUri':
+        'https://sustainability.kpndomain.com/api/v1/auth/oidc/callback',
+    });
+    expect(service.getFrontendUrl()).toBe('https://sustainability.kpndomain.com');
+    expect(service.getRedirectUri()).toBe(
+      'https://sustainability.kpndomain.com/api/v1/auth/oidc/callback',
+    );
+    expect(service.getTokenRedirectUri()).toBe(
+      'https://sustainability.kpndomain.com/api/v1/auth/oidc/callback',
+    );
   });
 });

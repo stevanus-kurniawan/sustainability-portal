@@ -14,13 +14,15 @@ async function doFetch(
   backendUrl: string,
   method: string,
   headers: HeadersInit,
-  body: string | undefined
+  body: string | undefined,
+  redirect: RequestRedirect = 'follow',
 ): Promise<Response> {
   return fetch(backendUrl, {
     method,
     headers,
     body,
     cache: 'no-store',
+    redirect,
   });
 }
 
@@ -45,11 +47,26 @@ async function proxyToBackend(request: NextRequest, pathSegments: string[]) {
       lower === 'content-type' ||
       lower === 'authorization' ||
       lower === 'x-csrf-token' ||
-      lower === 'x-xsrf-token'
+      lower === 'x-xsrf-token' ||
+      lower === 'x-forwarded-proto' ||
+      lower === 'x-forwarded-host' ||
+      lower === 'x-forwarded-for'
     ) {
       headers[key] = value;
     }
   });
+  const forwardedProto =
+    request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
+  const forwardedHost =
+    request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (forwardedProto && !('x-forwarded-proto' in headers) && !('X-Forwarded-Proto' in headers)) {
+    headers['x-forwarded-proto'] = forwardedProto;
+  }
+  if (forwardedHost) {
+    headers['x-forwarded-host'] = forwardedHost;
+  }
+
+  const isOidc = path.startsWith('auth/oidc');
 
   let body: string | undefined;
   const contentType = request.headers.get('content-type') || '';
@@ -67,16 +84,17 @@ async function proxyToBackend(request: NextRequest, pathSegments: string[]) {
   }
 
   const method = request.method;
+  const redirect: RequestRedirect = isOidc ? 'manual' : 'follow';
 
   try {
-    const res = await doFetch(backendUrl, method, headers, body);
-    return await forwardResponse(request, res);
+    const res = await doFetch(backendUrl, method, headers, body, redirect);
+    return await forwardResponse(request, res, isOidc);
   } catch (err) {
     if (/localhost|127\.0\.0\.1/.test(backendUrl)) {
       const fallbackUrl = backendUrl.replace(/https?:\/\/[^/]+/, DOCKER_API_ORIGIN);
       try {
-        const res = await doFetch(fallbackUrl, method, headers, body);
-        return await forwardResponse(request, res);
+        const res = await doFetch(fallbackUrl, method, headers, body, redirect);
+        return await forwardResponse(request, res, isOidc);
       } catch (retryErr) {
         const message = retryErr instanceof Error ? retryErr.message : 'Backend request failed';
         return NextResponse.json(
@@ -127,11 +145,29 @@ function getSetCookiesFromResponse(res: Response): string[] {
   return single ? [single] : [];
 }
 
-async function forwardResponse(request: NextRequest, res: Response): Promise<NextResponse> {
+async function forwardResponse(
+  request: NextRequest,
+  res: Response,
+  isOidc = false,
+): Promise<NextResponse> {
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const requestIsHttps =
+    forwardedProto === 'https' || request.nextUrl.protocol === 'https:';
+
+  if (isOidc && res.status >= 300 && res.status < 400) {
+    const location = res.headers.get('location');
+    if (!location) {
+      return NextResponse.json({ message: 'SSO redirect missing Location' }, { status: 502 });
+    }
+    const response = NextResponse.redirect(location, res.status as 301 | 302 | 303 | 307 | 308);
+    getSetCookiesFromResponse(res).forEach((c) => {
+      response.headers.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
+    });
+    return response;
+  }
+
   const responseHeaders = new Headers();
   const setCookies = getSetCookiesFromResponse(res);
-  const proto = request.nextUrl.protocol;
-  const requestIsHttps = proto === 'https:';
   res.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower === 'set-cookie') {
