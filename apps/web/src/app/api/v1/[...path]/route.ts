@@ -159,10 +159,27 @@ async function forwardResponse(
     if (!location) {
       return NextResponse.json({ message: 'SSO redirect missing Location' }, { status: 502 });
     }
+
+    const setCookies = getSetCookiesFromResponse(res);
+
+    // If there are cookies to set (auth callback → tokens), return a 200 HTML page that
+    // sets cookies before navigating. NextResponse.redirect() can silently drop Set-Cookie
+    // headers in some Next.js configurations, causing the session to be lost.
+    if (setCookies.length > 0) {
+      const safeUrl = JSON.stringify(location);
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>window.location.replace(${safeUrl})</script><noscript><meta http-equiv="refresh" content="0;url=${location.replace(/"/g, '&quot;')}"></noscript></head><body></body></html>`;
+      const response = new NextResponse(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+      setCookies.forEach((c) => {
+        response.headers.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
+      });
+      return response;
+    }
+
+    // No cookies (e.g. login-start redirect to Hub) — plain redirect is fine.
     const response = NextResponse.redirect(location, res.status as 301 | 302 | 303 | 307 | 308);
-    getSetCookiesFromResponse(res).forEach((c) => {
-      response.headers.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
-    });
     return response;
   }
 
