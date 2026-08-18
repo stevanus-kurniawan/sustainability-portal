@@ -199,12 +199,16 @@ export class AuthService {
   /**
    * Map a verified DWS Hub id_token to a local user and issue our JWT session.
    * Identity key is `sub` (oidcSub); email is a display attribute and may change.
+   * An existing SLMS user with the same email is linked on first Hub login.
    */
   async loginWithOidcClaims(claims: {
     sub?: string;
     email?: string;
     name?: string;
     preferred_username?: string;
+    upn?: string;
+    unique_name?: string;
+    emails?: string | string[];
   }): Promise<TokenResponse> {
     const sub = claims.sub ? String(claims.sub).trim() : '';
     if (!sub) {
@@ -214,7 +218,7 @@ export class AuthService {
       throw new BadRequestException('Invalid token payload');
     }
 
-    const email = (claims.email || '').trim().toLowerCase();
+    const email = this.extractOidcEmail(claims);
     const displayName = (
       claims.name ||
       claims.preferred_username ||
@@ -224,34 +228,12 @@ export class AuthService {
       .toString()
       .trim();
 
-    let user = (await this.prisma.user.findUnique({
-      where: { oidcSub: sub } as any,
-      include: USER_WITH_ROLES,
-    })) as any;
+    let user = await this.findUserByOidcSub(sub);
 
     if (!user && email) {
-      const byEmail = (await this.prisma.user.findUnique({
-        where: { email },
-        include: USER_WITH_ROLES,
-      })) as any;
-      if (byEmail) {
-        if (byEmail.oidcSub && byEmail.oidcSub !== sub) {
-          throw new UnauthorizedException(
-            'This email is already linked to another SSO identity',
-          );
-        }
-        user = (await this.prisma.user.update({
-          where: { id: byEmail.id },
-          data: {
-            oidcSub: sub,
-            emailVerified: true,
-            emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
-            ...(byEmail.status === 'SUSPENDED' || byEmail.status === 'INACTIVE'
-              ? {}
-              : { status: 'ACTIVE' as any }),
-          } as any,
-          include: USER_WITH_ROLES,
-        })) as any;
+      user = await this.findUserByEmailInsensitive(email);
+      if (user) {
+        user = await this.linkOidcSub(user, sub);
       }
     }
 
@@ -259,31 +241,49 @@ export class AuthService {
       if (!email) {
         throw new BadRequestException('Invalid token payload (no email)');
       }
-      user = (await this.prisma.user.create({
-        data: {
-          email,
-          name: displayName,
-          oidcSub: sub,
-          passwordHash: null,
-          status: 'ACTIVE' as any,
-          emailVerified: true,
-          emailVerifiedAt: new Date(),
-        } as any,
-        include: USER_WITH_ROLES,
-      })) as any;
-
-      const publicReaderRole = await this.prisma.role.findUnique({
-        where: { name: 'PublicReader' },
-      });
-      if (publicReaderRole) {
-        await this.prisma.userRole.create({
-          data: { userId: user.id, roleId: publicReaderRole.id },
-        });
-        user = await this.usersService.findById(user.id);
+      try {
+        user = (await this.prisma.user.create({
+          data: {
+            email,
+            name: displayName,
+            oidcSub: sub,
+            passwordHash: null,
+            status: 'ACTIVE' as any,
+            emailVerified: true,
+            emailVerifiedAt: new Date(),
+          } as any,
+          include: USER_WITH_ROLES,
+        })) as any;
+      } catch (err: any) {
+        // Email unique constraint: account exists under a different casing (or race).
+        if (err?.code === 'P2002') {
+          user = await this.findUserByEmailInsensitive(email);
+          if (user) {
+            user = await this.linkOidcSub(user, sub);
+          }
+        }
+        if (!user) {
+          this.logger.warn(
+            `OIDC JIT create failed: ${err?.code || err?.constructor?.name}: ${err?.message}`,
+          );
+          throw err;
+        }
       }
-    } else if (email && email !== user.email) {
-      const taken = await this.prisma.user.findUnique({ where: { email } });
-      if (!taken) {
+
+      if (user && !(user.userRoles && user.userRoles.length)) {
+        const publicReaderRole = await this.prisma.role.findUnique({
+          where: { name: 'PublicReader' },
+        });
+        if (publicReaderRole) {
+          await this.prisma.userRole.create({
+            data: { userId: user.id, roleId: publicReaderRole.id },
+          });
+          user = await this.usersService.findById(user.id);
+        }
+      }
+    } else if (email && email !== String(user.email || '').toLowerCase()) {
+      const taken = await this.findUserByEmailInsensitive(email);
+      if (!taken || taken.id === user.id) {
         user = (await this.prisma.user.update({
           where: { id: user.id },
           data: { email } as any,
@@ -298,6 +298,74 @@ export class AuthService {
 
     await this.logAudit(user.email, 'OIDC_LOGIN', 'User', user.id);
     return this.generateTokens(user);
+  }
+
+  private extractOidcEmail(claims: {
+    email?: string;
+    preferred_username?: string;
+    upn?: string;
+    unique_name?: string;
+    emails?: string | string[];
+  }): string {
+    const nested = Array.isArray(claims.emails) ? claims.emails[0] : claims.emails;
+    const candidates = [
+      claims.email,
+      nested,
+      claims.upn,
+      claims.unique_name,
+      claims.preferred_username,
+    ];
+    for (const candidate of candidates) {
+      const value = String(candidate || '').trim().toLowerCase();
+      if (value.includes('@')) {
+        return value;
+      }
+    }
+    return '';
+  }
+
+  private async findUserByOidcSub(sub: string): Promise<any | null> {
+    try {
+      return await this.prisma.user.findUnique({
+        where: { oidcSub: sub } as any,
+        include: USER_WITH_ROLES,
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `OIDC lookup by sub failed: ${err?.code || err?.constructor?.name}: ${err?.message}`,
+      );
+      throw err;
+    }
+  }
+
+  private async findUserByEmailInsensitive(email: string): Promise<any | null> {
+    return this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      include: USER_WITH_ROLES,
+    });
+  }
+
+  private async linkOidcSub(user: any, sub: string): Promise<any> {
+    if (user.oidcSub && user.oidcSub !== sub) {
+      throw new UnauthorizedException(
+        'This email is already linked to another SSO identity',
+      );
+    }
+    if (user.oidcSub === sub && user.status !== 'SUSPENDED' && user.status !== 'INACTIVE') {
+      return user;
+    }
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        oidcSub: sub,
+        emailVerified: true,
+        emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+        ...(user.status === 'SUSPENDED' || user.status === 'INACTIVE'
+          ? {}
+          : { status: 'ACTIVE' as any }),
+      } as any,
+      include: USER_WITH_ROLES,
+    });
   }
 
   /**

@@ -10,7 +10,12 @@ import { EmailService } from '../../notification-engine/email.service';
 describe('AuthService.loginWithOidcClaims', () => {
   let service: AuthService;
   let prisma: {
-    user: { findUnique: jest.Mock; create: jest.Mock; update: jest.Mock };
+    user: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
     role: { findUnique: jest.Mock };
     userRole: { create: jest.Mock };
     refreshToken: { create: jest.Mock };
@@ -31,6 +36,7 @@ describe('AuthService.loginWithOidcClaims', () => {
     prisma = {
       user: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -87,9 +93,8 @@ describe('AuthService.loginWithOidcClaims', () => {
   });
 
   it('JIT-creates a user when sub and email are new', async () => {
-    prisma.user.findUnique
-      .mockResolvedValueOnce(null) // by oidcSub
-      .mockResolvedValueOnce(null); // by email
+    prisma.user.findUnique.mockResolvedValueOnce(null); // by oidcSub
+    prisma.user.findFirst.mockResolvedValueOnce(null); // by email
     prisma.user.create.mockResolvedValue({ ...userInclude, userRoles: [] });
 
     const result = await service.loginWithOidcClaims({
@@ -98,6 +103,46 @@ describe('AuthService.loginWithOidcClaims', () => {
       name: 'Jane',
     });
     expect(prisma.user.create).toHaveBeenCalled();
+    expect(result.accessToken).toBe('jwt');
+  });
+
+  it('links an existing SLMS user on first Hub login with the same email', async () => {
+    const existing = { ...userInclude, oidcSub: null, email: 'Jane@Example.com' };
+    prisma.user.findUnique.mockResolvedValueOnce(null); // by oidcSub
+    prisma.user.findFirst.mockResolvedValueOnce(existing); // by email, case-insensitive
+    prisma.user.update.mockResolvedValue({
+      ...existing,
+      oidcSub: 'hub-sub-1',
+      email: 'jane@example.com',
+      status: 'ACTIVE',
+    });
+
+    const result = await service.loginWithOidcClaims({
+      sub: 'hub-sub-1',
+      email: 'jane@example.com',
+    });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).toHaveBeenCalled();
+    expect(result.accessToken).toBe('jwt');
+  });
+
+  it('links an existing user when JIT create hits a unique email constraint', async () => {
+    const existing = { ...userInclude, oidcSub: null };
+    prisma.user.findUnique.mockResolvedValueOnce(null);
+    prisma.user.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing);
+    prisma.user.create.mockRejectedValue({ code: 'P2002' });
+    prisma.user.update.mockResolvedValue({
+      ...existing,
+      oidcSub: 'hub-sub-1',
+      status: 'ACTIVE',
+    });
+
+    const result = await service.loginWithOidcClaims({
+      sub: 'hub-sub-1',
+      email: 'jane@example.com',
+    });
     expect(result.accessToken).toBe('jwt');
   });
 
