@@ -75,6 +75,14 @@ services:
       SMTP_PASS: ${SMTP_PASS:-""}
       SMTP_FROM: ${SMTP_FROM:-SLMS Notifications <noreply@slms.local>}
       WEB_URL: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid email profile}
+      SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-Lax}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
     volumes:
       - ${STORAGE_HOST_PATH:-./data/storage}:/app/storage:rw
     depends_on:

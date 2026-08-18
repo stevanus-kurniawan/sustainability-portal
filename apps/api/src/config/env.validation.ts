@@ -99,6 +99,35 @@ class EnvironmentVariables {
   @IsOptional()
   STORAGE_ROOT_PATH: string = '/app/storage';
 
+  // DWS Hub OIDC (optional; routes 404 until these are set)
+  @IsString()
+  @IsOptional()
+  OIDC_DISCOVERY_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  OIDC_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  OIDC_REDIRECT_URI?: string;
+
+  @IsString()
+  @IsOptional()
+  OIDC_SCOPES?: string;
+
+  @IsString()
+  @IsOptional()
+  FRONTEND_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SESSION_COOKIE_SAMESITE?: string;
+
+  @IsString()
+  @IsOptional()
+  SESSION_COOKIE_SECURE?: string;
+
   // Throttling (rate limiting)
   @IsNumber()
   @IsOptional()
