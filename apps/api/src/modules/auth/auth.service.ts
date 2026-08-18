@@ -331,8 +331,20 @@ export class AuthService {
         include: USER_WITH_ROLES,
       });
     } catch (err: any) {
-      this.logger.warn(
-        `OIDC lookup by sub failed: ${err?.code || err?.constructor?.name}: ${err?.message}`,
+      const msg: string = err?.message || '';
+      // Column does not exist yet — migration not applied on this environment.
+      if (msg.includes('oidc_sub') || msg.includes('column') || err?.code === 'P2022') {
+        this.logger.error(
+          'OIDC: oidc_sub column missing — run "prisma migrate deploy" on the API container.',
+          err?.stack,
+        );
+        throw new Error(
+          'Database migration not applied. Run "prisma migrate deploy" on the API, then restart.',
+        );
+      }
+      this.logger.error(
+        `OIDC lookup by sub failed [${err?.code || err?.constructor?.name}]: ${msg}`,
+        err?.stack,
       );
       throw err;
     }

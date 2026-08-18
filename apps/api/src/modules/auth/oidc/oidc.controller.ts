@@ -71,6 +71,10 @@ export class OidcController {
       }
 
       // IdP-initiated (Hub tile): Hub sends code_verifier because we never ran /login.
+      this.logger.log(
+        `OIDC callback received: idp_initiated=${!!codeVerifier} state_present=${!!state} cookie_present=${!!req.cookies?.[OIDC_PKCE_COOKIE]}`,
+      );
+
       const claims = codeVerifier
         ? await this.oidcService.exchangeIdpInitiated(code, codeVerifier, req)
         : await this.oidcService.exchangeSpInitiated(
@@ -80,14 +84,25 @@ export class OidcController {
             req,
           );
 
+      this.logger.log(
+        `OIDC token verified: sub=${claims.sub} email=${claims.email ?? '(none)'} email_claims=${JSON.stringify({
+          email: claims.email,
+          preferred_username: (claims as any).preferred_username,
+          upn: (claims as any).upn,
+          unique_name: (claims as any).unique_name,
+          emails: (claims as any).emails,
+        })}`,
+      );
+
       const tokens = await this.authService.loginWithOidcClaims(claims);
       clearOidcPkceCookie(res, req);
       setUserSessionCookies(res, tokens.accessToken, tokens.expiresIn, req);
-      this.logger.log(`OIDC login: ${tokens.user.email}`);
+      this.logger.log(`OIDC login success: ${tokens.user.email}`);
       return res.redirect(303, frontend);
     } catch (exc: any) {
-      this.logger.warn(
-        `OIDC callback failed: ${exc?.constructor?.name || 'Error'}: ${exc?.message || exc}`,
+      this.logger.error(
+        `OIDC callback failed [${exc?.constructor?.name || 'Error'}]: ${exc?.message || exc}`,
+        exc?.stack,
       );
       clearOidcPkceCookie(res, req);
       return res.redirect(303, failUrl);
