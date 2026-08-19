@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  applyOidcCookies,
+  getSetCookiesFromResponse,
+  oidcHtmlRedirect,
+  requestAppearsHttps,
+} from '@/lib/oidc-proxy';
 
 const DOCKER_API_ORIGIN = 'http://slms-api:3001';
 
@@ -13,38 +19,10 @@ function getBackendOrigin(): string {
   return 'http://localhost:3001';
 }
 
-function rewriteCookieHeader(cookieHeader: string, requestIsHttps: boolean): string {
-  let out = cookieHeader.replace(/\s*;\s*Domain=[^;]+/gi, '');
-  if (!requestIsHttps) {
-    out = out.replace(/\s*;\s*Secure\b/gi, '');
-  }
-  return out;
-}
-
-function getSetCookiesFromResponse(res: Response): string[] {
-  const headers = res.headers as Headers & { getSetCookie?(): string[] };
-  if (typeof headers.getSetCookie === 'function') {
-    return headers.getSetCookie();
-  }
-  const single = res.headers.get('set-cookie');
-  return single ? [single] : [];
-}
-
 function isConnectionRefused(err: unknown): boolean {
   const e = err as NodeJS.ErrnoException & { cause?: NodeJS.ErrnoException; errors?: Array<{ code?: string }> };
   const code = e?.code ?? e?.cause?.code ?? e?.errors?.[0]?.code;
   return code === 'ECONNREFUSED' || code === 'ENOTFOUND';
-}
-
-function applyBackendCookies(
-  response: NextResponse,
-  upstream: Response,
-  requestIsHttps: boolean,
-): void {
-  const setCookies = getSetCookiesFromResponse(upstream);
-  setCookies.forEach((c) => {
-    response.headers.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
-  });
 }
 
 async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<NextResponse> {
@@ -59,12 +37,10 @@ async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<
   const proto =
     request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '');
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  if (proto) headers['x-forwarded-proto'] = proto;
+  if (proto) headers['x-forwarded-proto'] = proto.split(',')[0].trim();
   if (host) headers['x-forwarded-host'] = host;
 
-  const requestIsHttps =
-    request.headers.get('x-forwarded-proto') === 'https' ||
-    request.nextUrl.protocol === 'https:';
+  const requestIsHttps = requestAppearsHttps(request);
 
   const doFetch = (url: string) =>
     fetch(url, {
@@ -90,31 +66,16 @@ async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<
     }
   }
 
+  const setCookies = getSetCookiesFromResponse(upstream);
+
   if (upstream.status >= 300 && upstream.status < 400) {
     const location = upstream.headers.get('location');
     if (!location) {
       return NextResponse.json({ message: 'SSO redirect missing Location' }, { status: 502 });
     }
-
-    const setCookies = getSetCookiesFromResponse(upstream);
-
-    // If there are cookies to set (e.g. oidc_pkce on login-start), use an HTML page so the
-    // browser commits the cookies before following the redirect. NextResponse.redirect() can
-    // silently drop Set-Cookie headers in some Next.js configurations.
     if (setCookies.length > 0) {
-      const safeUrl = JSON.stringify(location);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>window.location.replace(${safeUrl})</script><noscript><meta http-equiv="refresh" content="0;url=${location.replace(/"/g, '&quot;')}"></noscript></head><body></body></html>`;
-      const response = new NextResponse(html, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-      setCookies.forEach((c) => {
-        response.headers.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
-      });
-      return response;
+      return oidcHtmlRedirect(location, setCookies, requestIsHttps);
     }
-
-    // No cookies — plain redirect is safe.
     return NextResponse.redirect(location, upstream.status as 301 | 302 | 303 | 307 | 308);
   }
 
@@ -131,7 +92,7 @@ async function proxyOidc(request: NextRequest, pathSegments: string[]): Promise<
     status: upstream.status,
     headers: responseHeaders,
   });
-  applyBackendCookies(response, upstream, requestIsHttps);
+  applyOidcCookies(response, setCookies, requestIsHttps);
   return response;
 }
 

@@ -95,6 +95,8 @@ services:
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid email profile}
       SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-Lax}
+      # Set SESSION_COOKIE_SECURE=false in .env when running over plain HTTP (e.g. staging without TLS).
+      # Browsers silently reject Secure cookies on HTTP origins, breaking SSO session delivery.
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
     ports:
       - "8001:3001"
