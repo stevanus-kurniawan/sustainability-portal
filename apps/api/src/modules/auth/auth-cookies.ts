@@ -7,12 +7,21 @@ export const OIDC_PKCE_COOKIE = 'oidc_pkce';
 
 const PKCE_COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
+function forwardedProto(req?: any): string {
+  const raw = req?.headers?.['x-forwarded-proto'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return String(value || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+}
+
 export function getAuthCookieOptions(req?: any): CookieOptions {
   const nodeEnv = process.env.NODE_ENV || 'development';
   const isProd = nodeEnv === 'production';
-  const forwardedProto = req?.headers?.['x-forwarded-proto'];
+  const proto = forwardedProto(req);
   const reqSecure = !!req?.secure;
-  const appearsSecure = reqSecure || forwardedProto === 'https';
+  const appearsSecure = reqSecure || proto === 'https';
 
   const secureEnv = (process.env.SESSION_COOKIE_SECURE || '').toLowerCase();
   let secure: boolean;
@@ -24,15 +33,26 @@ export function getAuthCookieOptions(req?: any): CookieOptions {
     secure = isProd ? true : appearsSecure;
   }
 
+  // Browsers refuse Secure cookies on HTTP. Hub SSO over http://host:8000 would
+  // otherwise succeed in API logs and still bounce the user to /login.
+  if (!appearsSecure) {
+    secure = false;
+  }
+
   const sameSiteRaw = (
     process.env.SESSION_COOKIE_SAMESITE ||
     process.env.COOKIE_SAMESITE ||
     'lax'
   ).toLowerCase();
-  const sameSite: 'lax' | 'strict' | 'none' =
+  let sameSite: 'lax' | 'strict' | 'none' =
     sameSiteRaw === 'none' || sameSiteRaw === 'strict' || sameSiteRaw === 'lax'
       ? sameSiteRaw
       : 'lax';
+
+  // SameSite=None is rejected unless Secure. On HTTP, fall back to Lax.
+  if (!secure && sameSite === 'none') {
+    sameSite = 'lax';
+  }
 
   const domain = process.env.COOKIE_DOMAIN || undefined;
 

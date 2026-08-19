@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInternalApiBase } from '@/lib/internal-api';
+import {
+  applyOidcCookies,
+  getSetCookiesFromResponse,
+  oidcHtmlRedirect,
+  requestAppearsHttps,
+  rewriteCookieHeader,
+} from '@/lib/oidc-proxy';
 
 /** Docker Compose API host; used when connection to localhost fails (web container can't reach host). */
 const DOCKER_API_ORIGIN = 'http://slms-api:3001';
@@ -52,7 +59,7 @@ async function proxyToBackend(request: NextRequest, pathSegments: string[]) {
       lower === 'x-forwarded-host' ||
       lower === 'x-forwarded-for'
     ) {
-      headers[key] = value;
+      headers[key] = lower === 'x-forwarded-proto' ? value.split(',')[0].trim() : value;
     }
   });
   const forwardedProto =
@@ -60,7 +67,7 @@ async function proxyToBackend(request: NextRequest, pathSegments: string[]) {
   const forwardedHost =
     request.headers.get('x-forwarded-host') || request.headers.get('host');
   if (forwardedProto && !('x-forwarded-proto' in headers) && !('X-Forwarded-Proto' in headers)) {
-    headers['x-forwarded-proto'] = forwardedProto;
+    headers['x-forwarded-proto'] = forwardedProto.split(',')[0].trim();
   }
   if (forwardedHost) {
     headers['x-forwarded-host'] = forwardedHost;
@@ -122,93 +129,54 @@ function getRuntimeBackendBase(): string | null {
   }
 }
 
-/**
- * Rewrite Set-Cookie so cookies work when the response is sent via this proxy (same-origin).
- * - Remove Domain= so the cookie is bound to the frontend host (fixes redirect after login on two-server dev).
- * - Remove Secure when the request to the proxy is HTTP so the browser accepts the cookie on HTTP dev.
- */
-function rewriteSetCookieForFrontendHost(cookieHeader: string, requestIsHttps: boolean): string {
-  let out = cookieHeader.replace(/\s*;\s*Domain=[^;]+/gi, '');
-  if (!requestIsHttps) {
-    out = out.replace(/\s*;\s*Secure\b/gi, '');
-  }
-  return out;
-}
-
-/** Get all Set-Cookie header values (Node 18+ getSetCookie, or fallback so admin-auth/login cookie is always forwarded). */
-function getSetCookiesFromResponse(res: Response): string[] {
-  const headers = res.headers as Headers & { getSetCookie?(): string[] };
-  if (typeof headers.getSetCookie === 'function') {
-    return headers.getSetCookie();
-  }
-  const single = res.headers.get('set-cookie');
-  return single ? [single] : [];
-}
-
 async function forwardResponse(
   request: NextRequest,
   res: Response,
   isOidc = false,
 ): Promise<NextResponse> {
-  const forwardedProto = request.headers.get('x-forwarded-proto');
-  const requestIsHttps =
-    forwardedProto === 'https' || request.nextUrl.protocol === 'https:';
+  const requestIsHttps = requestAppearsHttps(request);
+  const setCookies = getSetCookiesFromResponse(res);
 
   if (isOidc && res.status >= 300 && res.status < 400) {
     const location = res.headers.get('location');
     if (!location) {
       return NextResponse.json({ message: 'SSO redirect missing Location' }, { status: 502 });
     }
-
-    const setCookies = getSetCookiesFromResponse(res);
-
-    // If there are cookies to set (auth callback → tokens), return a 200 HTML page that
-    // sets cookies before navigating. NextResponse.redirect() can silently drop Set-Cookie
-    // headers in some Next.js configurations, causing the session to be lost.
     if (setCookies.length > 0) {
-      const safeUrl = JSON.stringify(location);
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><script>window.location.replace(${safeUrl})</script><noscript><meta http-equiv="refresh" content="0;url=${location.replace(/"/g, '&quot;')}"></noscript></head><body></body></html>`;
-      const response = new NextResponse(html, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-      setCookies.forEach((c) => {
-        response.headers.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
-      });
-      return response;
+      return oidcHtmlRedirect(location, setCookies, requestIsHttps);
     }
-
-    // No cookies (e.g. login-start redirect to Hub) — plain redirect is fine.
-    const response = NextResponse.redirect(location, res.status as 301 | 302 | 303 | 307 | 308);
-    return response;
+    return NextResponse.redirect(location, res.status as 301 | 302 | 303 | 307 | 308);
   }
 
   const responseHeaders = new Headers();
-  const setCookies = getSetCookiesFromResponse(res);
   res.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === 'set-cookie') {
-      if (!setCookies.length) responseHeaders.append(key, value);
-    } else if (lower !== 'content-encoding' && lower !== 'transfer-encoding') {
-      responseHeaders.set(key, value);
+    if (lower === 'set-cookie' || lower === 'content-encoding' || lower === 'transfer-encoding') {
+      return;
     }
+    responseHeaders.set(key, value);
   });
-  if (setCookies.length) {
+  if (!isOidc && setCookies.length) {
     setCookies.forEach((c) => {
-      responseHeaders.append('set-cookie', rewriteSetCookieForFrontendHost(c, requestIsHttps));
+      responseHeaders.append('set-cookie', rewriteCookieHeader(c, requestIsHttps));
     });
   }
 
   const responseBody = await res.text();
+  let response: NextResponse;
   try {
     const data = responseBody ? JSON.parse(responseBody) : null;
-    return NextResponse.json(data, { status: res.status, headers: responseHeaders });
+    response = NextResponse.json(data, { status: res.status, headers: responseHeaders });
   } catch {
-    return new NextResponse(responseBody || null, {
+    response = new NextResponse(responseBody || null, {
       status: res.status,
       headers: responseHeaders,
     });
   }
+  if (isOidc) {
+    applyOidcCookies(response, setCookies, requestIsHttps);
+  }
+  return response;
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {

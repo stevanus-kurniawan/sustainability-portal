@@ -27,6 +27,10 @@ function hasAdminCookie(req: NextRequest): boolean {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  if (/\.(?:webmanifest|json|png|jpe?g|gif|svg|webp|ico|txt|xml|map)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Admin area: all /admin/* except /admin/login require admin cookie
   if (pathname.startsWith(ADMIN_PREFIX)) {
     if (pathname === ADMIN_LOGIN || pathname === `${ADMIN_LOGIN}/`) {
@@ -67,6 +71,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|assets|images|backgrounds|banners|api|logo\\.png).*)',
+    '/((?!_next/static|_next/image|favicon.ico|assets|images|backgrounds|banners|api|logo\\.png|site\\.webmanifest|android-chrome[^/]*\\.png|.*\\.(?:png|jpe?g|gif|svg|webp|ico|txt|xml|webmanifest|json|map)$).*)',
   ],
 };

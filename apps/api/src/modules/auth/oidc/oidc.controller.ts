@@ -17,6 +17,7 @@ import {
   setOidcPkceCookie,
   setUserSessionCookies,
 } from '../auth-cookies';
+import { sendOidcBrowserRedirect } from './oidc-browser-redirect';
 import { OidcService } from './oidc.service';
 
 @ApiTags('auth')
@@ -42,7 +43,8 @@ export class OidcController {
     this.assertConfigured();
     const { url, pkceToken } = await this.oidcService.startLogin(req);
     setOidcPkceCookie(res, pkceToken, req);
-    return res.redirect(302, url);
+    sendOidcBrowserRedirect(res, url);
+    return;
   }
 
   @Get('callback')
@@ -63,11 +65,13 @@ export class OidcController {
       if (hubError) {
         this.logger.warn(`OIDC callback Hub error: ${hubError}`);
         clearOidcPkceCookie(res, req);
-        return res.redirect(303, failUrl);
+        sendOidcBrowserRedirect(res, failUrl);
+        return;
       }
       if (!code) {
         clearOidcPkceCookie(res, req);
-        return res.redirect(303, failUrl);
+        sendOidcBrowserRedirect(res, failUrl);
+        return;
       }
 
       // IdP-initiated (Hub tile): Hub sends code_verifier because we never ran /login.
@@ -98,14 +102,16 @@ export class OidcController {
       clearOidcPkceCookie(res, req);
       setUserSessionCookies(res, tokens.accessToken, tokens.expiresIn, req);
       this.logger.log(`OIDC login success: ${tokens.user.email}`);
-      return res.redirect(303, frontend);
+      sendOidcBrowserRedirect(res, frontend);
+      return;
     } catch (exc: any) {
       this.logger.error(
         `OIDC callback failed [${exc?.constructor?.name || 'Error'}]: ${exc?.message || exc}`,
         exc?.stack,
       );
       clearOidcPkceCookie(res, req);
-      return res.redirect(303, failUrl);
+      sendOidcBrowserRedirect(res, failUrl);
+      return;
     }
   }
 
